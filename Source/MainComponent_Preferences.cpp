@@ -1,0 +1,575 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 Studio Asteroid
+
+// MainComponent の環境設定ダイアログ実装 (showPreferences)。
+// MainComponent_Dialogs.cpp から分割。
+
+#include "MainComponent.h"
+#include "Localisation.h"
+#include "Audio/AudioDeviceSettings.h"
+#include "Export/ExportEngine.h"
+#include "Export/ExportDialog.h"
+#include "MIDI/MidiImporter.h"
+#include "MIDI/MidiImportDialog.h"
+
+void MainComponent::showPreferences()
+{
+    class PrefsDlg : public juce::Component
+    {
+    public:
+        juce::Label    languageLabel, bitsLabel, behaviorLabel, recLabel, autoSaveLabel,
+                       backupCountLabel, vuRefLabel, loudnessLabel;
+        juce::ComboBox languageCombo, bitsCombo, autoSaveCombo, backupCountCombo, vuRefCombo, loudnessCombo;
+        std::function<void(int)>   onLanguageChanged;   // 1=日本語, 2=English
+        juce::ToggleButton followSelBtn, retroBtn, rtzBtn, autoNormBtn, zoomMouseBtn, peakGuardBtn, zeroCrossBtn, stripMetaBtn;
+        juce::ToggleButton showMidiExportBtn;   // 初期状態 / コールバックは showPreferences 側で設定 (アプリ全体設定)
+        juce::ToggleButton showAdsBtn;          // 起動画面の広告表示 (アプリ全体設定。初期状態は showPreferences 側で設定)
+        juce::Label        exportLabel, startupLabel;
+        const bool         adsUi { AppPreferences::adsCompiledIn() };  // 広告がコンパイル時有効な時だけ UI を出す
+        juce::TextButton closeBtn, resetBtn;
+        std::function<void(int)>   onBitsChanged;
+        std::function<void(bool)>  onFollowSelChanged;
+        std::function<void(bool)>  onRetroChanged;
+        std::function<void(bool)>  onRtzChanged;
+        std::function<void(int)>   onAutoSaveChanged;
+        std::function<void(int)>   onBackupCountChanged;
+        std::function<void(float)> onVuRefChanged;
+        std::function<void(float)> onLoudnessTargetChanged;
+        std::function<void(bool)>  onAutoNormChanged;
+        std::function<void(bool)>  onZoomMouseChanged;
+        std::function<void(bool)>  onPeakGuardChanged;
+        std::function<void(bool)>  onZeroCrossChanged;
+        std::function<void(bool)>  onStripMetaChanged;
+        std::function<void(bool)>  onShowMidiExportChanged;
+        std::function<void(bool)>  onShowAdsChanged;
+        std::function<void()>      onResetDefaults;
+
+        PrefsDlg(int curBits, bool curFollowSel, bool curRetro, bool curRtz,
+                 int curAutoSaveMin, int curMaxBackups, float curVuRefDb, float curLoudnessTargetLufs,
+                 bool curAutoNorm, bool curZoomMouse, bool curPeakGuard, bool curZeroCross,
+                 bool curStripMeta)
+        {
+            auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
+            auto setupLabel = [this](juce::Label& l, juce::String txt, float fontSize, juce::Colour col) {
+                l.setText(txt, juce::dontSendNotification);
+                l.setColour(juce::Label::textColourId, col);
+                l.setFont(juce::FontOptions(fontSize));
+                addAndMakeVisible(l);
+            };
+            setupLabel(languageLabel, J(u8"言語 (Language)  ※再起動で反映"), 13.0f, juce::Colours::white);
+            // 言語名は各言語の表記のまま (翻訳しない)
+            languageCombo.addItem(tr(u8"日本語"), 1);
+            languageCombo.addItem("English", 2);
+            languageCombo.setSelectedId(
+                Localisation::getSavedLanguage() == Localisation::Language::English ? 2 : 1,
+                juce::dontSendNotification);
+            languageCombo.setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff3a3a3a));
+            languageCombo.setColour(juce::ComboBox::textColourId, juce::Colours::white);
+            languageCombo.setColour(juce::ComboBox::arrowColourId, juce::Colours::white);
+            languageCombo.setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff555555));
+            languageCombo.onChange = [this] {
+                if (onLanguageChanged) onLanguageChanged(languageCombo.getSelectedId());
+            };
+            addAndMakeVisible(languageCombo);
+
+            setupLabel(bitsLabel, J(u8"インポート時のリサンプル出力"), 13.0f, juce::Colours::white);
+            setupLabel(behaviorLabel, J(u8"編集動作"), 13.0f, juce::Colours::white);
+            setupLabel(recLabel,      J(u8"録音フロー"), 13.0f, juce::Colours::white);
+            setupLabel(autoSaveLabel, J(u8"自動保存"), 13.0f, juce::Colours::white);
+            setupLabel(backupCountLabel, J(u8"バックアップを残す数 (古い世代から自動削除)"), 13.0f, juce::Colours::white);
+            setupLabel(vuRefLabel,    J(u8"VU メータ基準レベル (0 VU)"), 13.0f, juce::Colours::white);
+            setupLabel(loudnessLabel, J(u8"ラウドネス自動調整ターゲット"), 13.0f, juce::Colours::white);
+            setupLabel(exportLabel,   J(u8"書き出し"), 13.0f, juce::Colours::white);
+            if (adsUi)
+                setupLabel(startupLabel,  J(u8"起動画面"), 13.0f, juce::Colours::white);
+
+            bitsCombo.addItem("32-bit float", 32);
+            bitsCombo.addItem("24-bit", 24);
+            bitsCombo.setSelectedId(curBits == 24 ? 24 : 32, juce::dontSendNotification);
+            bitsCombo.setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff3a3a3a));
+            bitsCombo.setColour(juce::ComboBox::textColourId, juce::Colours::white);
+            bitsCombo.setColour(juce::ComboBox::arrowColourId, juce::Colours::white);
+            bitsCombo.setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff555555));
+            bitsCombo.onChange = [this] {
+                if (onBitsChanged) onBitsChanged(bitsCombo.getSelectedId());
+            };
+            addAndMakeVisible(bitsCombo);
+
+            // インポート時の不要メタデータ除去 (他 DAW のテンポ/ループ情報の流入防止)。既定 ON。
+            stripMetaBtn.setButtonText(
+                J(u8"インポート時に不要なタグを削除する (テンポ等の埋め込み情報)"));
+            stripMetaBtn.setToggleState(curStripMeta, juce::dontSendNotification);
+            stripMetaBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
+            stripMetaBtn.onClick = [this] {
+                if (onStripMetaChanged) onStripMetaChanged(stripMetaBtn.getToggleState());
+            };
+            addAndMakeVisible(stripMetaBtn);
+
+            followSelBtn.setButtonText(
+                J(u8"再生バーを選択先頭に追従させる (Insertion Follows Selection)"));
+            followSelBtn.setToggleState(curFollowSel, juce::dontSendNotification);
+            followSelBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
+            followSelBtn.onClick = [this] {
+                if (onFollowSelChanged) onFollowSelChanged(followSelBtn.getToggleState());
+            };
+            addAndMakeVisible(followSelBtn);
+
+            rtzBtn.setButtonText(
+                J(u8"停止時に再生開始位置へ戻る (Return To Zero)"));
+            rtzBtn.setToggleState(curRtz, juce::dontSendNotification);
+            rtzBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
+            rtzBtn.onClick = [this] {
+                if (onRtzChanged) onRtzChanged(rtzBtn.getToggleState());
+            };
+            addAndMakeVisible(rtzBtn);
+
+            zoomMouseBtn.setButtonText(
+                J(u8"Cmd+スクロール拡大の起点をマウス位置にする (OFF: 再生バー中央)"));
+            zoomMouseBtn.setToggleState(curZoomMouse, juce::dontSendNotification);
+            zoomMouseBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
+            zoomMouseBtn.onClick = [this] {
+                if (onZoomMouseChanged) onZoomMouseChanged(zoomMouseBtn.getToggleState());
+            };
+            addAndMakeVisible(zoomMouseBtn);
+
+            zeroCrossBtn.setButtonText(
+                J(u8"クロスフェードをゼロクロス点でつなぐ (プチッ音を防ぐ)"));
+            zeroCrossBtn.setToggleState(curZeroCross, juce::dontSendNotification);
+            zeroCrossBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
+            zeroCrossBtn.onClick = [this] {
+                if (onZeroCrossChanged) onZeroCrossChanged(zeroCrossBtn.getToggleState());
+            };
+            addAndMakeVisible(zeroCrossBtn);
+
+            // 録音フロー
+            retroBtn.setButtonText(J(u8"再生中バックグラウンド録音 (遡及録音 Cmd+Shift+R で確定)"));
+            retroBtn.setToggleState(curRetro, juce::dontSendNotification);
+            retroBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
+            retroBtn.onClick = [this] {
+                if (onRetroChanged) onRetroChanged(retroBtn.getToggleState());
+            };
+            addAndMakeVisible(retroBtn);
+
+            // 自動保存: 無効 + 5 分刻み (5/10/15/20/25/30)
+            // ID = minutes + 1 (無効=1, 5分=6, ...)
+            autoSaveCombo.addItem(J(u8"無効"),  1);
+            autoSaveCombo.addItem(J(u8"5 分"),  6);
+            autoSaveCombo.addItem(J(u8"10 分"), 11);
+            autoSaveCombo.addItem(J(u8"15 分"), 16);
+            autoSaveCombo.addItem(J(u8"20 分"), 21);
+            autoSaveCombo.addItem(J(u8"25 分"), 26);
+            autoSaveCombo.addItem(J(u8"30 分"), 31);
+            auto minutesToId = [](int m) -> int {
+                if (m <= 0)  return 1;
+                int snapped = ((m + 2) / 5) * 5;  // 直近の 5 分刻みに丸め
+                snapped = juce::jlimit(5, 30, snapped);
+                return snapped + 1;
+            };
+            autoSaveCombo.setSelectedId(minutesToId(curAutoSaveMin), juce::dontSendNotification);
+            autoSaveCombo.setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff3a3a3a));
+            autoSaveCombo.setColour(juce::ComboBox::textColourId, juce::Colours::white);
+            autoSaveCombo.setColour(juce::ComboBox::arrowColourId, juce::Colours::white);
+            autoSaveCombo.setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff555555));
+            autoSaveCombo.onChange = [this] {
+                int id = autoSaveCombo.getSelectedId();
+                int mins = (id <= 1) ? 0 : (id - 1);
+                if (onAutoSaveChanged) onAutoSaveChanged(mins);
+            };
+            addAndMakeVisible(autoSaveCombo);
+
+            // バックアップ世代数: 5/10/20/30/50/100 個。ID = 個数そのもの。既定 20
+            backupCountCombo.addItem(J(u8"5 個"),   5);
+            backupCountCombo.addItem(J(u8"10 個"),  10);
+            backupCountCombo.addItem(J(u8"20 個"),  20);
+            backupCountCombo.addItem(J(u8"30 個"),  30);
+            backupCountCombo.addItem(J(u8"50 個"),  50);
+            backupCountCombo.addItem(J(u8"100 個"), 100);
+            auto snapBackups = [](int n) -> int {
+                const int opts[] = { 5, 10, 20, 30, 50, 100 };
+                int best = 20, bestDiff = 1 << 30;
+                for (int o : opts) { int d = (o > n) ? (o - n) : (n - o);
+                                     if (d < bestDiff) { bestDiff = d; best = o; } }
+                return best;
+            };
+            backupCountCombo.setSelectedId(snapBackups(curMaxBackups), juce::dontSendNotification);
+            backupCountCombo.setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff3a3a3a));
+            backupCountCombo.setColour(juce::ComboBox::textColourId, juce::Colours::white);
+            backupCountCombo.setColour(juce::ComboBox::arrowColourId, juce::Colours::white);
+            backupCountCombo.setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff555555));
+            backupCountCombo.onChange = [this] {
+                if (onBackupCountChanged) onBackupCountChanged(backupCountCombo.getSelectedId());
+            };
+            addAndMakeVisible(backupCountCombo);
+
+            // VU メータ基準レベル: -14 / -18 / -20 / -24 dBFS
+            // ID = abs(dB) (14, 18, 20, 24)
+            vuRefCombo.addItem(J(u8"-14 dBFS (配信向け)"),         14);
+            vuRefCombo.addItem(J(u8"-18 dBFS (EBU R68 / 放送)"),   18);
+            vuRefCombo.addItem(J(u8"-20 dBFS (SMPTE / ポスプロ)"), 20);
+            vuRefCombo.addItem(J(u8"-24 dBFS (映画向け)"),         24);
+            auto vuRefToId = [](float dB) -> int {
+                const int abs = (int) std::round(-dB);
+                if (abs <= 16) return 14;
+                if (abs <= 19) return 18;
+                if (abs <= 22) return 20;
+                return 24;
+            };
+            vuRefCombo.setSelectedId(vuRefToId(curVuRefDb), juce::dontSendNotification);
+            vuRefCombo.setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff3a3a3a));
+            vuRefCombo.setColour(juce::ComboBox::textColourId, juce::Colours::white);
+            vuRefCombo.setColour(juce::ComboBox::arrowColourId, juce::Colours::white);
+            vuRefCombo.setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff555555));
+            vuRefCombo.onChange = [this] {
+                if (onVuRefChanged) onVuRefChanged(-(float) vuRefCombo.getSelectedId());
+            };
+            addAndMakeVisible(vuRefCombo);
+
+            // ラウドネス自動調整ターゲット: -14 / -16 / -18 / -23 / -24 LUFS
+            // ID = abs(LUFS) (14, 16, 18, 23, 24)
+            loudnessCombo.addItem(J(u8"-14 LUFS (Spotify / 配信)"),     14);
+            loudnessCombo.addItem(J(u8"-16 LUFS (Apple Music)"),        16);
+            loudnessCombo.addItem(J(u8"-18 LUFS (動画 / Web)"),         18);
+            loudnessCombo.addItem(J(u8"-23 LUFS (EBU R128 放送)"),      23);
+            loudnessCombo.addItem(J(u8"-24 LUFS (ATSC A/85)"),          24);
+            auto loudnessToId = [](float lufs) -> int {
+                const int abs = (int) std::round(-lufs);
+                if (abs <= 15) return 14;
+                if (abs <= 17) return 16;
+                if (abs <= 20) return 18;
+                if (abs <= 23) return 23;
+                return 24;
+            };
+            loudnessCombo.setSelectedId(loudnessToId(curLoudnessTargetLufs), juce::dontSendNotification);
+            loudnessCombo.setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff3a3a3a));
+            loudnessCombo.setColour(juce::ComboBox::textColourId, juce::Colours::white);
+            loudnessCombo.setColour(juce::ComboBox::arrowColourId, juce::Colours::white);
+            loudnessCombo.setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff555555));
+            loudnessCombo.onChange = [this] {
+                if (onLoudnessTargetChanged)
+                    onLoudnessTargetChanged(-(float) loudnessCombo.getSelectedId());
+            };
+            addAndMakeVisible(loudnessCombo);
+
+            autoNormBtn.setButtonText(
+                J(u8"インポート時にラウドネスを上記ターゲットへ自動調整"));
+            autoNormBtn.setToggleState(curAutoNorm, juce::dontSendNotification);
+            autoNormBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
+            autoNormBtn.onClick = [this] {
+                if (onAutoNormChanged) onAutoNormChanged(autoNormBtn.getToggleState());
+            };
+            addAndMakeVisible(autoNormBtn);
+
+            peakGuardBtn.setButtonText(
+                J(u8"ピーク超過時に内部で減衰させて書き出す (クリッピング防止)"));
+            peakGuardBtn.setToggleState(curPeakGuard, juce::dontSendNotification);
+            peakGuardBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
+            peakGuardBtn.onClick = [this] {
+                if (onPeakGuardChanged) onPeakGuardChanged(peakGuardBtn.getToggleState());
+            };
+            addAndMakeVisible(peakGuardBtn);
+
+            // MIDI 書き出しメニューの表示切替 (アプリ全体設定)。初期状態は showPreferences 側で設定する
+            showMidiExportBtn.setButtonText(
+                J(u8"「MIDI を書き出す」をファイルメニューに表示"));
+            showMidiExportBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
+            showMidiExportBtn.onClick = [this] {
+                if (onShowMidiExportChanged) onShowMidiExportChanged(showMidiExportBtn.getToggleState());
+            };
+            addAndMakeVisible(showMidiExportBtn);
+
+            // 起動画面の広告表示切替 (広告がコンパイル時有効なビルドのみ表示。初期状態は showPreferences 側)
+            if (adsUi)
+            {
+                showAdsBtn.setButtonText(
+                    J(u8"起動画面に広告を表示する (OFF で通信しません。次回起動で反映)"));
+                showAdsBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
+                showAdsBtn.onClick = [this] {
+                    if (onShowAdsChanged) onShowAdsChanged(showAdsBtn.getToggleState());
+                };
+                addAndMakeVisible(showAdsBtn);
+            }
+
+            closeBtn.setButtonText(J(u8"閉じる"));
+            closeBtn.onClick = [this] {
+                if (auto* dw = findParentComponentOfClass<juce::DialogWindow>())
+                    dw->exitModalState(0);
+            };
+            addAndMakeVisible(closeBtn);
+
+            resetBtn.setButtonText(J(u8"デフォルトに戻す"));
+            resetBtn.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff5a3a3a));
+            resetBtn.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+            resetBtn.onClick = [this]
+            {
+                auto JJ = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
+                juce::AlertWindow::showAsync(juce::MessageBoxOptions()
+                    .withIconType(juce::MessageBoxIconType::QuestionIcon)
+                    .withTitle(JJ(u8"設定リセット"))
+                    .withMessage(JJ(u8"全ての環境設定をデフォルト値に戻します。よろしいですか？"))
+                    .withButton(JJ(u8"リセット"))
+                    .withButton(JJ(u8"キャンセル")),
+                    [this](int r)
+                    {
+                        if (r != 1) return;
+                        if (onResetDefaults) onResetDefaults();
+                    });
+            };
+            addAndMakeVisible(resetBtn);
+
+            setSize(480, adsUi ? 942 : 884);
+        }
+        void resized() override
+        {
+            int y = 14;
+            languageLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
+            languageCombo.setBounds(14, y, getWidth() - 28, 26); y += 36;
+            bitsLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
+            bitsCombo.setBounds(14, y, getWidth() - 28, 26); y += 32;
+            stripMetaBtn.setBounds(14, y, getWidth() - 28, 24); y += 32;
+            behaviorLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
+            followSelBtn.setBounds(14, y, getWidth() - 28, 24); y += 28;
+            rtzBtn.setBounds      (14, y, getWidth() - 28, 24); y += 28;
+            zoomMouseBtn.setBounds(14, y, getWidth() - 28, 24); y += 28;
+            zeroCrossBtn.setBounds(14, y, getWidth() - 28, 24); y += 32;
+            recLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
+            retroBtn.setBounds(14, y, getWidth() - 28, 24); y += 32;
+            autoSaveLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
+            autoSaveCombo.setBounds(14, y, getWidth() - 28, 26); y += 32;
+            backupCountLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
+            backupCountCombo.setBounds(14, y, getWidth() - 28, 26); y += 32;
+            vuRefLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
+            vuRefCombo.setBounds(14, y, getWidth() - 28, 26); y += 32;
+            loudnessLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
+            loudnessCombo.setBounds(14, y, getWidth() - 28, 26); y += 28;
+            autoNormBtn.setBounds(14, y, getWidth() - 28, 24); y += 32;
+            exportLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
+            peakGuardBtn.setBounds(14, y, getWidth() - 28, 24); y += 28;
+            showMidiExportBtn.setBounds(14, y, getWidth() - 28, 24); y += 32;
+            if (adsUi)
+            {
+                startupLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
+                showAdsBtn.setBounds(14, y, getWidth() - 28, 24); y += 32;
+            }
+            resetBtn.setBounds(14, getHeight() - 34, 140, 26);
+            closeBtn.setBounds(getWidth() - 100 - 14, getHeight() - 34, 100, 26);
+        }
+
+        // 全 UI コントロールの表示を curXxx の値に同期させる (Reset 用)
+        void syncUiToValues(int curBits, bool curFollowSel, bool curRetro, bool curRtz,
+                            int curAutoSaveMin, int curMaxBackups, float curVuRefDb, float curLoudnessLufs,
+                            bool curAutoNorm, bool curZoomMouse, bool curPeakGuard, bool curZeroCross,
+                            bool curStripMeta)
+        {
+            bitsCombo.setSelectedId(curBits == 24 ? 24 : 32, juce::dontSendNotification);
+            followSelBtn.setToggleState(curFollowSel, juce::dontSendNotification);
+            retroBtn   .setToggleState(curRetro, juce::dontSendNotification);
+            rtzBtn     .setToggleState(curRtz,   juce::dontSendNotification);
+            zoomMouseBtn.setToggleState(curZoomMouse, juce::dontSendNotification);
+            zeroCrossBtn.setToggleState(curZeroCross, juce::dontSendNotification);
+            stripMetaBtn.setToggleState(curStripMeta, juce::dontSendNotification);
+            autoNormBtn.setToggleState(curAutoNorm, juce::dontSendNotification);
+            peakGuardBtn.setToggleState(curPeakGuard, juce::dontSendNotification);
+
+            // 自動保存: 5/10/15/20/25/30 分 もしくは 無効
+            int asId = (curAutoSaveMin <= 0) ? 1
+                       : juce::jlimit(5, 30, ((curAutoSaveMin + 2) / 5) * 5) + 1;
+            autoSaveCombo.setSelectedId(asId, juce::dontSendNotification);
+
+            // バックアップ世代数: 5/10/20/30/50/100 の最も近い値に合わせる
+            {
+                const int opts[] = { 5, 10, 20, 30, 50, 100 };
+                int best = 20, bestDiff = 1 << 30;
+                for (int o : opts) { int d = (o > curMaxBackups) ? (o - curMaxBackups) : (curMaxBackups - o);
+                                     if (d < bestDiff) { bestDiff = d; best = o; } }
+                backupCountCombo.setSelectedId(best, juce::dontSendNotification);
+            }
+
+            // VU ref: -14/-18/-20/-24
+            int vuId = 18;
+            {
+                const int a = (int) std::round(-curVuRefDb);
+                if      (a <= 16) vuId = 14;
+                else if (a <= 19) vuId = 18;
+                else if (a <= 22) vuId = 20;
+                else              vuId = 24;
+            }
+            vuRefCombo.setSelectedId(vuId, juce::dontSendNotification);
+
+            // Loudness: -14/-16/-18/-23/-24
+            int lufsId = 24;
+            {
+                const int a = (int) std::round(-curLoudnessLufs);
+                if      (a <= 15) lufsId = 14;
+                else if (a <= 17) lufsId = 16;
+                else if (a <= 20) lufsId = 18;
+                else if (a <= 23) lufsId = 23;
+                else              lufsId = 24;
+            }
+            loudnessCombo.setSelectedId(lufsId, juce::dontSendNotification);
+        }
+        void paint(juce::Graphics& g) override { g.fillAll(juce::Colour(0xff2a2a2a)); }
+    };
+
+    auto* dlg = new PrefsDlg(appSettings.resampleOutputBits,
+                              appSettings.playheadFollowsSelection,
+                              appSettings.retrospectiveEnabled,
+                              appSettings.returnToStartOnStop,
+                              appSettings.autoSaveIntervalMinutes,
+                              appSettings.maxBackups,
+                              appSettings.vuReferenceLevel,
+                              appSettings.loudnessTargetLufs,
+                              appSettings.autoNormalizeOnImport,
+                              appSettings.zoomToMousePosition,
+                              appSettings.exportPeakGuard,
+                              appSettings.zeroCrossingFade,
+                              appSettings.stripImportedMetadata);
+    dlg->onLanguageChanged = [this](int id) {
+        const auto lang = (id == 2) ? Localisation::Language::English
+                                    : Localisation::Language::Japanese;
+        Localisation::saveLanguage(lang);  // アプリ全体設定 (プロジェクトではない)
+        auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
+        juce::AlertWindow::showAsync(juce::MessageBoxOptions()
+            .withIconType(juce::MessageBoxIconType::InfoIcon)
+            .withTitle(J(u8"言語設定"))
+            .withMessage(J(u8"言語の変更は次回起動時に反映されます。"))
+            .withButton("OK"), nullptr);
+    };
+    dlg->onBitsChanged = [this](int bits) {
+        appSettings.resampleOutputBits = (bits == 24) ? 24 : 32;
+        markProjectDirty();
+    };
+    dlg->onFollowSelChanged = [this](bool v) {
+        appSettings.playheadFollowsSelection = v;
+        timelineView.setAppSettings(appSettings);
+        markProjectDirty();
+    };
+    dlg->onRetroChanged = [this](bool v) {
+        appSettings.retrospectiveEnabled = v;
+        markProjectDirty();
+    };
+    dlg->onRtzChanged = [this](bool v) {
+        appSettings.returnToStartOnStop = v;
+        markProjectDirty();
+    };
+    dlg->onAutoSaveChanged = [this](int mins) {
+        appSettings.autoSaveIntervalMinutes = mins;
+        restartAutoSaveTimer();
+        markProjectDirty();
+    };
+    dlg->onBackupCountChanged = [this](int n) {
+        appSettings.maxBackups = juce::jmax(1, n);
+        markProjectDirty();
+    };
+    dlg->onVuRefChanged = [this](float dB) {
+        appSettings.vuReferenceLevel = dB;
+        masterPanel.setVuReferenceLevel(dB);
+        trackHeaderPanel.setVuReferenceLevel(dB);
+        markProjectDirty();
+    };
+    dlg->onLoudnessTargetChanged = [this](float lufs) {
+        appSettings.loudnessTargetLufs = lufs;
+        trackHeaderPanel.setLoudnessTargetLufs(lufs);
+        // TimelineView は appSettings から直接読むので setAppSettings を呼ぶだけで反映
+        timelineView.setAppSettings(appSettings);
+        markProjectDirty();
+    };
+    dlg->onAutoNormChanged = [this](bool v) {
+        appSettings.autoNormalizeOnImport = v;
+        markProjectDirty();
+    };
+    dlg->onZoomMouseChanged = [this](bool v) {
+        appSettings.zoomToMousePosition = v;
+        timelineView.setAppSettings(appSettings);
+        markProjectDirty();
+    };
+    dlg->onPeakGuardChanged = [this](bool v) {
+        appSettings.exportPeakGuard = v;
+        markProjectDirty();
+    };
+    dlg->onZeroCrossChanged = [this](bool v) {
+        appSettings.zeroCrossingFade = v;
+        timelineView.setAppSettings(appSettings);  // 手動クロスフェード (Xキー) が参照する
+        markProjectDirty();
+    };
+    dlg->onStripMetaChanged = [this](bool v) {
+        appSettings.stripImportedMetadata = v;
+        markProjectDirty();
+    };
+    // MIDI 書き出しメニューの表示切替はアプリ全体設定 (プロジェクトではない)。
+    // 即時に保存し、メニューを再構築して反映する (markProjectDirty は呼ばない)。
+    dlg->showMidiExportBtn.setToggleState(appPrefs.showMidiExportMenu, juce::dontSendNotification);
+    dlg->onShowMidiExportChanged = [this](bool v) {
+        appPrefs.showMidiExportMenu = v;
+        appPrefs.save();
+        menuItemsChanged();   // ファイルメニューを再構築 (項目の表示/非表示を即反映)
+    };
+    // 起動画面の広告表示 (アプリ全体設定)。広告がコンパイル時有効なビルドのみ。即時保存。反映は次回起動画面表示時
+    if (AppPreferences::adsCompiledIn())
+    {
+        dlg->showAdsBtn.setToggleState(appPrefs.showAds, juce::dontSendNotification);
+        dlg->onShowAdsChanged = [this](bool v) {
+            appPrefs.showAds = v;
+            appPrefs.save();
+        };
+    }
+    dlg->onResetDefaults = [this, dlg]
+    {
+        // AppSettings の各フィールドをデフォルト値 (構造体の初期化子) に揃える
+        const AppSettings def;
+        appSettings.resampleOutputBits       = def.resampleOutputBits;
+        appSettings.playheadFollowsSelection = def.playheadFollowsSelection;
+        appSettings.retrospectiveEnabled     = def.retrospectiveEnabled;
+        appSettings.returnToStartOnStop      = def.returnToStartOnStop;
+        appSettings.zoomToMousePosition      = def.zoomToMousePosition;
+        appSettings.autoSaveIntervalMinutes  = def.autoSaveIntervalMinutes;
+        appSettings.maxBackups               = def.maxBackups;
+        appSettings.vuReferenceLevel         = def.vuReferenceLevel;
+        appSettings.loudnessTargetLufs       = def.loudnessTargetLufs;
+        appSettings.autoNormalizeOnImport    = def.autoNormalizeOnImport;
+        appSettings.exportPeakGuard          = def.exportPeakGuard;
+        appSettings.zeroCrossingFade         = def.zeroCrossingFade;
+        appSettings.stripImportedMetadata    = def.stripImportedMetadata;
+
+        // ランタイム反映
+        timelineView.setAppSettings(appSettings);
+        masterPanel.setVuReferenceLevel(appSettings.vuReferenceLevel);
+        trackHeaderPanel.setVuReferenceLevel(appSettings.vuReferenceLevel);
+        trackHeaderPanel.setLoudnessTargetLufs(appSettings.loudnessTargetLufs);
+        restartAutoSaveTimer();
+
+        // アプリ全体設定 (MIDI 書き出しメニュー / 広告表示) も既定に戻す
+        const AppPreferences defPrefs;
+        appPrefs.showMidiExportMenu = defPrefs.showMidiExportMenu;
+        appPrefs.showAds            = defPrefs.showAds;
+        appPrefs.save();
+        menuItemsChanged();
+        dlg->showMidiExportBtn.setToggleState(appPrefs.showMidiExportMenu, juce::dontSendNotification);
+        if (AppPreferences::adsCompiledIn())
+            dlg->showAdsBtn.setToggleState(appPrefs.showAds, juce::dontSendNotification);
+
+        // ダイアログの UI を新しい値に同期
+        dlg->syncUiToValues(appSettings.resampleOutputBits,
+                            appSettings.playheadFollowsSelection,
+                            appSettings.retrospectiveEnabled,
+                            appSettings.returnToStartOnStop,
+                            appSettings.autoSaveIntervalMinutes,
+                            appSettings.maxBackups,
+                            appSettings.vuReferenceLevel,
+                            appSettings.loudnessTargetLufs,
+                            appSettings.autoNormalizeOnImport,
+                            appSettings.zoomToMousePosition,
+                            appSettings.exportPeakGuard,
+                            appSettings.zeroCrossingFade,
+                            appSettings.stripImportedMetadata);
+        markProjectDirty();
+    };
+
+    juce::DialogWindow::LaunchOptions opts;
+    opts.content.setOwned(dlg);
+    opts.dialogTitle = tr(u8"環境設定");
+    opts.dialogBackgroundColour = juce::Colour(0xff2a2a2a);
+    opts.escapeKeyTriggersCloseButton = true;
+    opts.useNativeTitleBar = true;
+    opts.resizable = false;
+    opts.launchAsync();
+}

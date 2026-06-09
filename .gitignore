@@ -1,0 +1,26 @@
+# ビルド成果物
+/build/
+/build-*/
+
+# JUCE フレームワーク (公開リポジトリには含めない。ローカル配置 or CMake FetchContent で取得)
+/JUCE/
+
+# OS / IDE
+.DS_Store
+
+# ASIO SDK (再配布制限のため各自配置・コミットしない)
+/Source/ThirdParty/asiosdk/
+
+# 内部の作業/レビュー用ドキュメント (レビュー記録・改善提案・QA・テスト推奨など。コミット対象外)
+/Docs/internal/
+
+# 配布バイナリ (アプリ本体は GitHub Releases で配布。リポジトリにはソースのみ)
+# README.txt / MANUAL.html / LICENSE.txt 等の同梱テキストはコミット対象に残す
+/Distribution/*.app/
+/Trakova-beta-v0.1.0/*.app/
+
+# 派生アイコン (Icon/*.png から JUCE が生成。元素材の PNG はコミットする)
+/Icon/Trakova.icns
+
+# 個人用の開発メモ (Git 管理外・公開しない)
+/CLAUDE.md

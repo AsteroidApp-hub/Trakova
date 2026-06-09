@@ -1,0 +1,513 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 Studio Asteroid
+
+// MainComponent のメニュー・コマンドターゲット・キーボードショートカット実装。
+// MainComponent.cpp が肥大化したため分割。クラス本体は MainComponent.h で宣言されている。
+
+#include "MainComponent.h"
+#include "Localisation.h"
+
+// ── メニューバー ──────────────────────────────────────────────────────
+juce::StringArray MainComponent::getMenuBarNames()
+{
+    return {
+        tr(u8"ファイル"),
+        tr(u8"ヘルプ")
+    };
+}
+
+juce::PopupMenu MainComponent::getMenuForIndex(int topLevelMenuIndex, const juce::String& /*menuName*/)
+{
+    auto addItem = [](juce::PopupMenu& menu, int id, const juce::String& text, const juce::String& shortcut)
+    {
+        juce::PopupMenu::Item item;
+        item.itemID                  = id;
+        item.text                    = text;
+        item.shortcutKeyDescription  = shortcut;
+        menu.addItem(item);
+    };
+
+    juce::PopupMenu m;
+    if (topLevelMenuIndex == 0)  // ファイル
+    {
+        addItem(m, 1, tr(u8"新規プロジェクト..."), "");
+        addItem(m, 2, tr(u8"開く..."),                tr(u8"⌘O"));
+        m.addSeparator();
+        addItem(m, 3, tr(u8"保存"),                    tr(u8"⌘S"));
+        addItem(m, 4, tr(u8"別名で保存..."),         tr(u8"⇧⌘S"));
+        m.addSeparator();
+        addItem(m, 9, tr(u8"オーディオを読み込む..."), tr(u8"⌘I"));
+        addItem(m, 8, tr(u8"MIDI を読み込む..."),     "");
+        m.addSeparator();
+        addItem(m, 6, tr(u8"書き出し..."),           tr(u8"⌘E"));
+        // 設定で ON のときだけ表示する MIDI 書き出し (普段使わない想定の機能)。
+        // MIDI トラックが 1 つも無ければ非活性にする (メニューは開く度に再構築されるため
+        // トラック追加/削除に追従する)。
+        if (appPrefs.showMidiExportMenu)
+        {
+            juce::PopupMenu::Item item;
+            item.itemID    = 10;
+            item.text      = tr(u8"MIDI を書き出す...");
+            item.isEnabled = trackManager.hasMidiTrack();
+            m.addItem(item);
+        }
+        m.addSeparator();
+        addItem(m, 7, tr(u8"プラグインを管理..."),  "");
+        m.addSeparator();
+        addItem(m, 5, tr(u8"プロジェクトを閉じる"), "");
+    }
+    else if (topLevelMenuIndex == 1)  // ヘルプ
+    {
+        addItem(m, 102, tr(u8"使い方ドキュメント..."), "");
+        addItem(m, 101, tr(u8"ショートカット一覧..."), tr(u8"⌘/"));
+        m.addSeparator();
+        addItem(m, 100, tr(u8"Trakova について..."), "");
+    }
+    return m;
+}
+
+void MainComponent::menuItemSelected(int menuItemID, int /*topLevelMenuIndex*/)
+{
+    switch (menuItemID)
+    {
+        case 1: confirmCloseIfDirty([this] { if (onNewProject)   onNewProject(); });   break;
+        case 2: confirmCloseIfDirty([this] { openProject(); });                       break;
+        case 3: saveProject();       break;
+        case 4: saveProjectAs();     break;
+        case 5: confirmCloseIfDirty([this] { if (onCloseProject) onCloseProject(); }); break;
+        case 6: showExportDialog(); break;
+        case 7: showPluginManager(); break;
+        case 8: showImportMidiDialog(); break;
+        case 9: showImportDialog(); break;
+        case 10: showMidiExportDialog(); break;
+        case 100: showAboutDialog(); break;
+        case 101: showShortcutsDialog(); break;
+        case 102: showDocumentation(); break;
+        default: break;
+    }
+}
+
+// ── ApplicationCommandTarget ─────────────────────────────────────────
+void MainComponent::getAllCommands(juce::Array<juce::CommandID>& commands)
+{
+    commands.add(cmdPlayPause);
+    commands.add(cmdStop);
+    commands.add(cmdRecord);
+    commands.add(cmdExport);
+    commands.add(cmdSave);
+    commands.add(cmdOpen);
+}
+
+void MainComponent::getCommandInfo(juce::CommandID commandID, juce::ApplicationCommandInfo& info)
+{
+    auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
+    switch (commandID)
+    {
+        case cmdPlayPause:
+            info.setInfo(J(u8"再生/停止"), J(u8"トランスポートの再生切替"), "Transport", 0);
+            info.addDefaultKeypress(juce::KeyPress::spaceKey, 0);
+            break;
+        case cmdStop:
+            info.setInfo(J(u8"停止"), J(u8"停止"), "Transport", 0);
+            info.addDefaultKeypress('s', 0);
+            break;
+        case cmdRecord:
+            info.setInfo(J(u8"録音"), J(u8"録音切替"), "Transport", 0);
+            info.addDefaultKeypress('r', 0);
+            break;
+        case cmdExport:
+            info.setInfo(J(u8"書き出し..."), J(u8"書き出し"), "File", 0);
+            info.addDefaultKeypress('e', juce::ModifierKeys::commandModifier);
+            break;
+        case cmdSave:
+            info.setInfo(J(u8"保存"), J(u8"プロジェクト保存"), "File", 0);
+            info.addDefaultKeypress('s', juce::ModifierKeys::commandModifier);
+            break;
+        case cmdOpen:
+            info.setInfo(J(u8"開く..."), J(u8"プロジェクトを開く"), "File", 0);
+            info.addDefaultKeypress('o', juce::ModifierKeys::commandModifier);
+            break;
+        default: break;
+    }
+}
+
+bool MainComponent::perform(const InvocationInfo& info)
+{
+    switch (info.commandID)
+    {
+        case cmdPlayPause: togglePlay();        return true;
+        case cmdStop:      stopTransport();     return true;
+        case cmdRecord:    toggleRecord();      return true;
+        case cmdExport:    showExportDialog();  return true;
+        case cmdSave:      saveProject();       return true;
+        case cmdOpen:      openProject();       return true;
+        default: return false;
+    }
+}
+
+// ── キーボードショートカット ─────────────────────────────────────────
+bool MainComponent::keyPressed(const juce::KeyPress& key, juce::Component*)
+{
+    // Cmd+Z / Cmd+Shift+Z = Undo / Redo
+    if (key.getModifiers().isCommandDown() && (key.getKeyCode() == 'z' || key.getKeyCode() == 'Z'))
+    {
+        if (key.getModifiers().isShiftDown())
+            undoManager.redo();
+        else
+            undoManager.undo();
+        // 構造編集の Undo/Redo はクリップを破棄/再生成するため、タイムラインの選択中
+        // 生ポインタ (clip / crossfade) が解放済みを指す可能性がある。ここでクリアして
+        // 直後の Delete 等での UAF を防ぐ。
+        timelineView.clearSelectionsAfterExternalEdit();
+        return true;
+    }
+
+    // Cmd+, = 環境設定（Mac標準）
+    if (key.getModifiers().isCommandDown()
+        && (key.getKeyCode() == ',' || key.getTextCharacter() == ','))
+    {
+        showPreferences();
+        return true;
+    }
+
+    // Cmd+/ または Cmd+? = ショートカット一覧 (チートシート) を表示。
+    // macOS は Shift を含めた charactersIgnoringModifiers から keyCode を作るため
+    // Cmd+Shift+/ の keyCode は '?' になる ('/' は Cmd+/)。Command 押下時は
+    // textCharacter が 0 にされる macOS では下の textCharacter 判定は Windows/Linux 用の保険。
+    if (key.getModifiers().isCommandDown()
+        && (key.getKeyCode() == '/'
+            || key.getKeyCode() == '?'
+            || key.getTextCharacter() == '/'
+            || key.getTextCharacter() == '?'))
+    {
+        showShortcutsDialog();
+        return true;
+    }
+
+    // Cmd+E = 書き出し
+    if (key.getModifiers().isCommandDown()
+        && (key.getKeyCode() == 'e' || key.getKeyCode() == 'E'))
+    {
+        showExportDialog();
+        return true;
+    }
+
+    // Shift+Enter = 0 〜 現在の再生位置 を範囲選択
+    if (key.getModifiers().isShiftDown() && !key.getModifiers().isCommandDown()
+        && key.getKeyCode() == juce::KeyPress::returnKey)
+    {
+        double start = 0.0;
+        double end   = juce::jmax(0.001, playPosition);
+        if (end > start)
+        {
+            loopStartSecs = start;
+            loopEndSecs   = end;
+            timelineView.setLoopRange(loopStartSecs, loopEndSecs, loopActive);
+            audioEngine.setLoopRange(loopStartSecs, loopEndSecs, loopActive);
+        }
+        return true;
+    }
+
+    // Cmd+S = 保存、Cmd+Shift+S = 別名で保存、Cmd+O = 開く
+    if (key.getModifiers().isCommandDown()
+        && (key.getKeyCode() == 's' || key.getKeyCode() == 'S'))
+    {
+        if (key.getModifiers().isShiftDown()) saveProjectAs();
+        else                                    saveProject();
+        return true;
+    }
+    if (key.getModifiers().isCommandDown() && !key.getModifiers().isShiftDown()
+        && (key.getKeyCode() == 'o' || key.getKeyCode() == 'O'))
+    {
+        openProject();
+        return true;
+    }
+
+    // Cmd+A / Cmd+C / Cmd+V / Cmd+X / Cmd+D / Cmd+I
+    if (key.getModifiers().isCommandDown() && !key.getModifiers().isShiftDown())
+    {
+        int kc = key.getKeyCode();
+        if (kc == 'i' || kc == 'I') { showImportDialog();                    return true; }
+        if (kc == 'a' || kc == 'A') { timelineView.selectAllClips();         return true; }
+        if (kc == 'c' || kc == 'C') { timelineView.copySelectedClips();      return true; }
+        if (kc == 'x' || kc == 'X') { timelineView.cutSelectedClips();       return true; }
+        if (kc == 'v' || kc == 'V')
+        {
+            Track* t = (selectedTrackIndex >= 0
+                        && selectedTrackIndex < trackManager.getTrackCount())
+                       ? trackManager.getTrack(selectedTrackIndex) : nullptr;
+            timelineView.pasteAtPlayhead(t);
+            return true;
+        }
+        if (kc == 'd' || kc == 'D') { timelineView.duplicateSelectedClips(); return true; }
+    }
+
+    // Cmd+Shift+R = 遡及録音を確定（再生中バックグラウンド録音を採用）
+    if (key.getModifiers().isCommandDown() && key.getModifiers().isShiftDown()
+        && (key.getKeyCode() == 'r' || key.getKeyCode() == 'R'))
+    {
+        commitRetrospective();
+        return true;
+    }
+
+    // ── Shift + キー: 選択トラックのパラメータをトグル ──
+    if (key.getModifiers().isShiftDown() && selectedTrackIndex >= 0)
+    {
+        auto* t = trackManager.getTrack(selectedTrackIndex);
+        if (t)
+        {
+            int kc = key.getKeyCode();
+            if (kc == 'r' || kc == 'R')
+            {
+                t->setRecArmed(!t->isRecArmed());
+                trackHeaderPanel.refresh();
+                return true;
+            }
+            if (kc == 's' || kc == 'S')
+            {
+                // テイクレーン (lane > 0) にフォーカスがあればそのレーンの Solo を切替
+                if (timelineView.toggleFocusLaneSolo())
+                {
+                    audioEngine.preparePlayback(trackManager);
+                    return true;
+                }
+                t->setSoloed(!t->isSoloed());
+                trackHeaderPanel.refresh();
+                return true;
+            }
+            if (kc == 'm' || kc == 'M')
+            {
+                t->setMuted(!t->isMuted());
+                trackHeaderPanel.refresh();
+                return true;
+            }
+            if (kc == 'i' || kc == 'I')
+            {
+                t->setInputMonitor(!t->isInputMonitor());
+                syncInputMonitorStateToEngine();
+                trackHeaderPanel.refresh();
+                return true;
+            }
+            if (kc == 't' || kc == 'T')
+            {
+                t->setLanesCollapsed(!t->isLanesCollapsed());
+                trackHeaderPanel.refresh();
+                timelineView.refresh();
+                return true;
+            }
+        }
+    }
+
+    // Shift+T（選択トラックなし）でも選択トラックがあれば TList トグル
+    if ((key.getKeyCode() == 't' || key.getKeyCode() == 'T')
+        && key.getModifiers().isShiftDown()
+        && selectedTrackIndex >= 0)
+        return true; // 上のブロックで処理済み
+
+    // F = fade-in / fade-out のみ作成
+    // X = crossfade のみ作成 (波形が重なっている場合のみ)
+    if (!key.getModifiers().isCommandDown() && !key.getModifiers().isShiftDown()
+        && !key.getModifiers().isAltDown())
+    {
+        if (key.getKeyCode() == 'f' || key.getKeyCode() == 'F')
+        {
+            timelineView.applyCrossfadeToSelection(TimelineView::FadeOpMode::FadesOnly);
+            return true;
+        }
+        if (key.getKeyCode() == 'x' || key.getKeyCode() == 'X')
+        {
+            timelineView.applyCrossfadeToSelection(TimelineView::FadeOpMode::CrossfadeOnly);
+            return true;
+        }
+    }
+
+    // Delete / Backspace = 選択クロスフェードまたは選択クリップ群を削除
+    if (key == juce::KeyPress::deleteKey || key == juce::KeyPress::backspaceKey)
+    {
+        if (timelineView.hasSelectedCrossfade())
+        {
+            timelineView.deleteSelectedCrossfade();
+            return true;
+        }
+        if (timelineView.hasSelectedClip())
+        {
+            timelineView.deleteSelectedClips();
+            return true;
+        }
+        if (timelineView.hasSelectedMidiClip())
+        {
+            timelineView.deleteSelectedMidiClip();
+            return true;
+        }
+    }
+
+    // ← → = 選択クリップ群をナッジ
+    if (key == juce::KeyPress::leftKey || key == juce::KeyPress::rightKey)
+    {
+        if (timelineView.hasSelectedClip())
+        {
+            double nudge = key.getModifiers().isShiftDown() ? 0.1 : 0.01;
+            if (key == juce::KeyPress::leftKey) nudge = -nudge;
+            timelineView.nudgeSelectedClips(nudge);
+            return true;
+        }
+    }
+
+    // ↑ ↓ = 選択範囲のフォーカスレーンを上下に移動
+    // Shift+↑ = フォーカスレーンの選択範囲を録音レーン (Lane 0) にコピペ
+    // 注: KeyPress::operator==(int) は修飾キーありで false を返すため keyCode で比較
+    {
+        const int kc = key.getKeyCode();
+        const bool isUp   = (kc == juce::KeyPress::upKey);
+        const bool isDown = (kc == juce::KeyPress::downKey);
+        if (isUp || isDown)
+        {
+            if (key.getModifiers().isShiftDown() && isUp)
+            {
+                if (timelineView.copySelectionRangeToRecLane())
+                {
+                    trackHeaderPanel.refresh();
+                    audioEngine.preparePlayback(trackManager);
+                    return true;
+                }
+                return false;
+            }
+            if (!key.getModifiers().isAnyModifierKeyDown()
+                && timelineView.hasSelectionRange())
+            {
+                int delta = isUp ? -1 : 1;
+                if (timelineView.moveSelectionFocusLane(delta))
+                    return true;
+            }
+        }
+    }
+
+    // N / B: 1 小節 進む / 戻る (小節グリッドにスナップ)
+    // Shift+N / Shift+B: 次 / 前のマーカーへジャンプ
+    {
+        const bool isN = (key.getKeyCode() == 'n' || key.getKeyCode() == 'N');
+        const bool isB = (key.getKeyCode() == 'b' || key.getKeyCode() == 'B');
+        if ((isN || isB)
+            && !key.getModifiers().isCommandDown()
+            && !key.getModifiers().isAltDown())
+        {
+            const double cur = audioEngine.getCurrentPositionSeconds();
+            double t = cur;
+            bool doSeek = false;
+
+            if (key.getModifiers().isShiftDown())
+            {
+                // マーカー移動
+                doSeek = isN ? timelineView.jumpToNextMarker(cur, t)
+                             : timelineView.jumpToPrevMarker(cur, t);
+            }
+            else
+            {
+                // 1 小節移動 (現在位置を小節グリッドに合わせて進める/戻す)
+                const double bar    = juce::jmax(1e-6, timelineView.barLengthSecs());
+                const int    curBar = (int) std::floor((cur + 1e-4) / bar);
+                if (isN)
+                    t = (curBar + 1) * bar;
+                else
+                    t = (std::abs(cur - curBar * bar) < 1e-3)
+                            ? juce::jmax(0.0, (curBar - 1) * bar)   // 小節頭にいる → 前の小節
+                            : curBar * bar;                          // 小節途中 → 現在小節の頭
+                doSeek = true;
+            }
+
+            if (doSeek)
+                seekTo(t);
+            return true;
+        }
+    }
+
+    // L: ループ再生 ON/OFF をトグル (LOOP ボタンと同じ動作)
+    if ((key.getKeyCode() == 'l' || key.getKeyCode() == 'L')
+        && !key.getModifiers().isAnyModifierKeyDown())
+    {
+        if (toolbar.onLoopToggle) toolbar.onLoopToggle(!loopActive);
+        return true;
+    }
+
+    // Shift+1〜9: グリッド (Snap) モードを切替 (1=1/1, 2=1/2, ..., 9=1/16 三連)
+    // Windows は WM_CHAR から Shift で変換された記号 (!"#$%&'() 等) が来るので
+    // JIS / US 両配列の Shift+数字 → 元の数字 を逆引きする。
+    if (key.getModifiers().isShiftDown()
+        && !key.getModifiers().isCommandDown()
+        && !key.getModifiers().isAltDown()
+        && !key.getModifiers().isCtrlDown())
+    {
+        int kc = key.getKeyCode();
+        int digit = -1;
+        if (kc >= '0' && kc <= '9')
+        {
+            digit = kc - '0';          // macOS / JIS Windows はここで拾える (0 含む)
+        }
+        else
+        {
+            switch (kc)                // Windows の Shift 変換記号
+            {
+                case '!':  digit = 1; break;  // JIS=US
+                case '"':  digit = 2; break;  // JIS
+                case '@':  digit = 2; break;  // US
+                case '#':  digit = 3; break;
+                case '$':  digit = 4; break;
+                case '%':  digit = 5; break;
+                case '&':  digit = 6; break;  // JIS (US は Shift+7 だが優先度低)
+                case '^':  digit = 6; break;  // US
+                case '\'': digit = 7; break;  // JIS
+                case '(':  digit = 8; break;  // JIS (US は Shift+9 だが優先度低)
+                case '*':  digit = 8; break;  // US
+                case ')':  digit = 9; break;  // JIS (US は Shift+0 だが優先度低)
+            }
+        }
+        if (digit >= 0 && digit <= 9)
+        {
+            if (toolbar.onSnapModeSelected) toolbar.onSnapModeSelected(digit);
+            return true;
+        }
+    }
+
+    // [ ] : ループ範囲を設定（再生のループは LOOP ボタンで切替）
+    if (key == juce::KeyPress('['))
+    {
+        loopStartSecs = audioEngine.getCurrentPositionSeconds();
+        if (loopEndSecs < loopStartSecs) loopEndSecs = loopStartSecs + 1.0;
+        timelineView.setLoopRange(loopStartSecs, loopEndSecs, loopActive);
+        audioEngine.setLoopRange(loopStartSecs, loopEndSecs, loopActive);
+        return true;
+    }
+    if (key == juce::KeyPress(']'))
+    {
+        loopEndSecs = audioEngine.getCurrentPositionSeconds();
+        if (loopEndSecs < loopStartSecs) std::swap(loopStartSecs, loopEndSecs);
+        timelineView.setLoopRange(loopStartSecs, loopEndSecs, loopActive);
+        audioEngine.setLoopRange(loopStartSecs, loopEndSecs, loopActive);
+        return true;
+    }
+
+    if (key == juce::KeyPress::spaceKey)  { togglePlay();     return true; }
+    if (key == juce::KeyPress('s'))       { stopTransport();  return true; }
+    if (key == juce::KeyPress('r'))       { toggleRecord();   return true; }
+    // Shift+F = 全体フィット（末尾 + 2 小節がビューに収まる）
+    if ((key.getKeyCode() == 'f' || key.getKeyCode() == 'F')
+        && key.getModifiers().isShiftDown())
+    {
+        timelineView.zoomToFitAll();
+        return true;
+    }
+    if (key == juce::KeyPress::returnKey ||
+        key == juce::KeyPress('0') ||
+        key == juce::KeyPress(juce::KeyPress::numberPad0) ||
+        key == juce::KeyPress::homeKey)
+    {
+        stopTransport();
+        audioEngine.rewind();
+        playPosition = 0.0;
+        toolbar.setTimePosition(0.0, 1, 1);
+        timelineView.setPlayheadPosition(0.0);
+        propagatePlayheadToPianoRolls(0.0);
+        return true;
+    }
+    return false;
+}

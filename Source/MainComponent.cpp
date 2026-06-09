@@ -1,0 +1,1766 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 Studio Asteroid
+
+#include "MainComponent.h"
+#include "Localisation.h"
+#include "AppColours.h"
+#include "Project/RecentProjects.h"
+#include "Audio/AudioDeviceSettings.h"
+#include "Audio/LufsMeter.h"
+#include "Export/ExportEngine.h"
+#include "Export/ExportDialog.h"
+#include "VST/PluginChain.h"
+#include "UI/PluginManagerDialog.h"
+#include "UI/PianoRollEditor.h"
+#include "MIDI/MidiImporter.h"
+#include "MIDI/MidiImportDialog.h"
+
+MainComponent::MainComponent()
+{
+    setSize(1280, 800);
+    setWantsKeyboardFocus(true);
+    addKeyListener(this);
+
+
+    // 未保存プロジェクト用の仮フォルダを作成（録音/インポートはここに溜まる）
+    {
+        auto root = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
+                        .getChildFile("Trakova");
+        auto ts = juce::Time::getCurrentTime().formatted("%Y%m%d_%H%M%S");
+        untitledProjectDir = root.getChildFile("Untitled-" + ts);
+        untitledProjectDir.getChildFile("Audio").createDirectory();
+        untitledProjectDir.getChildFile("Cache").createDirectory();
+    }
+    // 録音・インポート系をプロジェクトフォルダに連携
+    recordingMgr.getAudioFolder = [this] { return getProjectAudioFolder(); };
+    recordingMgr.setBitDepth(appSettings.projectBitDepth);
+
+    // ステータスバーの CPU 表示: AudioDeviceManager の負荷を 0〜100% で返す
+    statusBar.getCpuPercent = [this] {
+        return audioEngine.getDeviceManager().getCpuUsage() * 100.0;
+    };
+    statusBar.onHelpClicked = [this] { showShortcutsDialog(); };
+    fileImporter.getCacheFolderCb = [this] { return getProjectCacheFolder(); };
+
+    addAndMakeVisible(toolbar);
+    addAndMakeVisible(trackHeaderPanel);
+    addAndMakeVisible(timelineView);
+    addAndMakeVisible(masterPanel);
+    addAndMakeVisible(statusBar);
+
+    // Transport
+    toolbar.onPlay          = [this] { togglePlay(); };
+    toolbar.onStop          = [this] { stopTransport(); };
+    toolbar.onRecord        = [this] { toggleRecord(); };
+    toolbar.onRewind        = [this] { stopTransport(); audioEngine.rewind();
+                                       playPosition = 0.0;
+                                       toolbar.setTimePosition(0.0, 1, 1);
+                                       timelineView.setPlayheadPosition(0.0);
+                                       propagatePlayheadToPianoRolls(0.0); };
+    toolbar.onAudioSettings = [this] { showAudioSettings(); };
+    toolbar.onPreferences   = [this] { showPreferences(); };
+
+    toolbar.onClipGainChanged = [this](bool v)
+    {
+        appSettings.showClipGain = v;
+        timelineView.setAppSettings(appSettings);
+        timelineView.repaint();
+    };
+    toolbar.onSnapModeSelected = [this](int mode)
+    {
+        appSettings.snapMode = (SnapMode)mode;
+        timelineView.setAppSettings(appSettings);
+        const char* labels[] = {
+            "Off", "1/1", "1/2", "1/4", "1/8", "1/16", "1/32",
+            "1/4 T", "1/8 T", "1/16 T"
+        };
+        if (mode >= 0 && mode < (int)(sizeof(labels)/sizeof(labels[0])))
+            toolbar.setSnapLabel(labels[mode], mode != 0);
+    };
+
+    // Track management
+    auto refreshTracks = [this]
+    {
+        trackHeaderPanel.refresh();
+        timelineView.refresh();
+        statusBar.setTrackCount(trackManager.getTrackCount());
+    };
+
+    trackManager.onChanged = refreshTracks;
+
+    trackHeaderPanel.onAddTrack            = [this] { addTrack(); markProjectDirty(); };
+    trackHeaderPanel.onAddTrackWithMode    = [this](bool stereo) {
+        trackManager.addTrack({}, stereo);
+        markProjectDirty();
+    };
+    trackHeaderPanel.onAddMidiTrack        = [this] { addMidiTrack(); };
+    trackHeaderPanel.onAddClickTrack       = [this] {
+        if (auto* t = trackManager.addClickTrack())
+        {
+            // 既存のメトロノーム設定を Click トラックに引き継ぐ
+            t->setClickSound(audioEngine.getMetronomeSound());
+            t->setClickAccent(audioEngine.getMetronomeAccent());
+            t->setVolume(juce::Decibels::gainToDecibels(
+                juce::jmax(0.0001f, audioEngine.getMetronomeVolume() * 2.0f)));
+            t->setPan(audioEngine.getMetronomePan());
+        }
+        audioEngine.preparePlayback(trackManager);
+        markProjectDirty();
+    };
+    trackHeaderPanel.onTrackSelected = [this](int idx)
+    {
+        // 主選択 index のみ更新する (インポート先トラック等で使う)。
+        // 複数選択のハイライトは selectTrackForUI が既に更新しているので、ここで
+        // setSelectedTrack() を呼ぶと Cmd/Shift で広げた選択が単一に潰れてしまう (要注意)。
+        selectedTrackIndex = idx;
+    };
+    trackHeaderPanel.onGetNumInputChannels = [this]() -> int {
+        return audioEngine.getNumInputChannels();
+    };
+    trackHeaderPanel.onGetTrackOutPeakL = [this](int idx) { return audioEngine.getTrackOutputPeakL(idx); };
+    trackHeaderPanel.onGetTrackOutPeakR = [this](int idx) { return audioEngine.getTrackOutputPeakR(idx); };
+    trackHeaderPanel.onGetTrackOutVUL   = [this](int idx) { return audioEngine.getTrackOutputVUL(idx); };
+    trackHeaderPanel.onGetTrackOutVUR   = [this](int idx) { return audioEngine.getTrackOutputVUR(idx); };
+    trackHeaderPanel.onPluginAddRequest    = [this](int trackIdx, int slot) { addPluginToTrack(trackIdx, slot); };
+    trackHeaderPanel.onPluginEditRequest   = [this](int trackIdx, int slot) { openPluginEditor(trackIdx, slot); };
+    trackHeaderPanel.onPluginRemoveRequest = [this](int trackIdx, int slot)
+    {
+        removePluginFromTrack(trackIdx, slot);
+    };
+    trackHeaderPanel.onPluginSwapRequest   = [this](int trackIdx, int a, int b)
+    {
+        swapTrackPluginsUndoable(trackIdx, a, b);
+    };
+    trackHeaderPanel.onPluginBypassRequest = [this](int trackIdx, int slot)
+    {
+        togglePluginBypassUndoable(trackIdx, slot);
+    };
+    trackHeaderPanel.onPluginDropAcrossTracks = [this](int srcTrack, int srcSlot,
+                                                      int dstTrack, int dstSlot, bool copy)
+    {
+        handlePluginDropAcrossTracks(srcTrack, srcSlot, dstTrack, dstSlot, copy);
+    };
+    trackHeaderPanel.onTracksDeleteRequest = [this](const std::vector<int>& indices)
+    {
+        deleteTracks(indices);
+    };
+    trackHeaderPanel.onTrackDuplicateRequest = [this](int trackIdx)
+    {
+        duplicateTrack(trackIdx);
+    };
+    // テイクレーン ↑ ボタン: 範囲選択 or クリップ選択中のテイクを Lane 0 へ採用
+    trackHeaderPanel.onLanePromoteRequest = [this](int trackIdx, int laneIdx)
+    {
+        if (timelineView.promoteTakeLane(trackIdx, laneIdx))
+        {
+            trackHeaderPanel.refresh();
+            audioEngine.preparePlayback(trackManager);  // Shift+↑ と同じ後処理
+            markProjectDirty();
+        }
+    };
+    trackHeaderPanel.onCanPromoteLane = [this](int trackIdx, int laneIdx)
+    {
+        return timelineView.canPromoteTakeLane(trackIdx, laneIdx);
+    };
+    // トラックのプロパティ編集 (名前/色/シンセ設定) を Undo 対応で適用
+    trackHeaderPanel.onTrackEditUndoable = [this](Track* t, std::function<void()> m)
+    {
+        applyTrackEditUndoable(t, std::move(m));
+    };
+
+    trackHeaderPanel.onTrackChanged = [this]
+    {
+        markProjectDirty();
+        // Input monitoring / Rec arm / モニターリバーブ量をエンジンへ反映
+        // (Rev スライダー変更も onChanged 経由でここを通るのでモニターリバーブが即追従する)
+        syncInputMonitorStateToEngine();
+
+        // INS スロット表示の切替に追従してレイアウトを更新
+        resized();
+
+        // Click track の Vol/Pan/Mute/Sound/Accent をメトロノームへ同期
+        for (int i = 0; i < trackManager.getTrackCount(); ++i)
+        {
+            auto* t = trackManager.getTrack(i);
+            if (t->isClickTrack())
+            {
+                audioEngine.setMetronomeVolume(
+                    juce::Decibels::decibelsToGain(t->getVolume()) * 0.5f);
+                audioEngine.setMetronomePan(t->getPan());
+                audioEngine.setMetronomeEnabled(!t->isMuted());
+                audioEngine.setMetronomeSound(t->getClickSound());
+                audioEngine.setMetronomeAccent(t->isClickAccent());
+                float mul = (t->getClickRate() == 1) ? 0.5f
+                          : (t->getClickRate() == 2) ? 2.0f : 1.0f;
+                audioEngine.setMetronomeRateMul(mul);
+                toolbar.setMetronomeActive(!t->isMuted());
+                break;
+            }
+        }
+
+        trackHeaderPanel.resized();
+        timelineView.refresh();
+        timelineView.repaint();
+    };
+
+    // 縦スクロール同期
+    timelineView.onVerticalScroll = [this](int y)
+    {
+        trackHeaderPanel.setScrollY(y);
+    };
+
+    // ルーラークリック → プレイヘッドシーク
+    timelineView.onSeek = [this](double seconds)
+    {
+        audioEngine.setPosition(seconds);
+        playPosition  = seconds;
+        playStartPos  = seconds;  // RTZ 基準も更新
+        int bar1, beat1;
+        appSettings.barAndBeatAtTime(seconds, bar1, beat1);
+        toolbar.setTimePosition(seconds, bar1, beat1);
+        // 再生中・停止中ともに即座にビジュアルを更新（timerCallback の遅延を回避）
+        timelineView.setPlayheadPosition(seconds);
+    };
+
+    // Master fader
+    masterPanel.onMasterGainChanged = [this](double gain)
+    {
+        audioEngine.setMasterGain((float)gain);
+    };
+
+    // マスターチェーンを MasterPanel に渡す
+    masterPanel.onResetPeakHold = [this] { audioEngine.resetPeakHold(); };
+    masterPanel.setPluginChain(&audioEngine.getMasterChain());
+    masterPanel.onPluginAddRequest    = [this](int slot) { addPluginToMaster(slot); };
+    masterPanel.onPluginEditRequest   = [this](int slot) { openMasterPluginEditor(slot); };
+    masterPanel.onPluginRemoveRequest = [this](int slot) { removeMasterPlugin(slot); };
+    masterPanel.onPluginSwapRequest   = [this](int a, int b)
+    {
+        swapMasterPluginsUndoable(a, b);
+    };
+    masterPanel.onPluginBypassRequest = [this](int slot)
+    {
+        togglePluginBypassUndoable(-1, slot);   // -1 = マスター
+    };
+    masterPanel.onPluginDropFromOtherTrack = [this](int srcTrack, int srcSlot, int dstSlot, bool copy)
+    {
+        handlePluginDropFromTrackToMaster(srcTrack, srcSlot, dstSlot, copy);
+    };
+
+    // マスター INS スロット表示設定の永続化
+    masterPanel.setInsertSlotsVisible(appSettings.masterInsertSlotsVisible);
+    masterPanel.onInsertSlotsVisibilityChanged = [this](bool v)
+    {
+        appSettings.masterInsertSlotsVisible = v;
+    };
+
+    // マスターパネルの折りたたみ
+    // ※ コールバックを先に張ってから setCollapsed を呼ぶ。
+    //    こうしないと、初回の false→true 遷移で MainComponent::resized() が
+    //    呼ばれず、パネル幅が 155 のまま collapsed 描画になる。
+    masterPanel.onCollapseToggled = [this](bool v)
+    {
+        appSettings.masterPanelCollapsed = v;
+        resized();
+    };
+    masterPanel.setCollapsed(appSettings.masterPanelCollapsed);
+
+    // VU メータ基準レベル
+    masterPanel.setVuReferenceLevel(appSettings.vuReferenceLevel);
+    trackHeaderPanel.setVuReferenceLevel(appSettings.vuReferenceLevel);
+    // ラウドネス自動調整ターゲット
+    trackHeaderPanel.setLoudnessTargetLufs(appSettings.loudnessTargetLufs);
+
+    // Undo/Redo
+    timelineView.setUndoManager(&undoManager);
+    timelineView.setEditChangeCallback([this]
+    {
+        markProjectDirty();
+        trackHeaderPanel.refresh();
+        timelineView.refresh();  // 内部で repaint() するため二重 repaint は不要
+        // MIDI クリップ移動/リサイズで小節表示がずれないよう、開いている
+        // ピアノロールも再描画する (小節番号は clip.getStartPosition() を毎回読む)。
+        for (auto* w : pianoRollWindows)
+            if (w && w->getEditor()) w->getEditor()->repaint();
+        // 編集で AudioClip/Track が破棄/再生成されうるため、再生中は即 rebuild、
+        // 停止中は次の play() で rebuild するよう dirty を立てる (音切れ防止)。
+        audioEngine.invalidatePlayback();
+    });
+    // 破棄系 Undo Action が取り除いた AudioClip を遅延破棄へ渡す (UAF防止 + 再生中でも他トラックを
+    // 止めない)。即破棄せず、参照中スナップショットが回収される時に解放させる。
+    timelineView.setEditBeforeChangeCallback([this](std::vector<std::unique_ptr<AudioClip>>&& clips)
+    {
+        audioEngine.deferClipDestruction(std::move(clips));
+    });
+
+    // マーカー / ループ範囲のルーラー右クリックメニュー
+    auto& ruler = timelineView.getRuler();
+    // 時刻行 / 小節行の表示状態を AppSettings から復元 + 変更を保存
+    ruler.setTimeRowVisible(appSettings.rulerTimeRowVisible);
+    ruler.setBarsRowVisible(appSettings.rulerBarsRowVisible);
+    trackHeaderPanel.setRulerHeight(ruler.getDesiredHeight());
+    ruler.onTimeRowVisibilityChanged = [this](bool v)
+    {
+        appSettings.rulerTimeRowVisible = v;
+        timelineView.resized();
+        timelineView.repaint();
+        trackHeaderPanel.setRulerHeight(timelineView.getRuler().getDesiredHeight());
+    };
+    ruler.onBarsRowVisibilityChanged = [this](bool v)
+    {
+        appSettings.rulerBarsRowVisible = v;
+        timelineView.resized();
+        timelineView.repaint();
+        trackHeaderPanel.setRulerHeight(timelineView.getRuler().getDesiredHeight());
+    };
+    // ルーラー内編集 (マーカー/テンポ/拍子の削除・ドラッグ・色変更・名前変更) の Undo 記録
+    ruler.onMusicEditCommitted = [this](const TimelineRuler::EditLists& before,
+                                        const TimelineRuler::EditLists& after)
+    {
+        pushMusicUndoFromLists(before, after);
+    };
+    ruler.onAddMarker = [this](double t)
+    {
+        auto before = captureMusicState();
+        timelineView.addMarkerAtTime(t);   // マーカー追加 (同期) + 名前編集開始
+        pushMusicUndo(before);             // 追加を Undo 登録 (名前は finishMarkerNameEdit で別途)
+    };
+    ruler.onEditMarkerName = [this](int idx)
+    {
+        timelineView.beginMarkerNameEdit(idx);
+    };
+    ruler.onSnapTime = [this](double t) { return timelineView.snapTimePublic(t); };
+    ruler.onToggleMarkerColors = [this](bool v)
+    {
+        appSettings.useMarkerColors = v;
+        timelineView.setAppSettings(appSettings);
+    };
+    ruler.onSetLoopStart = [this](double t)
+    {
+        loopStartSecs = t;
+        if (loopEndSecs <= loopStartSecs) loopEndSecs = loopStartSecs + 1.0;
+        loopActive = true;
+        timelineView.setLoopRange(loopStartSecs, loopEndSecs, loopActive);
+        audioEngine.setLoopRange(loopStartSecs, loopEndSecs, loopActive);
+    };
+    ruler.onSetLoopEnd = [this](double t)
+    {
+        loopEndSecs = t;
+        if (loopEndSecs < loopStartSecs) std::swap(loopStartSecs, loopEndSecs);
+        loopActive = true;
+        timelineView.setLoopRange(loopStartSecs, loopEndSecs, loopActive);
+        audioEngine.setLoopRange(loopStartSecs, loopEndSecs, loopActive);
+    };
+    ruler.onSetLoopRange = [this](double s, double e)
+    {
+        // ドラッグでは範囲だけを更新（ループ再生は LOOP ボタンで切替）
+        loopStartSecs = s;
+        loopEndSecs   = e;
+        timelineView.setLoopRange(loopStartSecs, loopEndSecs, loopActive);
+        audioEngine.setLoopRange(loopStartSecs, loopEndSecs, loopActive);
+    };
+
+    // ドラッグ&ドロップ: 複数ファイルも 1 つの「インポート中…」ウィンドウでまとめて変換 → 配置する。
+    timelineView.onImportAudioFiles = [this](const juce::Array<juce::File>& srcs,
+                                             double dropTime, int targetTrackIdx) {
+        importAudioFilesAtDrop(srcs, dropTime, targetTrackIdx);
+    };
+    timelineView.onMidiClipDoubleClicked = [this](MidiClip* mc, Track* t)
+    {
+        openPianoRollFor(mc, t);
+    };
+    // MIDI クリップ破棄前 (分割等) に、そのクリップを参照しているピアノロールを閉じる
+    timelineView.onMidiClipWillBeRemoved = [this](MidiClip* mc)
+    {
+        for (int i = pianoRollWindows.size(); --i >= 0;)
+            if (auto* w = pianoRollWindows[i]; w && w->getClip() == mc)
+            {
+                pianoRollWindows.remove(i);  // OwnedArray が delete → ウィンドウを閉じる
+                break;
+            }
+    };
+    timelineView.onWaveformRefreshNeeded = [this]
+    {
+        scheduleWaveformRefresh();
+    };
+
+    timelineView.onImportMidi = [this](const juce::File& src, double dropTime)
+    {
+        importMidiFromFile(src, dropTime);
+    };
+
+    timelineView.onApplyDetectedBpm = [this](double newBpm)
+    {
+        auto before = captureMusicState();
+        bpm = newBpm;
+        appSettings.initialBpm = newBpm;
+        toolbar.setBpm(bpm);
+        timelineView.setBpm(bpm);
+        timelineView.setAppSettings(appSettings);
+        audioEngine.setMetronomeBpm(bpm);
+        audioEngine.setAppSettings(appSettings);
+        markProjectDirty();
+        pushMusicUndo(before);   // テンポ検出の適用を Undo 対応
+    };
+
+    timelineView.onSetSelectionRange = [this](double s, double e)
+    {
+        // クリップ上半分のドラッグで範囲選択
+        loopStartSecs = s;
+        loopEndSecs   = e;
+        timelineView.setLoopRange(loopStartSecs, loopEndSecs, loopActive);
+        audioEngine.setLoopRange(loopStartSecs, loopEndSecs, loopActive);
+    };
+
+    // 選択 (クリップ / 範囲) が変わったらヘッダの ↑ (採用) ボタンの活性表示を更新
+    timelineView.onSelectionChanged = [this]
+    {
+        // クリップ / 範囲を選択したら、そのトラックをヘッダ側でも選択状態にする。
+        // (選択が空の時は触らない = 空きクリックで手動のトラック選択を消さない)
+        auto tracks = timelineView.getInvolvedTrackIndices();
+        if (!tracks.empty())
+        {
+            trackHeaderPanel.setSelectedTracks(tracks);
+            selectedTrackIndex = tracks.front();   // 主選択 index (インポート先等)
+        }
+        trackHeaderPanel.repaintHeaders();
+    };
+
+    toolbar.onLoopToggle = [this](bool v)
+    {
+        loopActive = v && (loopEndSecs > loopStartSecs + 0.001);
+        timelineView.setLoopRange(loopStartSecs, loopEndSecs, loopActive);
+        audioEngine.setLoopRange(loopStartSecs, loopEndSecs, loopActive);
+        toolbar.setLoopActive(loopActive);
+    };
+    toolbar.onToolModeChanged = [this](int mode)
+    {
+        appSettings.toolMode = (ToolMode)mode;
+        timelineView.setAppSettings(appSettings);
+        toolbar.setToolMode(mode);
+    };
+
+    toolbar.onBpmChanged = [this](double newBpm)
+    {
+        auto before = captureMusicState();
+        bpm = newBpm;
+        appSettings.initialBpm = newBpm;
+        timelineView.setBpm(bpm);
+        timelineView.setAppSettings(appSettings);
+        audioEngine.setMetronomeBpm(bpm);
+        audioEngine.setAppSettings(appSettings);
+        markProjectDirty();
+        pushMusicUndo(before);   // BPM ラベル編集 / タップテンポを Undo 対応
+    };
+
+    toolbar.onMetronomeToggle = [this](bool on)
+    {
+        audioEngine.setMetronomeEnabled(on);
+    };
+
+    toolbar.onCountInChanged = [this](int bars) {
+        appSettings.countInBars = bars;
+        // 排他: カウントインを設定したらプリロールはオフ
+        if (bars > 0)
+        {
+            appSettings.preRollSecs = 0.0;
+            toolbar.setPreRollSecs(0.0);
+        }
+        toolbar.setCountInBars(bars);
+    };
+
+    toolbar.onPreRollChanged = [this](double secs) {
+        appSettings.preRollSecs = secs;
+        // 排他: プリロールを設定したらカウントインはオフ
+        if (secs >= 0.5)
+        {
+            appSettings.countInBars = 0;
+            toolbar.setCountInBars(0);
+        }
+        toolbar.setPreRollSecs(secs);
+    };
+
+    toolbar.onMetronomeSettings = [this]
+    {
+        // メトロノーム設定: 音量・パン・音色・アクセント
+        class MetronomeSettings : public juce::Component
+        {
+        public:
+            juce::Label  volLabel, panLabel, soundLabel, accentLabel;
+            juce::Slider volSlider, panSlider;
+            juce::ComboBox soundCombo;
+            juce::ToggleButton accentBtn;
+            std::function<void(float)> onVol;
+            std::function<void(float)> onPan;
+            std::function<void(int)>   onSound;
+            std::function<void(bool)>  onAccent;
+
+            MetronomeSettings(float curVol, float curPan, int curSound, bool curAccent)
+            {
+                auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
+                auto setupLabel = [this](juce::Label& l, juce::String txt) {
+                    l.setText(txt, juce::dontSendNotification);
+                    l.setColour(juce::Label::textColourId, juce::Colours::white);
+                    addAndMakeVisible(l);
+                };
+                setupLabel(volLabel,    J(u8"音量"));
+                setupLabel(panLabel,    J(u8"パン"));
+                setupLabel(soundLabel,  J(u8"音色"));
+                setupLabel(accentLabel, J(u8"アクセント"));
+
+                addAndMakeVisible(volSlider);
+                volSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+                volSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 50, 18);
+                volSlider.setRange(0.0, 1.0, 0.01);
+                volSlider.setValue(curVol);
+                volSlider.onValueChange = [this] { if (onVol) onVol((float)volSlider.getValue()); };
+
+                addAndMakeVisible(panSlider);
+                panSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+                panSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 50, 18);
+                panSlider.setRange(-1.0, 1.0, 0.01);
+                panSlider.setValue(curPan);
+                panSlider.setDoubleClickReturnValue(true, 0.0);
+                panSlider.onValueChange = [this] { if (onPan) onPan((float)panSlider.getValue()); };
+
+                addAndMakeVisible(soundCombo);
+                soundCombo.addItem("Beep",    1);
+                soundCombo.addItem("Stick",   2);
+                soundCombo.addItem("Cowbell", 3);
+                soundCombo.addItem("Wood",    4);
+                soundCombo.addItem("Tick",    5);
+                soundCombo.addItem("Bell",    6);
+                soundCombo.setSelectedId(curSound + 1, juce::dontSendNotification);
+                soundCombo.onChange = [this] { if (onSound) onSound(soundCombo.getSelectedId() - 1); };
+
+                accentBtn.setButtonText(J(u8"頭の拍を強くする"));
+                accentBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
+                accentBtn.setToggleState(curAccent, juce::dontSendNotification);
+                accentBtn.onClick = [this] { if (onAccent) onAccent(accentBtn.getToggleState()); };
+                addAndMakeVisible(accentBtn);
+
+                setSize(320, 180);
+            }
+            void resized() override
+            {
+                int y = 10;
+                volLabel.setBounds(8, y, 80, 20);
+                volSlider.setBounds(90, y, 220, 20); y += 28;
+                panLabel.setBounds(8, y, 80, 20);
+                panSlider.setBounds(90, y, 220, 20); y += 28;
+                soundLabel.setBounds(8, y, 80, 22);
+                soundCombo.setBounds(90, y, 220, 22); y += 30;
+                accentLabel.setBounds(8, y, 80, 22);
+                accentBtn.setBounds(90, y, 220, 22);
+            }
+            void paint(juce::Graphics& g) override { g.fillAll(juce::Colour(0xff2a2a2a)); }
+        };
+
+        auto* dlg = new MetronomeSettings(
+            audioEngine.getMetronomeVolume(),
+            audioEngine.getMetronomePan(),
+            audioEngine.getMetronomeSound(),
+            audioEngine.getMetronomeAccent());
+        dlg->onVol    = [this](float v) { audioEngine.setMetronomeVolume(v); };
+        dlg->onPan    = [this](float p) { audioEngine.setMetronomePan(p); };
+        dlg->onSound  = [this](int  s) { audioEngine.setMetronomeSound(s); };
+        dlg->onAccent = [this](bool b) { audioEngine.setMetronomeAccent(b); };
+
+        juce::DialogWindow::LaunchOptions opts;
+        opts.content.setOwned(dlg);
+        opts.dialogTitle = tr(u8"メトロノーム設定");
+        opts.dialogBackgroundColour = juce::Colour(0xff2a2a2a);
+        opts.escapeKeyTriggersCloseButton = true;
+        opts.useNativeTitleBar = true;
+        opts.resizable = false;
+        opts.launchAsync();
+    };
+    ruler.onClearLoop = [this]
+    {
+        loopActive = false;
+        timelineView.setLoopRange(0.0, 0.0, false);
+        audioEngine.setLoopRange(0.0, 0.0, false);
+    };
+    ruler.onClearMarkers = [this]
+    {
+        auto before = captureMusicState();
+        timelineView.setMarkers({});
+        pushMusicUndo(before);
+    };
+
+    ruler.onSnapTimeForBpm = [this](double t) { return timelineView.snapTimePublic(t); };
+
+    ruler.onBpmChangesUpdated = [this](const std::vector<BpmChange>& list) {
+        appSettings.bpmChanges = list;
+        std::sort(appSettings.bpmChanges.begin(), appSettings.bpmChanges.end(),
+                  [](const BpmChange& a, const BpmChange& b) { return a.timeSec < b.timeSec; });
+        timelineView.setAppSettings(appSettings);
+        audioEngine.setAppSettings(appSettings);
+    };
+    ruler.onMeterChangesUpdated = [this](const std::vector<MeterChange>& list) {
+        appSettings.meterChanges = list;
+        std::sort(appSettings.meterChanges.begin(), appSettings.meterChanges.end(),
+                  [](const MeterChange& a, const MeterChange& b) { return a.barIndex < b.barIndex; });
+        timelineView.setAppSettings(appSettings);
+        audioEngine.setAppSettings(appSettings);
+    };
+
+    ruler.onEditBpm = [this](double clickedTime)
+    {
+        // 既存の BPM 変更点があれば編集、なければ新規挿入
+        double curBpm = appSettings.bpmAtTime(clickedTime);
+        // 厳密一致でなくても近傍の既存変更（±1ms）を編集対象に
+        bool   editingExisting = false;
+        for (auto& bc : appSettings.bpmChanges)
+            if (std::abs(bc.timeSec - clickedTime) < 0.001) { curBpm = bc.bpm; editingExisting = true; break; }
+
+        class BpmDlg : public juce::Component
+        {
+        public:
+            juce::Label  timeLabel, bpmLabel;
+            juce::Slider bpmSlider;
+            juce::TextButton insertBtn, cancelBtn;
+            std::function<void(double)> onInsert;  // bpm
+            BpmDlg(double t0, double bpm0, bool atSongStart)
+            {
+                auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
+                auto setupLabel = [this](juce::Label& l, juce::String txt) {
+                    l.setText(txt, juce::dontSendNotification);
+                    l.setColour(juce::Label::textColourId, juce::Colours::white);
+                    addAndMakeVisible(l);
+                };
+                int mins = (int)t0 / 60;
+                double s = t0 - mins * 60;
+                juce::String tt = juce::String::formatted("%d:%06.3f", mins, s);
+                setupLabel(timeLabel, J(u8"位置  ") + tt + (atSongStart ? J(u8"  (曲頭)") : juce::String()));
+                setupLabel(bpmLabel,  J(u8"BPM"));
+
+                addAndMakeVisible(bpmSlider);
+                bpmSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+                bpmSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 60, 22);
+                bpmSlider.setRange(20.0, 300.0, 0.01);
+                bpmSlider.setValue(bpm0);
+                bpmSlider.setNumDecimalPlacesToDisplay(2);
+
+                insertBtn.setButtonText(J(u8"挿入"));
+                cancelBtn.setButtonText(J(u8"キャンセル"));
+                addAndMakeVisible(insertBtn);
+                addAndMakeVisible(cancelBtn);
+
+                auto closeMe = [this] {
+                    if (auto* dw = findParentComponentOfClass<juce::DialogWindow>())
+                        dw->exitModalState(0);
+                };
+                insertBtn.onClick = [this, closeMe] {
+                    if (onInsert) onInsert(bpmSlider.getValue());
+                    closeMe();
+                };
+                cancelBtn.onClick = [closeMe] { closeMe(); };
+
+                setSize(380, 160);
+            }
+            void resized() override
+            {
+                int y = 10;
+                timeLabel.setBounds(8, y, 360, 22); y += 30;
+                bpmLabel.setBounds(8, y, 50, 22);
+                bpmSlider.setBounds(60, y, 300, 22); y += 36;
+                int btnW = 100, btnH = 26, gap = 8;
+                int x = (getWidth() - btnW * 2 - gap) / 2;
+                insertBtn.setBounds(x, y, btnW, btnH); x += btnW + gap;
+                cancelBtn.setBounds(x, y, btnW, btnH);
+            }
+            void paint(juce::Graphics& g) override { g.fillAll(juce::Colour(0xff2a2a2a)); }
+        };
+
+        bool atSongStart = clickedTime < 0.001;
+        auto* dlg = new BpmDlg(clickedTime, curBpm, atSongStart);
+
+        auto applyAndRefresh = [this] {
+            std::sort(appSettings.bpmChanges.begin(), appSettings.bpmChanges.end(),
+                      [](const BpmChange& a, const BpmChange& b) { return a.timeSec < b.timeSec; });
+            timelineView.setAppSettings(appSettings);
+            audioEngine.setAppSettings(appSettings);
+        };
+
+        dlg->onInsert = [this, clickedTime, applyAndRefresh](double newBpm) {
+            auto before = captureMusicState();
+            if (clickedTime < 0.001)
+            {
+                // 曲頭: 全体BPMとして扱う
+                bpm = newBpm;
+                appSettings.initialBpm = newBpm;
+                timelineView.setBpm(bpm);
+                toolbar.setBpm(newBpm);
+                audioEngine.setMetronomeBpm(newBpm);
+            }
+            else
+            {
+                bool replaced = false;
+                for (auto& bc : appSettings.bpmChanges)
+                    if (std::abs(bc.timeSec - clickedTime) < 0.001) { bc.bpm = newBpm; replaced = true; break; }
+                if (!replaced) appSettings.bpmChanges.push_back({ clickedTime, newBpm });
+            }
+            applyAndRefresh();
+            markProjectDirty();
+            pushMusicUndo(before);   // テンポ挿入/編集を Undo 対応
+        };
+        juce::ignoreUnused(editingExisting);
+
+        juce::DialogWindow::LaunchOptions opts;
+        opts.content.setOwned(dlg);
+        opts.dialogTitle = tr(u8"BPM の設定");
+        opts.dialogBackgroundColour = juce::Colour(0xff2a2a2a);
+        opts.escapeKeyTriggersCloseButton = true;
+        opts.useNativeTitleBar = true;
+        opts.resizable = false;
+        opts.launchAsync();
+    };
+
+    ruler.onEditMeter = [this](int clickedBar)
+    {
+        // 拍子設定: クリックした小節 + 分子/分母 + 挿入
+        int curN = appSettings.meterNumerator, curD = appSettings.meterDenominator;
+        // 既にこの小節に変更が入っていれば、その拍子を初期値に
+        for (auto& mc : appSettings.meterChanges)
+            if (mc.barIndex == clickedBar - 1) { curN = mc.numerator; curD = mc.denominator; break; }
+
+        class MeterDlg : public juce::Component
+        {
+        public:
+            juce::Label  barLabel, numLabel, denLabel;
+            juce::Slider barSlider;
+            juce::ComboBox numCombo, denCombo;
+            juce::TextButton insertBtn, cancelBtn;
+            std::function<void(int, int, int)> onInsert;  // bar, num, den
+            std::function<void()>              onClose;
+            MeterDlg(int curBar, int n0, int d0)
+            {
+                auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
+                auto setupLabel = [this](juce::Label& l, juce::String txt) {
+                    l.setText(txt, juce::dontSendNotification);
+                    l.setColour(juce::Label::textColourId, juce::Colours::white);
+                    addAndMakeVisible(l);
+                };
+                setupLabel(barLabel, J(u8"小節"));
+                setupLabel(numLabel, J(u8"分子"));
+                setupLabel(denLabel, J(u8"分母"));
+
+                addAndMakeVisible(barSlider);
+                barSlider.setSliderStyle(juce::Slider::IncDecButtons);
+                barSlider.setTextBoxStyle(juce::Slider::TextBoxLeft, false, 80, 22);
+                barSlider.setRange(1, 999, 1);
+                barSlider.setValue(curBar);
+
+                addAndMakeVisible(numCombo);
+                for (int i = 1; i <= 12; ++i) numCombo.addItem(juce::String(i), i);
+                numCombo.setSelectedId(n0, juce::dontSendNotification);
+
+                addAndMakeVisible(denCombo);
+                for (int v : { 2, 4, 8, 16 }) denCombo.addItem(juce::String(v), v);
+                denCombo.setSelectedId(d0, juce::dontSendNotification);
+
+                insertBtn.setButtonText(J(u8"挿入"));
+                cancelBtn.setButtonText(J(u8"キャンセル"));
+                addAndMakeVisible(insertBtn);
+                addAndMakeVisible(cancelBtn);
+
+                auto closeMe = [this] {
+                    if (auto* dw = findParentComponentOfClass<juce::DialogWindow>())
+                        dw->exitModalState(0);
+                };
+                insertBtn.onClick = [this, closeMe] {
+                    if (onInsert) onInsert((int)barSlider.getValue(),
+                                           numCombo.getSelectedId(),
+                                           denCombo.getSelectedId());
+                    closeMe();
+                };
+                cancelBtn.onClick = [closeMe] { closeMe(); };
+
+                setSize(360, 180);
+            }
+            void resized() override
+            {
+                int y = 10;
+                barLabel.setBounds(8, y, 50, 22);
+                barSlider.setBounds(60, y, 280, 22); y += 30;
+                numLabel.setBounds(8, y, 50, 22);
+                numCombo.setBounds(60, y, 280, 22); y += 30;
+                denLabel.setBounds(8, y, 50, 22);
+                denCombo.setBounds(60, y, 280, 22); y += 36;
+                int btnW = 100, btnH = 26, gap = 8;
+                int x = (getWidth() - btnW * 2 - gap) / 2;
+                insertBtn.setBounds(x, y, btnW, btnH); x += btnW + gap;
+                cancelBtn.setBounds(x, y, btnW, btnH);
+            }
+            void paint(juce::Graphics& g) override { g.fillAll(juce::Colour(0xff2a2a2a)); }
+        };
+
+        auto* dlg = new MeterDlg(clickedBar, curN, curD);
+        auto applyAndRefresh = [this] {
+            // 0番目（曲頭）は appSettings.meterNumerator/Denominator が反映する
+            // それ以外は meterChanges を昇順に並べる
+            std::sort(appSettings.meterChanges.begin(), appSettings.meterChanges.end(),
+                      [](const MeterChange& a, const MeterChange& b) { return a.barIndex < b.barIndex; });
+            timelineView.setAppSettings(appSettings);
+            audioEngine.setAppSettings(appSettings);  // 拍子変更をオーディオスレッドへ伝搬
+            audioEngine.setMetronomeBeatsPerBar(appSettings.meterNumerator);
+        };
+        dlg->onInsert = [this, applyAndRefresh](int bar, int n, int d) {
+            auto before = captureMusicState();
+            int barIdx = juce::jmax(0, bar - 1);
+            if (barIdx == 0)
+            {
+                appSettings.meterNumerator   = n;
+                appSettings.meterDenominator = d;
+            }
+            else
+            {
+                bool replaced = false;
+                for (auto& mc : appSettings.meterChanges)
+                    if (mc.barIndex == barIdx) { mc.numerator = n; mc.denominator = d; replaced = true; break; }
+                if (!replaced)
+                    appSettings.meterChanges.push_back({ barIdx, n, d });
+            }
+            applyAndRefresh();
+            markProjectDirty();
+            pushMusicUndo(before);   // 拍子挿入/編集を Undo 対応
+        };
+        juce::DialogWindow::LaunchOptions opts;
+        opts.content.setOwned(dlg);
+        opts.dialogTitle = tr(u8"拍子の設定");
+        opts.dialogBackgroundColour = juce::Colour(0xff2a2a2a);
+        opts.escapeKeyTriggersCloseButton = true;
+        opts.useNativeTitleBar = true;
+        opts.resizable = false;
+        opts.launchAsync();
+    };
+
+    // Init
+    toolbar.setBpm(bpm);
+    audioEngine.setMetronomeBpm(bpm);
+    toolbar.setTimePosition(0.0, 1, 1);
+    statusBar.setSampleRate((int) appSettings.projectSampleRate);
+    statusBar.setBitDepth(appSettings.projectBitDepth);
+    statusBar.setTrackCount(0);
+
+    audioEngine.initialise();
+
+    if (auto* dev = audioEngine.getDeviceManager().getCurrentAudioDevice())
+    {
+        int sr = (int)dev->getCurrentSampleRate();
+        statusBar.setSampleRate(sr);
+        timelineView.setSampleRate((double)sr);
+    }
+
+    // 20Hz: メーター/数値表示/ループ検出/録音オーバーレイの更新。再生バー自体は
+    // VBlankAttachment (onVBlank) 側でディスプレイのリフレッシュに同期して動かす。
+    startTimerHz(20);
+
+    // 再生バーをディスプレイの垂直同期に合わせて更新 (60/120Hz 等に自動追従)。
+    // タイムスタンプ付きコールバックで「次フレームの提示時刻」を受け取り等速補間する。
+    vblankAttachment = juce::VBlankAttachment(this, [this](double ts) { onVBlank(ts); });
+
+    // 自動保存タイマー
+    autoSaveTimer = std::make_unique<AutoSaveTickTimer>();
+    autoSaveTimer->tick = [this] { performAutoSave(); };
+    restartAutoSaveTimer();
+
+    deviceAutoSaver = std::make_unique<AudioDeviceSettings::AutoSaver>(
+        audioEngine.getDeviceManager());
+
+    pluginManager.initialise();
+
+    // ApplicationCommandManager にトランスポートコマンドを登録し、
+    // MainComponent およびプラグインエディタ越しでも効くキー入力受付を仕込む
+    commandManager.registerAllCommandsForTarget(this);
+    addKeyListener(commandManager.getKeyMappings());
+
+    // プラグインのネイティブ Cocoa UI 越しでも Space 等が効くよう、
+    // NSEvent ローカルモニターを設置（macOS のみ実体動作）
+    globalKeyMonitor = std::make_unique<GlobalKeyMonitor>(
+        [this](int unicode, int mods) -> bool
+        {
+            // テキスト入力中は GlobalKeyMonitor 側で既に除外されている
+            switch (unicode)
+            {
+                case ' ':           // Space
+                    juce::MessageManager::callAsync([this] { togglePlay(); });
+                    return true;
+                case 's': case 'S':
+                    if (mods == 0) { juce::MessageManager::callAsync([this] { stopTransport(); }); return true; }
+                    return false;
+                case 'r': case 'R':
+                    if (mods == 0) { juce::MessageManager::callAsync([this] { toggleRecord(); }); return true; }
+                    return false;
+                default:
+                    return false;
+            }
+        });
+
+   #if JUCE_MAC
+    juce::MenuBarModel::setMacMainMenu(this);
+   #else
+    // Windows / Linux: ウィンドウ上端にメニューバーを表示
+    menuBar = std::make_unique<juce::MenuBarComponent>(this);
+    addAndMakeVisible(*menuBar);
+   #endif
+}
+
+// MainComponent::~MainComponent() は MainComponent_Plugins.cpp に移動。
+// (OwnedArray<PluginEditorWindow / PianoRollWindow> の解体には完全型が必要なため、
+//  これらクラス定義が見える .cpp に置く必要がある)
+
+void MainComponent::timerCallback()
+{
+    // Metering: アイドル時 (再生/録音/入力モニターのいずれも無し) はメーター計算を省く。
+    // 直後の数 tick は猶予として計算を続け、メーターが無音まで滑らかに減衰してから止める。
+    bool meterActive = isPlaying || isRecording;
+    if (!meterActive)
+    {
+        for (int i = 0; i < trackManager.getTrackCount(); ++i)
+        {
+            auto* t = trackManager.getTrack(i);
+            if (t && (t->isRecArmed() || t->isInputMonitor()))
+            {
+                meterActive = true;
+                break;
+            }
+        }
+    }
+
+    if (meterActive)
+        idleMeterTicks = 0;
+    else
+        ++idleMeterTicks;
+
+    if (meterActive || idleMeterTicks < 30)
+    {
+        masterPanel.setLevels(
+            audioEngine.getPeakL(), audioEngine.getPeakR(),
+            audioEngine.getVUL(),   audioEngine.getVUR(),
+            audioEngine.getPeakHoldL(), audioEngine.getPeakHoldR());
+
+        // 入力レベルメータ（各トラック）
+        trackHeaderPanel.updateInputLevels(
+            [this](int ch){ return audioEngine.getInputPeak(ch); },
+            [this](int ch){ return audioEngine.getInputVU(ch);   });
+    }
+
+    // Transport position（再生バー自体の描画は onVBlank 側。ここは数値表示・ループ検出）
+    if (isPlaying)
+    {
+        playPosition = audioEngine.getCurrentPositionSeconds();
+
+        int bar1, beat1;
+        appSettings.barAndBeatAtTime(playPosition, bar1, beat1);
+        toolbar.setTimePosition(playPosition, bar1, beat1);
+        statusBar.setDuration(playPosition);
+
+        // ループラップを検出したら直ちに再描画（再生バーと波形のズレ防止）
+        int wraps = audioEngine.getLoopWrapCount();
+        if (wraps != lastLoopWrapCount)
+        {
+            timelineView.repaint();
+            // 録音中のループ録音テイク積み上げも同タイミングで処理
+            if (isRecording)
+            {
+                while (lastLoopWrapCount < wraps)
+                {
+                    recordingMgr.onLoopWrap();
+                    ++lastLoopWrapCount;
+                }
+                trackHeaderPanel.refresh();
+                timelineView.refresh();
+            }
+            else
+            {
+                lastLoopWrapCount = wraps;
+            }
+        }
+    }
+    else
+    {
+        // 停止中もピアノロールの再生バーをオーディオエンジンの現在位置に同期し続ける
+        // (stop 直後に repaint が抜ける問題への保険)
+        propagatePlayheadToPianoRolls(audioEngine.getCurrentPositionSeconds());
+    }
+
+    // 録音中はライブ波形オーバーレイを伸ばし続けるため再描画するが、全面ではなく
+    // 録音域 (録音トラック行) だけに絞ってちらつきと負荷を抑える。
+    if (isRecording)
+        timelineView.repaintRecordingArea();
+}
+
+// VBlankAttachment コールバック: ディスプレイの垂直同期ごとに呼ばれ、視覚プレイヘッドを
+// 更新する。timestampSec は「次に提示されるフレームの時刻 (秒・単調増加)」。これを壁時計
+// として等速補間し、真のオーディオ位置へ緩く追従させることで、タイマー/オーディオブロック
+// 境界のジッタ由来のカクツキ (特に横ズーム時) を排し、表示リフレッシュに乗せて最も滑らかに
+// 動かす。再生中のみ更新し、停止中は平滑化をリセットする。
+void MainComponent::onVBlank (double timestampSec)
+{
+    if (!isPlaying)
+    {
+        playheadSmoothActive = false;  // 次回再生で再同期できるよう平滑化をリセット
+        return;
+    }
+
+    const double rawPos = audioEngine.getCurrentPositionSeconds();
+
+    if (!playheadSmoothActive)
+    {
+        smoothedPlayhead     = rawPos;
+        playheadSmoothActive = true;
+    }
+    else
+    {
+        // dt はフレーム落ち/バックグラウンド復帰に備えてクランプ
+        const double dt = juce::jlimit(0.0, 0.1, timestampSec - lastPlayheadWallSec);
+        smoothedPlayhead += dt;                  // 再生速度 1.0 で前進
+        const double err = rawPos - smoothedPlayhead;
+        if (std::abs(err) > 0.10)
+            smoothedPlayhead = rawPos;           // シーク/ループ/大ズレはスナップ
+        else
+            smoothedPlayhead += err * 0.12;      // ゆるく真値へ追従 (ドリフト防止)
+    }
+    lastPlayheadWallSec = timestampSec;
+
+    // 視覚プレイヘッド: オーディオ出力レイテンシ + バッファサイズ分を後ろにずらして
+    // 「いま耳に聞こえている音」と同期（バッファ未drainの分も補正）
+    double visualPlayhead = smoothedPlayhead;
+    if (auto* dev = audioEngine.getDeviceManager().getCurrentAudioDevice())
+    {
+        const double sr = dev->getCurrentSampleRate();
+        if (sr > 0.0)
+        {
+            const int latencySamples = dev->getOutputLatencyInSamples()
+                                       + dev->getCurrentBufferSizeSamples();
+            const double latencySec = latencySamples / sr;
+            visualPlayhead = juce::jmax(0.0, smoothedPlayhead - latencySec);
+            // ループ範囲内ならラップを考慮
+            if (loopActive && loopEndSecs > loopStartSecs + 0.001
+                && smoothedPlayhead >= loopStartSecs && visualPlayhead < loopStartSecs)
+            {
+                visualPlayhead = loopEndSecs - (loopStartSecs - visualPlayhead);
+                if (visualPlayhead < loopStartSecs)
+                {
+                    const double loopDur = loopEndSecs - loopStartSecs;
+                    visualPlayhead = loopStartSecs
+                        + std::fmod(smoothedPlayhead - latencySec - loopStartSecs + loopDur,
+                                    loopDur);
+                }
+            }
+        }
+    }
+
+    timelineView.setPlayheadPosition(visualPlayhead);
+    propagatePlayheadToPianoRolls(visualPlayhead);
+}
+
+void MainComponent::addTrack()
+{
+    trackManager.addTrack();
+    markProjectDirty();
+}
+
+void MainComponent::syncInputMonitorStateToEngine()
+{
+    bool  anyMonitoring = false;
+    bool  anyRecArmed   = false;
+    float monRev        = 0.0f;   // モニター中トラックの Rev (複数なら最大)
+    for (int i = 0; i < trackManager.getTrackCount(); ++i)
+    {
+        auto* t = trackManager.getTrack(i);
+        if (!t) continue;
+        if (t->isInputMonitor())
+        {
+            anyMonitoring = true;
+            monRev = juce::jmax(monRev, t->getReverbSend());
+        }
+        if (t->isRecArmed()) anyRecArmed = true;
+    }
+    audioEngine.setInputMonitoringActive(anyMonitoring);
+    audioEngine.setAnyTrackRecArmed(anyRecArmed);
+    audioEngine.setMonitorReverbSend(monRev);
+}
+
+void MainComponent::addMidiTrack()
+{
+    // 空の MIDI トラック (ハモリ / ガイドメロディの手打ち込み用)。
+    // SMF インポート経由の MIDI トラックと既定値をそろえる。
+    int midiCount = 0;
+    for (int i = 0; i < trackManager.getTrackCount(); ++i)
+        if (auto* t = trackManager.getTrack(i); t && t->isMidiTrack())
+            ++midiCount;
+
+    auto* track = trackManager.addTrack("MIDI " + juce::String(midiCount + 1), /*stereo=*/true);
+    if (!track) return;
+    track->setMidiTrack(true);
+    track->setVolume(-14.0f);  // 内蔵シンセ出力は大きめなので控えめに
+
+    // クリップは空のまま作らない。ユーザがタイムライン上で
+    // Option+ドラッグ または 空きエリアのダブルクリックで MIDI クリップを作る。
+
+    // 内蔵シンセの確保 / 再生キャッシュを更新 (停止中なら次の play() で rebuild)。
+    audioEngine.invalidatePlayback();
+    markProjectDirty();
+}
+
+void MainComponent::togglePlay()
+{
+    isPlaying = !isPlaying;
+    if (isPlaying)
+    {
+        playStartPos = audioEngine.getCurrentPositionSeconds();
+        audioEngine.preparePlayback(trackManager);
+        audioEngine.play();
+
+        // 遡及録音: 録音アーム済みトラックがあれば再生中バックグラウンド録音を開始
+        if (appSettings.retrospectiveEnabled && !isRecording
+            && !recordingMgr.hasRetrospective())
+        {
+            for (int i = 0; i < trackManager.getTrackCount(); ++i)
+            {
+                auto* t = trackManager.getTrack(i);
+                if (t->isRecArmed())
+                {
+                    recordingMgr.startRetrospective(t, playStartPos);
+                    break;
+                }
+            }
+        }
+    }
+    else
+    {
+        // 録音中なら確定してバックアップ
+        if (isRecording) stopRecording();
+        // 遡及録音を破棄（commit はしない）
+        if (recordingMgr.hasRetrospective())
+            recordingMgr.stopRetrospective(false,
+                audioEngine.getCurrentPositionSeconds());
+
+        audioEngine.stop();
+        toolbar.setPlaying(false);
+        toolbar.setRecording(false);
+
+        // RTZ: 再生開始位置へ戻る
+        if (appSettings.returnToStartOnStop)
+        {
+            audioEngine.setPosition(playStartPos);
+            playPosition = playStartPos;
+            int bar1, beat1;
+            appSettings.barAndBeatAtTime(playStartPos, bar1, beat1);
+            toolbar.setTimePosition(playStartPos, bar1, beat1);
+            timelineView.setPlayheadPosition(playStartPos);
+            propagatePlayheadToPianoRolls(playStartPos);
+        }
+        else
+        {
+            propagatePlayheadToPianoRolls(audioEngine.getCurrentPositionSeconds());
+        }
+        return;
+    }
+    toolbar.setPlaying(isPlaying);
+}
+
+void MainComponent::seekTo(double seconds)
+{
+    const double t = juce::jmax(0.0, seconds);
+    audioEngine.setPosition(t);
+    playPosition = t;
+    playStartPos = t;   // RTZ 基準も更新
+    int bar1, beat1;
+    appSettings.barAndBeatAtTime(t, bar1, beat1);
+    toolbar.setTimePosition(t, bar1, beat1);
+    timelineView.setPlayheadPosition(t);
+    propagatePlayheadToPianoRolls(t);
+}
+
+void MainComponent::stopTransport()
+{
+    if (isRecording) stopRecording();
+    if (recordingMgr.hasRetrospective())
+        recordingMgr.stopRetrospective(false, audioEngine.getCurrentPositionSeconds());
+    isPlaying = false;
+    audioEngine.stop();
+    toolbar.setPlaying(false);
+    toolbar.setRecording(false);
+
+    // RTZ: Stop時に再生開始位置へ戻る（設定ON時）
+    if (appSettings.returnToStartOnStop)
+    {
+        audioEngine.setPosition(playStartPos);
+        playPosition = playStartPos;
+        int bar1, beat1;
+        appSettings.barAndBeatAtTime(playStartPos, bar1, beat1);
+        toolbar.setTimePosition(playStartPos, bar1, beat1);
+        timelineView.setPlayheadPosition(playStartPos);
+        propagatePlayheadToPianoRolls(playStartPos);
+    }
+    else
+    {
+        // RTZ OFF: 停止位置でピアノロール再生バーも揃える
+        propagatePlayheadToPianoRolls(audioEngine.getCurrentPositionSeconds());
+    }
+}
+
+void MainComponent::startRecording()
+{
+    if (isRecording) return;
+
+    // 録音開始位置 = 現在の再生位置
+    const double recStart = audioEngine.getCurrentPositionSeconds();
+
+    // カウントイン/プレロールは「停止状態から R を押したとき」のみ適用。
+    // 再生中のパンチインでは巻き戻さずその場から書き出し開始。
+    const bool fromStop  = !isPlaying;
+    const int    cBars   = fromStop ? appSettings.countInBars : 0;
+    const int    bpb     = juce::jmax(1, appSettings.meterNumerator);
+    const double secsPerBeat = 60.0 / juce::jmax(1.0, bpm);
+    const double countInDur = cBars * bpb * secsPerBeat;
+    const double preRollDur = fromStop ? juce::jmax(0.0, appSettings.preRollSecs) : 0.0;
+
+    const double playFrom   = juce::jmax(0.0, recStart - countInDur - preRollDur);
+
+    // ループ録音条件: ループがアクティブで recStart が loopEnd より前なら自動でループ録音モード
+    // （recStart < loopStart の場合も pre-loop 部分はスキップしてループ周回をテイクへ配置）
+    const bool useLoopRec = loopActive
+                            && (loopEndSecs > loopStartSecs + 0.05)
+                            && recStart <  loopEndSecs   + 0.001;
+
+    // ループ録音時は遡及録音を破棄して新規ファイルへ（Punch From Retro と排他）
+    if (useLoopRec && recordingMgr.hasRetrospective())
+        recordingMgr.stopRetrospective(false, recStart);
+    // それ以外で遡及録音アクティブの場合は RecordingManager 側で Punch From Retro モードに
+    // 切替わり、同じファイルを使い続けて停止時に offset 付きクリップで配置される。
+
+    if (fromStop)
+    {
+        playStartPos = playFrom;
+        audioEngine.setPosition(playFrom);
+        isPlaying = true;
+        audioEngine.preparePlayback(trackManager);
+        audioEngine.play();
+        toolbar.setPlaying(true);
+    }
+
+    // ループラップカウントをリセット（録音開始時点を 0 として測定）
+    audioEngine.resetLoopWrapCount();
+    lastLoopWrapCount = 0;
+
+    // Undo 用: 録音前の Lane 0 スナップショット (REC アーム済みトラック)。
+    // 通常録音だけでなく Punch From Retro も同じトラックに新クリップを置くので対象に含める。
+    preRecSnaps.clear();
+    for (int i = 0; i < trackManager.getTrackCount(); ++i)
+    {
+        auto* t = trackManager.getTrack(i);
+        if (!t || !t->isRecArmed()) continue;
+        auto* lane = t->getLane(0);
+        if (!lane) continue;
+        PreRecSnapshot ps;
+        ps.track = t;
+        for (auto& c : lane->clips)
+            ps.lane0Snap.push_back(EditActions::LaneSnapshotAction::ClipSnap::capture(c.get()));
+        preRecSnaps.push_back(std::move(ps));
+    }
+
+    isRecording = recordingMgr.startRecording(recStart, playFrom,
+                                              useLoopRec,
+                                              loopStartSecs, loopEndSecs);
+    toolbar.setRecording(isRecording);
+
+    if (!isRecording)
+        preRecSnaps.clear();  // 録音が始まらなかった場合はスナップショットも破棄
+
+    if (isRecording)
+    {
+        trackHeaderPanel.refresh();
+        timelineView.refresh();
+        if (fromStop)
+            timelineView.setPlayheadPosition(playFrom);
+    }
+}
+
+void MainComponent::stopRecording()
+{
+    if (!isRecording) return;
+
+    double stopPos = audioEngine.getCurrentPositionSeconds();
+    recordingMgr.stopRecording(stopPos);
+    isRecording = false;
+    markProjectDirty();   // 録音結果はプロジェクトの変更
+    toolbar.setRecording(false);
+
+    trackHeaderPanel.refresh();
+    timelineView.refresh();
+    scheduleWaveformRefresh();
+
+    // Undo Action: 録音前後の Lane 0 を LaneSnapshotAction で 1 トランザクションに束ねる。
+    // Undo すると録音前の状態に戻り、録音クリップは Lane から外れるが
+    // WAV ファイル自体は Audio フォルダに残る (削除はしない)。
+    if (!preRecSnaps.empty())
+    {
+        undoManager.beginNewTransaction();
+        auto onChange = [this]
+        {
+            markProjectDirty();
+            trackHeaderPanel.refresh();
+            timelineView.refresh();
+            // LaneSnapshotAction の perform()/undo() は Lane 0 クリップを作り直すため、
+            // 作り直し後のクリップに対して波形の非同期ロードを仕掛け直す
+            // (録音直後に波形が出ない / Undo で消える問題への対処)。
+            scheduleWaveformRefresh();
+            audioEngine.preparePlayback(trackManager);
+        };
+        for (auto& ps : preRecSnaps)
+        {
+            if (!ps.track) continue;
+            auto* lane = ps.track->getLane(0);
+            if (!lane) continue;
+
+            std::vector<EditActions::LaneSnapshotAction::ClipSnap> afterSnap;
+            for (auto& c : lane->clips)
+                afterSnap.push_back(EditActions::LaneSnapshotAction::ClipSnap::capture(c.get()));
+
+            // 変化が無ければ Undo スタックに積まない
+            if (afterSnap.size() == ps.lane0Snap.size())
+            {
+                bool same = true;
+                for (size_t i = 0; i < afterSnap.size(); ++i)
+                {
+                    const auto& a = afterSnap[i];
+                    const auto& b = ps.lane0Snap[i];
+                    if (a.file != b.file
+                     || std::abs(a.startPos - b.startPos) > 1e-6
+                     || std::abs(a.duration - b.duration) > 1e-6
+                     || std::abs(a.fileOffset - b.fileOffset) > 1e-6)
+                    { same = false; break; }
+                }
+                if (same) continue;
+            }
+
+            undoManager.perform(new EditActions::LaneSnapshotAction(
+                lane, std::move(ps.lane0Snap), std::move(afterSnap),
+                trackManager.getFormatManager(), trackManager.getThumbnailCache(),
+                onChange,
+                [this](std::vector<std::unique_ptr<AudioClip>>&& clips)
+                { audioEngine.deferClipDestruction(std::move(clips)); }));
+        }
+        preRecSnaps.clear();
+    }
+}
+
+void MainComponent::scheduleWaveformRefresh()
+{
+    // AudioThumbnail はバックグラウンドで非同期にロードされ、進捗ごとに
+    // ChangeBroadcaster::sendChangeMessage() を発火するので、その通知を購読する。
+    // (ポーリング不要 → CPU/バッテリを浪費しない)
+    trackManager.forEachAudioClip([&](AudioClip& c)
+    {
+        auto& thumb = c.getThumbnail();
+        // 波形描画キャッシュ (Image) は常に破棄する。録音直後の退避クリップなどは、
+        // 確定前の fileOffset (= 0) で一度キャッシュされた古い波形画像が残り、その後
+        // 正しい fileOffset を入れても再描画されず「テイクだけ違う領域の波形が出る」
+        // ことがある。ここで全クリップのキャッシュを捨てれば、次の repaint で必ず
+        // 現在の fileOffset / gain で描き直される (再構築コストは録音停止/読込/Undo 等の
+        // ユーザー操作時のみで、毎フレームではないため軽微)。
+        c.invalidateWaveformCache();
+        if (!thumb.isFullyLoaded())
+        {
+            // 重複登録を防ぐため一度外してから付け直す。
+            // (AudioThumbnail 破棄時には ChangeBroadcaster::~ で自動解除される)
+            thumb.removeChangeListener(this);
+            thumb.addChangeListener(this);
+        }
+        return true;
+    });
+    // キャッシュを破棄したので必ず描き直す (ロード済みクリップも現在の fileOffset で再構築)。
+    timelineView.repaint();
+
+    updateWaveformLoadingStatus();
+}
+
+void MainComponent::updateWaveformLoadingStatus()
+{
+    int pending = 0, total = 0;
+    trackManager.forEachAudioClip([&](AudioClip& c)
+    {
+        ++total;
+        if (!c.getThumbnail().isFullyLoaded()) ++pending;
+        return true;
+    });
+
+    statusBar.setWaveformProgress(pending, total);
+
+    if (pending > 0)
+    {
+        waveformWasLoading = true;
+    }
+    else
+    {
+        if (waveformWasLoading)
+        {
+            // ロード中 → 全完了に切り替わった瞬間だけ完了メッセージを出す
+            statusBar.setMessage(tr(u8"波形の読み込みが完了しました"), 3000);
+            // プロジェクト読込で実際にデコードが走った場合は、その結果を
+            // ディスクキャッシュに保存しておく (次回読み込みが爆速になる)。
+            if (writeThumbCacheOnLoadComplete && currentProjectFile.existsAsFile())
+                trackManager.saveThumbnailCache(getProjectCacheFolder().getChildFile("thumbnails.bin"),
+                                                getProjectAudioFolder());
+        }
+        // 完了 (即時キャッシュヒット / デコード後どちらでも) でフラグをクリア。
+        // → 録音停止など以降のロード完了で誤って書き込まないようにする。
+        waveformWasLoading = false;
+        writeThumbCacheOnLoadComplete = false;
+    }
+}
+
+void MainComponent::changeListenerCallback(juce::ChangeBroadcaster* src)
+{
+    // どのクリップのサムネイルか特定し、波形キャッシュを破棄して repaint。
+    // ロード完了したらリスナーを外す。
+    trackManager.forEachAudioClip([&](AudioClip& c)
+    {
+        if (&c.getThumbnail() != src) return true;  // 続行
+        c.invalidateWaveformCache();
+        timelineView.repaint();
+        if (c.getThumbnail().isFullyLoaded())
+            c.getThumbnail().removeChangeListener(this);
+        // ロード残数の進捗を更新 (完了で「完了」メッセージ)
+        updateWaveformLoadingStatus();
+        return false;  // 見つけたので終了
+    });
+}
+
+void MainComponent::toggleRecord()
+{
+    if (isRecording) { stopRecording(); return; }
+    // 再生中でもパンチインで録音開始可能（R キー / REC ボタン共通）
+    startRecording();
+}
+
+void MainComponent::commitRetrospective()
+{
+    if (!recordingMgr.hasRetrospective()) return;
+    double endSec = audioEngine.getCurrentPositionSeconds();
+    recordingMgr.stopRetrospective(true, endSec);
+    trackHeaderPanel.refresh();
+    timelineView.refresh();
+    scheduleWaveformRefresh();   // 録音クリップの波形を非同期ロード完了で反映
+    audioEngine.preparePlayback(trackManager);
+}
+
+// ── 自動保存 ─────────────────────────────────────────────────────────
+void MainComponent::duplicateTrack(int sourceTrackIdx)
+{
+    auto* src = trackManager.getTrack(sourceTrackIdx);
+    if (!src || src->isClickTrack()) return;
+
+    // クリップ・設定をコピー (戻り値はすぐ後ろに挿入された新しいトラック)
+    auto* dst = trackManager.duplicateTrack(sourceTrackIdx);
+    if (!dst) return;
+
+    // プラグインチェーンをクローンする:
+    // 各プラグインの状態を取得し、PluginManager 経由で新インスタンスを生成。
+    // (AudioPluginInstance は非コピーなので状態転送が唯一の手段)
+    const double pluginSr = audioEngine.getSampleRate() > 0
+                                ? audioEngine.getSampleRate() : 48000.0;
+    const int    pluginBs = 512;
+    auto& fmgr      = pluginManager.getFormatManager();
+    auto& srcChain  = src->getPluginChain();
+    auto& dstChain  = dst->getPluginChain();
+
+    for (int i = 0; i < srcChain.getNumPlugins(); ++i)
+    {
+        auto* srcPlugin = srcChain.getPlugin(i);
+        if (!srcPlugin) continue;  // 空スロットはスキップ
+
+        const auto desc = srcPlugin->getPluginDescription();
+        juce::String err;
+        std::unique_ptr<juce::AudioPluginInstance> newInstance(
+            fmgr.createPluginInstance(desc, pluginSr, pluginBs, err));
+        if (!newInstance) continue;  // 生成失敗 (まれ) はそのスロットを空にして続行
+
+        // 状態 (パラメータ・プリセット位置) を転送
+        juce::MemoryBlock state;
+        srcPlugin->getStateInformation(state);
+        if (state.getSize() > 0)
+            newInstance->setStateInformation(state.getData(), (int) state.getSize());
+
+        dstChain.insertPluginAt(i, std::move(newInstance));
+        if (srcChain.isBypassed(i))
+            dstChain.setBypassed(i, true);
+    }
+
+    // UI / オーディオエンジンに通知
+    trackHeaderPanel.refresh();
+    timelineView.refresh();
+    audioEngine.invalidatePlayback();
+    markProjectDirty();
+}
+
+void MainComponent::deleteTracks(std::vector<int> indices)
+{
+    // 重複排除 + 範囲外除去
+    std::sort(indices.begin(), indices.end());
+    indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
+    indices.erase(std::remove_if(indices.begin(), indices.end(),
+        [this](int i) { return i < 0 || i >= trackManager.getTrackCount(); }), indices.end());
+    if (indices.empty()) return;
+
+    auto doDelete = [this, indices]() mutable
+    {
+        // index ずれを避けるため降順で削除する
+        std::sort(indices.begin(), indices.end(), std::greater<int>());
+
+        // UAF防止: Track 破棄前に PlaybackClip の参照を切る (audio thread と排他)。一括なので 1 回。
+        audioEngine.clearPlayback();
+        for (int idx : indices)
+        {
+            if (auto* t = trackManager.getTrack(idx))
+            {
+                auto& chain = t->getPluginChain();
+                for (int i = 0; i < chain.getNumPlugins(); ++i)
+                    closePluginEditorFor(chain.getPlugin(i));
+            }
+            trackManager.removeTrack(idx);   // onChanged → refreshTracks (panel/timeline/statusBar)
+        }
+        audioEngine.invalidatePlayback();
+
+        // 選択をリセット (消えた index を参照しないように)
+        selectedTrackIndex = -1;
+        trackHeaderPanel.clearTrackSelection();
+        // モニター/メトロノーム同期 + レイアウト更新 (click トラック削除等に追従)
+        if (trackHeaderPanel.onTrackChanged) trackHeaderPanel.onTrackChanged();
+        markProjectDirty();
+    };
+
+    // 2 本以上はまとめ削除なので確認を出す (トラック削除は Undo 非対応)。
+    if (indices.size() >= 2)
+    {
+        auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
+        juce::AlertWindow::showAsync(juce::MessageBoxOptions()
+            .withIconType(juce::MessageBoxIconType::QuestionIcon)
+            .withTitle(J(u8"トラックを削除"))
+            .withMessage(juce::String((int) indices.size())
+                         + J(u8" 個のトラックを削除します。\nこの操作は取り消せません。"))
+            .withButton(J(u8"削除"))
+            .withButton(J(u8"キャンセル")),
+            [doDelete](int r) mutable { if (r == 1) doDelete(); });
+    }
+    else
+    {
+        doDelete();   // 1 本は従来どおり即削除 (確認なし)
+    }
+}
+
+// ───────────────────── 音楽情報 (マーカー/テンポ/拍子/曲BPM) の Undo ─────────────────────
+bool MainComponent::MusicState::operator==(const MusicState& o) const
+{
+    if (initialBpm != o.initialBpm || meterNumerator != o.meterNumerator
+        || meterDenominator != o.meterDenominator) return false;
+    if (bpmChanges.size() != o.bpmChanges.size()) return false;
+    for (size_t i = 0; i < bpmChanges.size(); ++i)
+        if (bpmChanges[i].timeSec != o.bpmChanges[i].timeSec
+            || bpmChanges[i].bpm != o.bpmChanges[i].bpm) return false;
+    if (meterChanges.size() != o.meterChanges.size()) return false;
+    for (size_t i = 0; i < meterChanges.size(); ++i)
+        if (meterChanges[i].barIndex != o.meterChanges[i].barIndex
+            || meterChanges[i].numerator != o.meterChanges[i].numerator
+            || meterChanges[i].denominator != o.meterChanges[i].denominator) return false;
+    if (markers.size() != o.markers.size()) return false;
+    for (size_t i = 0; i < markers.size(); ++i)
+        if (markers[i].time != o.markers[i].time
+            || markers[i].name != o.markers[i].name
+            || markers[i].colour != o.markers[i].colour) return false;
+    return true;
+}
+
+MainComponent::MusicState MainComponent::captureMusicState() const
+{
+    MusicState s;
+    s.initialBpm       = appSettings.initialBpm;
+    s.meterNumerator   = appSettings.meterNumerator;
+    s.meterDenominator = appSettings.meterDenominator;
+    s.bpmChanges       = appSettings.bpmChanges;
+    s.meterChanges     = appSettings.meterChanges;
+    s.markers          = timelineView.getMarkers();
+    return s;
+}
+
+void MainComponent::applyMusicState(const MusicState& s)
+{
+    appSettings.initialBpm       = s.initialBpm;
+    appSettings.meterNumerator   = s.meterNumerator;
+    appSettings.meterDenominator = s.meterDenominator;
+    appSettings.bpmChanges       = s.bpmChanges;
+    appSettings.meterChanges     = s.meterChanges;
+    bpm = s.initialBpm;
+    toolbar.setBpm(bpm);
+    timelineView.setBpm(bpm);
+    timelineView.setMarkers(s.markers);          // markers はルーラー保持
+    timelineView.setAppSettings(appSettings);    // bpm/meter changes をルーラーへ + 再計算
+    audioEngine.setMetronomeBpm(bpm);
+    audioEngine.setMetronomeBeatsPerBar(appSettings.meterNumerator);
+    audioEngine.setAppSettings(appSettings);
+    markProjectDirty();
+    // グリッド/マーカー/テンポ表示の再描画のみで十分 (トラック行は変わらない)。
+    // refresh() を使うと add-marker 直後に開く名前エディタに影響しうるため repaint に留める。
+    timelineView.repaint();
+}
+
+void MainComponent::pushMusicUndo(const MusicState& before)
+{
+    MusicState after = captureMusicState();
+    if (before == after) return;   // 変化なし → Undo を積まない
+    undoManager.beginNewTransaction();
+    undoManager.perform(new EditActions::SnapshotAction<MusicState>(
+        before, after, [this](const MusicState& s) { applyMusicState(s); }));
+}
+
+void MainComponent::pushMusicUndoFromLists(const TimelineRuler::EditLists& before,
+                                           const TimelineRuler::EditLists& after)
+{
+    // ルーラー内編集は曲頭 BPM/拍子を変えないので、両者に現在値を入れる。
+    MusicState b = captureMusicState();
+    MusicState a = b;
+    b.bpmChanges = before.bpmChanges; b.meterChanges = before.meterChanges; b.markers = before.markers;
+    a.bpmChanges = after.bpmChanges;  a.meterChanges = after.meterChanges;  a.markers = after.markers;
+    if (b == a) return;
+    // ルーラー編集はライブ適用済み。undoManager.perform() が apply(a) を呼ぶので
+    // ここで appSettings / dirty / 再描画が after に揃う (二重適用は避ける)。
+    undoManager.beginNewTransaction();
+    undoManager.perform(new EditActions::SnapshotAction<MusicState>(
+        b, a, [this](const MusicState& s) { applyMusicState(s); }));
+}
+
+// ───────────────────── トラックのプロパティ (名前/色/シンセ) の Undo ─────────────────────
+bool MainComponent::TrackState::operator==(const TrackState& o) const
+{
+    return name == o.name && colour == o.colour && synthEnabled == o.synthEnabled
+        && synthWaveform == o.synthWaveform && octaveShift == o.octaveShift
+        && semitoneTranspose == o.semitoneTranspose;
+}
+
+bool MainComponent::trackStillExists(Track* t) const
+{
+    if (!t) return false;
+    for (int i = 0; i < trackManager.getTrackCount(); ++i)
+        if (trackManager.getTrack(i) == t) return true;
+    return false;
+}
+
+MainComponent::TrackState MainComponent::captureTrackState(Track* t) const
+{
+    TrackState s;
+    if (!t) return s;
+    s.name              = t->getName();
+    s.colour            = t->getColour();
+    s.synthEnabled      = t->isSynthEnabled();
+    s.synthWaveform     = t->getSynthWaveform();
+    s.octaveShift       = t->getOctaveShift();
+    s.semitoneTranspose = t->getSemitoneTranspose();
+    return s;
+}
+
+void MainComponent::applyTrackState(Track* t, const TrackState& s)
+{
+    if (!t) return;
+    t->setName(s.name);
+    t->setColour(s.colour);
+    t->setSynthEnabled(s.synthEnabled);
+    t->setSynthWaveform(s.synthWaveform);
+    t->setOctaveShift(s.octaveShift);
+    t->setSemitoneTranspose(s.semitoneTranspose);
+}
+
+void MainComponent::applyTrackEditUndoable(Track* t, std::function<void()> mutate)
+{
+    if (!t || !mutate) return;
+    TrackState before = captureTrackState(t);
+    mutate();
+    TrackState after = captureTrackState(t);
+    if (before == after) return;   // 実際の変化なし
+    undoManager.beginNewTransaction();
+    undoManager.perform(new EditActions::SnapshotAction<TrackState>(
+        before, after, [this, t](const TrackState& s)
+        {
+            if (!trackStillExists(t)) return;   // トラック削除済みなら no-op (ダングリング回避)
+            applyTrackState(t, s);
+            trackHeaderPanel.refresh();         // 名前/移調/波形などの表示を更新
+            if (trackHeaderPanel.onTrackChanged) trackHeaderPanel.onTrackChanged();
+            audioEngine.invalidatePlayback();   // 内蔵シンセ設定をエンジンへ反映
+        }));
+}
+
+bool MainComponent::computeLoudnessTargetVol(const juce::File& file, double fileOffset,
+                                             double duration, float& outVolDb)
+{
+    // クリップのゲインは触らず、ファイル単体のラウドネスを測定 (gain=1.0)
+    const double measuredLufs = LufsMeter::measureFileSegment(
+        file, trackManager.getFormatManager(), fileOffset, duration, /*gain*/ 1.0f);
+    if (!std::isfinite(measuredLufs)) return false;
+
+    // 出力ラウドネス = measured + trackVol となるように trackVol を決定
+    const double targetLufs = (double) appSettings.loudnessTargetLufs;
+    outVolDb = (float) juce::jlimit(-60.0, 6.0, targetLufs - measuredLufs);
+    return true;
+}
+
+void MainComponent::applyProjectSampleRateToDevice()
+{
+    const double targetSr = appSettings.projectSampleRate;
+    if (targetSr <= 0.0) return;
+
+    auto& dm = audioEngine.getDeviceManager();
+    auto setup = dm.getAudioDeviceSetup();
+    if (std::abs(setup.sampleRate - targetSr) < 0.5) return;  // 既に一致
+
+    setup.sampleRate = targetSr;
+    const juce::String err = dm.setAudioDeviceSetup(setup, true);
+    if (err.isNotEmpty())
+    {
+        auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
+        juce::AlertWindow::showAsync(juce::MessageBoxOptions()
+            .withIconType(juce::MessageBoxIconType::WarningIcon)
+            .withTitle(J(u8"サンプリングレート"))
+            .withMessage(J(u8"プロジェクトのサンプリングレート ")
+                          + juce::String((int) targetSr) + " Hz"
+                          + J(u8" にオーディオデバイスを設定できませんでした。\n\n")
+                          + err)
+            .withButton("OK"), nullptr);
+    }
+}
+
+void MainComponent::mouseDown(const juce::MouseEvent&)
+{
+    // どこをクリックしてもキーボードフォーカスをメインに戻す
+    grabKeyboardFocus();
+}
+
+void MainComponent::paint(juce::Graphics& g)
+{
+    g.fillAll(AppColours::background);
+}
+
+void MainComponent::resized()
+{
+    auto b = getLocalBounds();
+   #if ! JUCE_MAC
+    if (menuBar) menuBar->setBounds(b.removeFromTop(24));
+   #endif
+    toolbar.setBounds(b.removeFromTop(toolbarHeight));
+    statusBar.setBounds(b.removeFromBottom(statusBarHeight));
+    const int mpW = masterPanel.isCollapsed() ? MasterPanel::kCollapsedWidth : masterPanelWidth;
+    masterPanel.setBounds(b.removeFromRight(mpW));
+
+    // いずれかのトラックで INS スロットが表示されていればトラックヘッダー列を広げる
+    bool anyInsVisible = false;
+    for (int i = 0; i < trackManager.getTrackCount(); ++i)
+        if (auto* t = trackManager.getTrack(i); t && t->isInsertSlotsVisible())
+        { anyInsVisible = true; break; }
+    const int headerW = trackHeaderWidth + (anyInsVisible ? Track::insertAreaWidth : 0);
+
+    trackHeaderPanel.setBounds(b.removeFromLeft(headerW));
+    timelineView.setBounds(b);
+}

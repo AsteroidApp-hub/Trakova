@@ -1,0 +1,155 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 Studio Asteroid
+
+#pragma once
+#include <JuceHeader.h>
+#include <set>
+#include "../Tracks/TrackManager.h"
+#include "TrackHeaderView.h"
+
+class TrackHeaderPanel : public juce::Component
+{
+public:
+    // ルーラー高さ。TimelineView 側の高さに合わせて MainComponent から更新する
+    int rulerH { 80 };
+    void setRulerHeight(int h) { rulerH = juce::jmax(0, h); resized(); repaint(); }
+
+    TrackHeaderPanel(TrackManager& tm);
+    ~TrackHeaderPanel() override;
+
+    void paint(juce::Graphics&) override;
+    void resized() override;
+    void mouseDown(const juce::MouseEvent&) override;
+    void mouseDrag(const juce::MouseEvent&) override;
+    void mouseUp(const juce::MouseEvent&) override;
+    void mouseDoubleClick(const juce::MouseEvent&) override;
+
+    void refresh();
+    void setScrollY(int y);
+    // VU メータの 0 VU 基準レベル (dBFS) を全トラックビューに反映
+    void setVuReferenceLevel(float dB);
+    // ラウドネス自動調整のターゲット (LUFS) を全トラックビューに反映
+    void setLoudnessTargetLufs(float lufs);
+    // 入力レベル更新（タイマーから呼ぶ）。levelGetter は input ch index を取り (peak,vu) を返す
+    void updateInputLevels(std::function<float(int)> peakGetter,
+                           std::function<float(int)> vuGetter);
+    // トラック出力メータ取得（MIDI トラック等で input チャンネルが無い場合に使う）
+    std::function<float(int)> onGetTrackOutPeakL;
+    std::function<float(int)> onGetTrackOutPeakR;
+    std::function<float(int)> onGetTrackOutVUL;
+    std::function<float(int)> onGetTrackOutVUR;
+
+    std::function<void()>     onAddTrack;          // モノ（既定）
+    std::function<void(bool)> onAddTrackWithMode;  // false=mono, true=stereo
+    std::function<void()>     onAddMidiTrack;      // 空の MIDI トラック（ハモリ/ガイド打ち込み用）
+    std::function<void()>     onAddClickTrack;
+    std::function<void()>     onTrackChanged;
+    std::function<int()>     onGetNumInputChannels;
+    std::function<void(int)> onTrackSelected;
+    std::function<void(int, int)> onPluginAddRequest;    // trackIdx, slotIdx
+    std::function<void(int, int)> onPluginEditRequest;   // trackIdx, slotIdx
+    std::function<void(int, int)> onPluginRemoveRequest; // trackIdx, slotIdx
+    std::function<void(int, int, int)> onPluginSwapRequest; // trackIdx, slotA, slotB
+    std::function<void(int, int)> onPluginBypassRequest;    // trackIdx, slotIdx
+    // D&D: srcTrackIdx, srcSlotIdx, dstTrackIdx, dstSlotIdx, copy(true=Optionでコピー)
+    std::function<void(int, int, int, int, bool)> onPluginDropAcrossTracks;
+    // 削除する trackIdx 群（複数選択をまとめて削除。プラグイン後処理・確認は呼び出し側でやる）
+    std::function<void(const std::vector<int>&)> onTracksDeleteRequest;
+    std::function<void(int)> onTrackDuplicateRequest;    // trackIdx（プラグインも含めて複製）
+    // テイクレーン ↑ ボタン: 指定トラックの指定レーンを Lane 0 へ採用
+    std::function<void(int, int)> onLanePromoteRequest;  // trackIdx, laneIdx
+    // ↑ ボタンの活性判定 (trackIdx, laneIdx)
+    std::function<bool(int, int)> onCanPromoteLane;
+    // トラックのプロパティ編集 (名前/色/シンセ) を Undo 対応で適用する委譲。
+    // 引数: 対象 Track*, 実行する mutate。
+    std::function<void(Track*, std::function<void()>)> onTrackEditUndoable;
+
+    // 全トラックヘッダを再描画する (選択/範囲変化で ↑ ボタンの活性表示を更新)
+    void repaintHeaders();
+
+    void setSelectedTrack(int index);  // 単一選択 (他をクリア)
+    // 複数選択 API
+    // Cmd+クリック相当: 選択への追加 / トグル
+    void toggleTrackInSelection(int index);
+    // Shift+クリック相当: anchor から index までを範囲選択
+    void selectTrackRange(int index);
+    // 現在の選択集合 (アンカー含む)
+    const std::set<int>& getSelectedTrackIndices() const { return selectedIndices; }
+    // 選択を全解除 (トラック削除後などに呼ぶ)
+    void clearTrackSelection();
+    // 外部 (タイムラインのクリップ/範囲選択) からトラック選択ハイライトを設定する。
+    // onTrackSelected は呼ばない (ハイライトと主選択 index の更新は呼び出し側で行う)。
+    void setSelectedTracks(const std::vector<int>& indices);
+
+private:
+    void showAddTrackMenu();
+    // 全トラックの INS スロット表示を一括トグルする (insToggleBtn と右クリックメニュー共用ロジック)
+    void toggleAllInsertSlots();
+    // insToggleBtn のハイライト / ツールチップ / 可視状態を現在の全トラック INS 状態へ同期
+    void updateInsToggleState();
+
+    TrackManager& trackManager;
+    int scrollY { 0 };
+
+    juce::TextButton addTrackBtn;
+    juce::TextButton addTrackPlus;
+
+    // スクロールしてもルーラーが最前面に出るよう、専用 Component に分離する。
+    // paint() で TRACKS テキスト + 背景を描き、addTrackPlus を子として保持する。
+    class RulerHeader : public juce::Component
+    {
+    public:
+        RulerHeader(TrackHeaderPanel& p) : panel(p) {}
+        void paint(juce::Graphics&) override;
+        TrackHeaderPanel& panel;
+    };
+    RulerHeader rulerHeader { *this };
+
+    // INS スロット一括開閉トグル ("TRACKS" ラベル下・左端の "+" の右隣に配置)。
+    // 右クリックメニューでしか出来なかった全トラックの INS スロット表示切替を可視ボタン化する。
+    // ラベルは分かりやすさ優先で "FX"。表示中はアクセント色で点灯する。
+    class InsToggleButton : public juce::Button
+    {
+    public:
+        InsToggleButton() : juce::Button("FX") { setWantsKeyboardFocus(false); }
+        void setActive(bool a) { if (active != a) { active = a; repaint(); } }
+    private:
+        void paintButton(juce::Graphics&, bool highlighted, bool down) override;
+        bool active { false };
+    };
+    InsToggleButton insToggleBtn;
+
+    std::vector<std::unique_ptr<TrackHeaderView>> headerViews;
+    // 現在表示中のトラック集合 (順序込み)。これと一致するなら refresh() は
+    // 破棄/再生成せず軽量な per-view 更新だけで済ませる (#6)。
+    std::vector<Track*> displayedTracks;
+    float vuReferenceLevel { -18.0f };
+    float loudnessTargetLufs { -24.0f };
+
+    // 複数選択状態 (anchor を含む全ての選択 index)
+    std::set<int> selectedIndices;
+    int selectionAnchor { -1 };  // 直近に単一選択した index (Shift+クリック範囲の起点)
+
+    // 並び替えドラッグ用
+    int  dragSourceIndex { -1 };
+    bool dragReorderStarted { false };
+    juce::Point<int> dragReorderStart;
+    int  dropTargetIndex { -1 };  // 描画用: 行間の位置 (0..count, count = 末尾)
+    // 複数選択中のトラックを通常クリックした時: ドラッグなら集合移動、クリックのみ (ドラッグせず
+    // 離す) なら単一選択へ collapse する。その候補 index を mouseDown で覚え mouseUp で確定する。
+    int  pendingCollapseIdx { -1 };
+
+    // ヘルパー
+    int  headerViewAtY(int y) const;
+    void applySelectionToViews();
+    void selectTrackForUI(int index, juce::ModifierKeys mods);
+    void performReorder(int dropIndex);
+    // idx の削除要求を解決する: idx が複数選択に含まれていれば選択集合を、そうでなければ
+    // idx 単体を削除対象として onTracksDeleteRequest へ渡す。
+    void requestDeleteSelectedOrTrack(int idx);
+    // idx の削除メニューで実際に消える本数 (メニュー表示用)。idx が複数選択中なら選択数、
+    // そうでなければ 1。
+    int  deleteScopeCount(int idx) const;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TrackHeaderPanel)
+};

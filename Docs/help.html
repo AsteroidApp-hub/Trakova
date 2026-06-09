@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trakova ユーザーガイド</title>
+<style>
+  :root{
+    --accent:#e06422;
+    --accent-ink:#b8480f;
+    --ink:#1b1e23;
+    --ink-2:#3c434c;
+    --ink-3:#697078;
+    --line:#d6dadf;
+    --line-soft:#e7eaee;
+    --bg:#ffffff;
+    --bg-soft:#f6f7f9;
+    --kbd-bg:#23272e;
+    --sidebar-bg:#fbfbfc;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",
+                "Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
+    color:var(--ink);
+    background:var(--bg);
+    line-height:1.85;
+    font-size:15.5px;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+
+  /* ── ヘッダ ───────────────────────────── */
+  header.masthead{
+    background:#15171c;
+    color:#fff;
+    border-bottom:2px solid var(--accent);
+  }
+  header.masthead .wrap{
+    max-width:1080px;margin:0 auto;padding:30px 32px 26px;
+  }
+  .eyebrow{
+    font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--accent);font-weight:700;margin:0 0 8px;
+  }
+  header.masthead h1{
+    margin:0;font-size:26px;font-weight:700;letter-spacing:.01em;color:#fff;
+  }
+  header.masthead p{margin:9px 0 0;color:#9aa1aa;font-size:14px;max-width:620px;}
+
+  /* ── レイアウト（サイドバー + 本文）──────── */
+  .page{
+    max-width:1080px;margin:0 auto;padding:0 32px;
+    display:grid;grid-template-columns:236px 1fr;gap:48px;
+    align-items:start;
+  }
+  aside.toc{
+    position:sticky;top:0;align-self:start;
+    max-height:100vh;overflow:auto;
+    padding:30px 0 40px;
+  }
+  aside.toc h2{
+    font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--ink-3);margin:0 0 12px;font-weight:700;
+  }
+  aside.toc ol{list-style:none;margin:0;padding:0;counter-reset:s;}
+  aside.toc li{margin:0;}
+  aside.toc a{
+    counter-increment:s;
+    display:block;padding:5px 12px 5px 0;
+    color:var(--ink-2);text-decoration:none;font-size:13.5px;
+    border-left:2px solid transparent;padding-left:14px;
+    transition:color .12s,border-color .12s;
+  }
+  aside.toc a::before{
+    content:counter(s,decimal-leading-zero);
+    color:var(--ink-3);font-variant-numeric:tabular-nums;
+    font-size:11.5px;margin-right:9px;
+  }
+  aside.toc a:hover{color:var(--accent-ink);border-left-color:var(--accent);}
+
+  main{padding:30px 0 80px;min-width:0;}
+
+  /* ── セクション ──────────────────────── */
+  section{margin:0 0 44px;scroll-margin-top:16px;}
+  section h2{
+    font-size:19px;font-weight:700;letter-spacing:.005em;
+    margin:0 0 14px;padding-bottom:11px;
+    border-bottom:1px solid var(--line);
+    display:flex;align-items:baseline;gap:11px;
+  }
+  section h2 .num{
+    color:var(--accent);font-weight:700;font-size:13px;
+    font-variant-numeric:tabular-nums;letter-spacing:.04em;
+    flex:0 0 auto;padding-top:1px;
+  }
+  section h3{
+    font-size:15px;font-weight:700;margin:22px 0 6px;color:var(--ink);
+    padding-left:11px;border-left:3px solid var(--accent);
+  }
+  p{margin:9px 0;}
+  .lead{font-size:15.5px;color:var(--ink-2);}
+  ul,ol{margin:9px 0;padding-left:22px;}
+  li{margin:5px 0;}
+  a{color:var(--accent-ink);}
+  b{font-weight:700;}
+  code{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    background:var(--bg-soft);border:1px solid var(--line-soft);
+    border-radius:4px;padding:.5px 5px;font-size:13px;color:var(--ink-2);
+  }
+
+  kbd{
+    display:inline-block;background:var(--kbd-bg);color:#f2f3f5;
+    border-radius:5px;padding:1.5px 7px;font-size:12.5px;font-weight:600;
+    font-family:inherit;margin:0 1px;
+    border:1px solid #000;box-shadow:inset 0 -1px 0 rgba(0,0,0,.35);
+    white-space:nowrap;line-height:1.5;
+  }
+
+  /* ── 注記 ───────────────────────────── */
+  .tip,.note,.warn{
+    background:var(--bg-soft);
+    border:1px solid var(--line-soft);border-left-width:3px;
+    border-radius:6px;padding:11px 15px;margin:14px 0;font-size:14.5px;
+    color:var(--ink-2);
+  }
+  .tip{border-left-color:var(--accent);}
+  .note{border-left-color:#3f6fb0;}
+  .warn{border-left-color:#c0392b;}
+  .tip b,.note b,.warn b{color:var(--ink);}
+
+  /* ── 表 ─────────────────────────────── */
+  table{border-collapse:collapse;width:100%;margin:13px 0;font-size:14px;}
+  th,td{border:1px solid var(--line-soft);padding:8px 13px;text-align:left;vertical-align:top;}
+  th{background:var(--bg-soft);font-weight:700;width:44%;color:var(--ink);}
+  tr:nth-child(even) td{background:#fcfcfd;}
+  td kbd{margin-right:2px;}
+
+  /* ── 手順（番号つき）────────────────── */
+  ol.step{counter-reset:step;list-style:none;padding-left:0;margin:12px 0;}
+  ol.step>li{position:relative;padding-left:40px;margin:11px 0;}
+  ol.step>li::before{
+    counter-increment:step;content:counter(step,decimal-leading-zero);
+    position:absolute;left:0;top:1px;
+    width:26px;height:26px;line-height:23px;text-align:center;
+    border:1.5px solid var(--accent);color:var(--accent-ink);background:#fff;
+    border-radius:50%;font-size:11.5px;font-weight:700;
+    font-variant-numeric:tabular-nums;
+  }
+
+  footer{
+    border-top:1px solid var(--line-soft);
+    max-width:1080px;margin:0 auto;padding:22px 32px 56px;
+    color:var(--ink-3);font-size:12.5px;
+  }
+
+  /* ── 狭い画面 ───────────────────────── */
+  @media (max-width:840px){
+    .page{grid-template-columns:1fr;gap:0;}
+    aside.toc{
+      position:static;max-height:none;
+      border-bottom:1px solid var(--line-soft);
+      padding:22px 0 18px;margin-bottom:8px;
+    }
+    aside.toc ol{columns:2;column-gap:24px;}
+    main{padding-top:18px;}
+  }
+</style>
+</head>
+<body>
+<header class="masthead">
+  <div class="wrap">
+    <p class="eyebrow">User Guide</p>
+    <h1>Trakova ユーザーガイド</h1>
+    <p>歌い手のための録音特化 DAW。録音から書き出しまでの基本操作を、はじめての方向けにまとめています。</p>
+  </div>
+</header>
+
+<div class="page">
+  <aside class="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#intro">はじめに・画面の見方</a></li>
+      <li><a href="#project">プロジェクトの基本</a></li>
+      <li><a href="#import">インスト音源を取り込む</a></li>
+      <li><a href="#prepare">録音の準備をする</a></li>
+      <li><a href="#tempo">テンポとメトロノーム</a></li>
+      <li><a href="#record">録音する</a></li>
+      <li><a href="#takes">テイクの管理</a></li>
+      <li><a href="#edit">波形を編集する</a></li>
+      <li><a href="#pitch">キー変更・テンポ検出</a></li>
+      <li><a href="#fx">エフェクト（FX）</a></li>
+      <li><a href="#midi">MIDI を読み込む・打ち込む</a></li>
+      <li><a href="#export">書き出す（WAV / MP3）</a></li>
+      <li><a href="#shortcuts">ショートカット早見表</a></li>
+      <li><a href="#trouble">困ったときは</a></li>
+    </ol>
+  </aside>
+
+  <main>
+  <section id="intro">
+    <h2><span class="num">01</span>はじめに・画面の見方</h2>
+    <p class="lead">Trakova は、歌ってみた・カバー投稿のための「録音」に特化した無料の DAW です。むずかしい設定をなるべく省き、<b>インスト音源を入れて、録音して、書き出す</b>という流れを最短で行えるように設計しています。</p>
+    <h3>画面の構成</h3>
+    <ul>
+      <li><b>上部（ツールバー）</b>：再生 / 停止 / 録音ボタン、再生位置の時間表示、テンポ（BPM）、メトロノームやループの切り替え。</li>
+      <li><b>左（TRACKS パネル）</b>：トラックの一覧。各トラックの音量（Vol）・左右（Pan）・残響（Rev）・<kbd>M</kbd> ミュート・<kbd>S</kbd> ソロ・<kbd>R</kbd> 録音アーム・<kbd>I</kbd> 入力モニターなど。</li>
+      <li><b>中央（タイムライン）</b>：録音した声や取り込んだ音源が「波形」として横に並びます。ここで切ったり動かしたりします。</li>
+      <li><b>右（MASTER パネル）</b>：曲全体の最終音量とメーター。折りたたみできます。</li>
+    </ul>
+    <div class="tip"><b>ヒント：</b>多くの操作はボタンとキーボードの両方から行えます。まずはボタンで慣れて、慣れてきたら<a href="#shortcuts">ショートカット</a>を使うと作業が速くなります。</div>
+  </section>
+
+  <section id="project">
+    <h2><span class="num">02</span>プロジェクトの基本</h2>
+    <p>作業内容は「プロジェクト」という単位で保存します（ファイルの拡張子は <code>.trakova</code>）。曲ごとに 1 つのプロジェクトを作るイメージです。</p>
+    <h3>新規・開く・保存</h3>
+    <ul>
+      <li><b>新規</b>：「ファイル」→「新規プロジェクト...」</li>
+      <li><b>開く</b>：「ファイル」→「開く...」（<kbd>Ctrl+O</kbd>）。起動画面の「最近使ったプロジェクト」からも開けます。</li>
+      <li><b>保存</b>：<kbd>Ctrl+S</kbd>。別名で保存は <kbd>Ctrl+Shift+S</kbd>。</li>
+    </ul>
+    <h3>自動保存とバックアップ</h3>
+    <p>一定時間ごとに自動で保存され、さらに日時つきの<b>世代バックアップ</b>が残ります。万一アプリが終了しても、次に同じプロジェクトを開いたときに<b>復旧するか</b>たずねられます。</p>
+    <div class="note"><b>音源ファイルはプロジェクトの中に入ります：</b>取り込んだ音や録音は、プロジェクトフォルダ内の <code>Audio</code> フォルダにコピーされます。プロジェクトを他者へ渡すときは<b>フォルダごと</b>渡してください。</div>
+  </section>
+
+  <section id="import">
+    <h2><span class="num">03</span>インスト音源を取り込む</h2>
+    <p>まずは伴奏（オフボーカル / インスト音源）を読み込みます。</p>
+    <ol class="step">
+      <li>「ファイル」→「オーディオを読み込む...」（<kbd>Ctrl+I</kbd>）を選ぶ。または音源ファイルを<b>タイムラインにドラッグ＆ドロップ</b>。</li>
+      <li>取り込んだ音源は自動的に<b>曲の先頭（0 秒）</b>へ配置されます。</li>
+    </ol>
+    <p><b>対応形式：</b>WAV / AIFF / MP3 / FLAC / Ogg など一般的な形式に対応しています（macOS では m4a / aac なども可。対応形式は OS によって一部異なります）。サンプルレートが異なるファイルは<b>自動で変換</b>して読み込みます。</p>
+    <div class="tip"><b>音量も自動でそろえます：</b>取り込み時に音量（ラウドネス）を目安の大きさへ自動調整します（設定でオフにできます）。</div>
+  </section>
+
+  <section id="prepare">
+    <h2><span class="num">04</span>録音の準備をする</h2>
+    <ol class="step">
+      <li><b>トラックを追加</b>：TRACKS パネル左下の <kbd>+</kbd> ボタン（または下部の「+ Add Track」）から、モノラル／ステレオを選びます。歌の録音は通常<b>モノラル</b>でかまいません。</li>
+      <li><b>入力を選ぶ</b>：トラックの「In:」から、使うマイク（入力チャンネル）を選びます。</li>
+      <li><b>録音アーム</b>：録音したいトラックの <kbd>R</kbd> ボタンを点灯させます。これで「このトラックに録る」状態になります。</li>
+      <li><b>声を確認</b>：<kbd>I</kbd>（入力モニター）を点灯すると、自分の声が返ってきて、メーターも動きます。声を出してメーターが振れることを確認しましょう。</li>
+    </ol>
+    <div class="note"><b>複数同時録音：</b><kbd>R</kbd> を複数のトラックで点灯させ、それぞれ別の入力を選べば、同時に複数トラックへ録音できます。</div>
+    <div class="warn"><b>音が出ない・入力が出てこないときは：</b>「ファイル」→「環境設定」のオーディオ設定で、使用するオーディオ機器（オーディオインターフェース）が選ばれているか確認してください。</div>
+  </section>
+
+  <section id="tempo">
+    <h2><span class="num">05</span>テンポとメトロノーム</h2>
+    <ul>
+      <li><b>テンポ（BPM）</b>：ツールバーの BPM 表示を<b>ダブルクリック</b>すると数値を直接入力できます。</li>
+      <li><b>タップで決める</b>：<kbd>TAP</kbd> ボタンを曲に合わせて叩くと、テンポを推定できます。</li>
+      <li><b>自動で当てる</b>：取り込んだ音源を右クリック →「テンポを検出」で、伴奏から BPM を自動推定できます。</li>
+      <li><b>メトロノーム</b>：<kbd>CLICK</kbd> ボタンでクリック音のオン / オフ。クリック専用トラックで音量なども調整できます。</li>
+      <li><b>カウントイン</b>：録音前に何小節カウントを鳴らすか設定できます（環境設定）。</li>
+    </ul>
+  </section>
+
+  <section id="record">
+    <h2><span class="num">06</span>録音する</h2>
+    <ol class="step">
+      <li>録りたいトラックの <kbd>R</kbd> が点灯していることを確認。</li>
+      <li>再生位置を録音開始位置に合わせる（ルーラーをクリック、または <kbd>N</kbd> / <kbd>B</kbd> で 1 小節ずつ移動）。</li>
+      <li><kbd>R</kbd> キー（またはツールバーの録音ボタン）で録音開始。カウントインの設定があれば鳴ってから始まります。</li>
+      <li>もう一度 <kbd>R</kbd>、または <kbd>Space</kbd> で停止。</li>
+    </ol>
+    <h3>便利な録音のしかた</h3>
+    <ul>
+      <li><b>パンチイン</b>：再生しながら録り直したい箇所で <kbd>R</kbd> を押すと、その部分だけ上書き録音できます（つなぎ目は自動でなめらかに処理）。</li>
+      <li><b>ループ録音</b>：<kbd>L</kbd> でループ範囲を繰り返し再生しながら、何テイクも録れます。</li>
+      <li><b>さかのぼって確定</b>：再生中の歌はうしろで常にキャプチャされています。「今のがよかった」と思ったら <kbd>Ctrl+Shift+R</kbd> でさかのぼって録音を確定できます。</li>
+    </ul>
+  </section>
+
+  <section id="takes">
+    <h2><span class="num">07</span>テイクの管理</h2>
+    <p>同じ場所に録り直すと、前のテイクは消えずに<b>テイクレーン</b>へ自動的に退避されます。聴き比べて、良いテイクを選べます。</p>
+    <ul>
+      <li>トラックの <kbd>TList</kbd> ボタンでテイクレーンの表示 / 非表示を切り替えます。</li>
+      <li>各テイクの <kbd>S</kbd>（ソロ）でそのテイクだけを聴けます。</li>
+      <li>採用したいテイクの <kbd>↑</kbd> ボタン（または <kbd>Shift+↑</kbd>）で、そのテイクをメインに昇格できます。</li>
+    </ul>
+  </section>
+
+  <section id="edit">
+    <h2><span class="num">08</span>波形を編集する</h2>
+    <p>タイムライン上の音のかたまりを「波形」と呼びます。マウスで直感的に編集できます。</p>
+    <table>
+      <tr><th>やりたいこと</th><th>操作</th></tr>
+      <tr><td>動かす</td><td>波形をドラッグ</td></tr>
+      <tr><td>長さを変える（トリム）</td><td>波形の左右の端をドラッグ</td></tr>
+      <tr><td>分割する（カット）</td><td><kbd>Alt</kbd>＋クリック（分割したい位置）</td></tr>
+      <tr><td>消す</td><td>選んで <kbd>Delete</kbd> / <kbd>Backspace</kbd></td></tr>
+      <tr><td>コピー / 貼り付け / 複製</td><td><kbd>Ctrl+C</kbd> / <kbd>Ctrl+V</kbd> / <kbd>Ctrl+D</kbd></td></tr>
+      <tr><td>少しだけ動かす</td><td><kbd>←</kbd> / <kbd>→</kbd></td></tr>
+      <tr><td>元に戻す / やり直し</td><td><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Shift+Z</kbd></td></tr>
+    </table>
+    <h3>フェードとクロスフェード</h3>
+    <ul>
+      <li><b>フェードイン／アウト</b>：範囲を選んで <kbd>F</kbd>。出だしや終わりをなめらかにします。</li>
+      <li><b>クロスフェード</b>：2 つの波形の重なり／接した部分を選んで <kbd>X</kbd>。つなぎ目のプチッというノイズを防げます（右クリック →「クロスフェードを描く」でも可）。</li>
+    </ul>
+    <h3>音量の調整</h3>
+    <ul>
+      <li><b>波形ごとの音量</b>：波形のフェーダーで上げ下げ。波形の中で部分的に音量を変えたいときは、音量ラインに点を打って（ブレークポイント）細かく調整できます。</li>
+      <li><b>無音をカット</b>：右クリック →「無音をカット」で、息継ぎなどの静かな部分を自動的に取り除けます。</li>
+    </ul>
+    <div class="tip"><b>表示の拡大・縮小：</b><kbd>Ctrl</kbd>＋マウスホイールで横方向にズーム、<kbd>Shift+F</kbd> で曲全体が画面に収まります。</div>
+  </section>
+
+  <section id="pitch">
+    <h2><span class="num">09</span>キー変更・テンポ検出</h2>
+    <ul>
+      <li><b>キー（音程）を変える</b>：波形を右クリック →「キーを変更...」で -6〜+6 半音から選べます。高品質な処理で音質を保ったまま移調します。結果は新しいファイルとして保存され、同じ設定なら次回はすぐ反映されます。「0（元の音程）」で元に戻ります。</li>
+      <li><b>テンポを調べる</b>：波形を右クリック →「テンポを検出」で、伴奏の BPM を自動推定します。</li>
+    </ul>
+  </section>
+
+  <section id="fx">
+    <h2><span class="num">10</span>エフェクト（FX）</h2>
+    <p>リバーブやコンプレッサーなどの<b>プラグイン</b>を、トラックや全体（マスター）に追加できます。</p>
+    <h3>FX スロットを開く</h3>
+    <p>TRACKS パネル左下の <kbd>FX</kbd> ボタンを押すと、各トラックの右側に<b>エフェクト用のスロット（INS）</b>が表示されます。もう一度押すと隠れます。</p>
+    <ul>
+      <li>空きスロットをクリック → 使いたいプラグインを選んで追加。</li>
+      <li>追加したプラグインのチップをクリックすると設定画面が開きます。</li>
+      <li><kbd>Ctrl</kbd>＋クリックで一時的にオフ（バイパス）。ドラッグで並べ替えや別トラックへ移動（<kbd>Alt</kbd>＋ドラッグでコピー）。</li>
+    </ul>
+    <div class="note"><b>プラグインが出てこないときは：</b>「ファイル」→「プラグインを管理...」を開き、スキャンを実行してください。インストール済みのプラグインが一覧に表示されます。</div>
+    <h3>リバーブ（残響）を加える</h3>
+    <p>各トラックの <kbd>Rev</kbd> スライダーで、そのトラックに残響（リバーブ）を加えられます。録音中の「返し（モニター）」にのみ適用することもでき、その場合でも<b>録音ファイルには書き込まれません</b>。</p>
+  </section>
+
+  <section id="midi">
+    <h2><span class="num">11</span>MIDI を読み込む・打ち込む</h2>
+    <p>MIDI データ（<code>.mid</code> ファイル）を読み込んで、ガイドメロディやハモリ、伴奏として利用できます。手で打ち込むこともできます。</p>
+
+    <h3>MIDI ファイルを読み込む</h3>
+    <ol class="step">
+      <li>「ファイル」→「MIDI を読み込む...」を選び、<code>.mid</code> ファイルを開きます（タイムラインへのドラッグ＆ドロップでも可）。</li>
+      <li>「MIDI を読み込む」ダイアログで、<b>読み込みたいトラックにチェック</b>を入れます（各トラックのチャンネルやノート数が表示されます）。</li>
+      <li>配置を「<b>先頭に配置</b>」または「<b>現在の再生位置に配置</b>」から選びます。必要に応じて「テンポ・拍子も取り込む」「マーカーも取り込む」にチェックします。</li>
+      <li>「<b>読み込み</b>」を押すと、選んだトラックが MIDI トラックとして追加されます。</li>
+    </ol>
+    <div class="note"><b>音を鳴らすには：</b>読み込んだ MIDI トラックは内蔵の音色で再生されます。お好みの音源プラグインを挿せば、その音色で鳴らせます（<a href="#fx">エフェクト（FX）</a>と同じ要領で追加します）。</div>
+
+    <h3>手で打ち込む（ハモリ・ガイド作成）</h3>
+    <ul>
+      <li>トラック追加メニューから「MIDI トラックを追加」を選びます。</li>
+      <li>タイムラインを<b>ダブルクリック</b>すると打ち込み用の区間ができ、その区間を<b>ダブルクリック</b>するとピアノロール（鍵盤の編集画面）が開きます。</li>
+      <li>ピアノロールでは、空き部分のダブルクリックで音符を追加、ドラッグで移動／長さ変更、<kbd>Delete</kbd> で削除。<kbd>↑</kbd> / <kbd>↓</kbd> で半音上下。</li>
+    </ul>
+  </section>
+
+  <section id="export">
+    <h2><span class="num">12</span>書き出す（WAV / MP3）</h2>
+    <p>完成したら音声ファイルに書き出します。</p>
+    <ol class="step">
+      <li>「ファイル」→「書き出し...」（<kbd>Ctrl+E</kbd>）を開く。</li>
+      <li>形式（<b>WAV</b> / <b>AIFF</b> / <b>MP3</b>）と範囲（曲全体／選択範囲／小節範囲）を選ぶ。</li>
+      <li>ミックス全体を 1 ファイルにするか、トラックごと（ステム）に分けるかを選んで書き出します。</li>
+    </ol>
+    <div class="tip"><b>音割れ防止：</b>書き出し時、音が大きすぎる場合は自動で少し下げて割れを防ぎます（設定でオフにできます）。</div>
+  </section>
+
+  <section id="shortcuts">
+    <h2><span class="num">13</span>ショートカット早見表</h2>
+    <p>主なものだけ抜粋しています。全一覧は「ヘルプ」→「ショートカット一覧...」（<kbd>Ctrl+/</kbd> / Mac は <kbd>⌘/</kbd>）から確認できます。</p>
+    <table class="keys">
+      <tr><th style="width:46%">はたらき</th><th style="width:27%">Windows</th><th style="width:27%">macOS</th></tr>
+      <tr><td>再生 / 停止</td><td><kbd>Space</kbd></td><td><kbd>Space</kbd></td></tr>
+      <tr><td>録音 開始 / 停止</td><td><kbd>R</kbd></td><td><kbd>R</kbd></td></tr>
+      <tr><td>ループ再生 オン / オフ</td><td><kbd>L</kbd></td><td><kbd>L</kbd></td></tr>
+      <tr><td>1 小節 進む / 戻る</td><td><kbd>N</kbd> / <kbd>B</kbd></td><td><kbd>N</kbd> / <kbd>B</kbd></td></tr>
+      <tr><td>元に戻す / やり直し</td><td><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Shift+Z</kbd></td><td><kbd>⌘Z</kbd> / <kbd>⇧⌘Z</kbd></td></tr>
+      <tr><td>保存</td><td><kbd>Ctrl+S</kbd></td><td><kbd>⌘S</kbd></td></tr>
+      <tr><td>オーディオを読み込む</td><td><kbd>Ctrl+I</kbd></td><td><kbd>⌘I</kbd></td></tr>
+      <tr><td>書き出し</td><td><kbd>Ctrl+E</kbd></td><td><kbd>⌘E</kbd></td></tr>
+      <tr><td>波形を分割（カット）</td><td><kbd>Alt</kbd>＋クリック</td><td><kbd>Option</kbd>＋クリック</td></tr>
+      <tr><td>プラグインをバイパス</td><td><kbd>Ctrl</kbd>＋クリック</td><td><kbd>⌘</kbd>＋クリック</td></tr>
+      <tr><td>フェード / クロスフェード</td><td><kbd>F</kbd> / <kbd>X</kbd></td><td><kbd>F</kbd> / <kbd>X</kbd></td></tr>
+      <tr><td>曲全体を画面に合わせる</td><td><kbd>Shift+F</kbd></td><td><kbd>⇧F</kbd></td></tr>
+      <tr><td>横ズーム</td><td><kbd>Ctrl</kbd>＋ホイール</td><td><kbd>⌘</kbd>＋ホイール</td></tr>
+    </table>
+    <div class="note">本ガイドの本文中のショートカットは Windows 表記です。Mac では <kbd>Ctrl</kbd>→<kbd>⌘</kbd>、<kbd>Alt</kbd>→<kbd>Option</kbd> に読み替えてください。</div>
+  </section>
+
+  <section id="trouble">
+    <h2><span class="num">14</span>困ったときは</h2>
+    <h3>「音声ファイルが見つかりません」と表示される</h3>
+    <p>プロジェクトが参照している音源が移動／削除された可能性があります。元のファイルをプロジェクト内の <code>Audio</code> フォルダに戻すと自動的に復活します。</p>
+    <h3>前回の作業が消えた／アプリが終了した</h3>
+    <p>保存済みプロジェクトを開き直すと、より新しいバックアップがある場合に<b>復旧</b>をたずねられます。「復旧」を選ぶと直前の状態に戻せます。</p>
+    <h3>マイクの声が録れない</h3>
+    <ul>
+      <li>OS のマイク使用許可で Trakova が許可されているか確認。</li>
+      <li>環境設定のオーディオ設定で、正しい入力機器とチャンネルが選ばれているか確認。</li>
+      <li>トラックの <kbd>R</kbd>（録音アーム）が点灯しているか確認。</li>
+    </ul>
+    <h3>プラグインが一覧に出ない</h3>
+    <p>「ファイル」→「プラグインを管理...」で「全て再スキャン」を実行してください。インストール直後のプラグインも認識されます。</p>
+  </section>
+  </main>
+</div>
+
+<footer>
+  Trakova — 歌い手のための録音特化 DAW / オープンソース (AGPL v3)。<br>
+  開発の支援: <a href="https://github.com/sponsors/AsteroidApp-hub">GitHub Sponsors</a><br>
+  このガイドはアプリに同梱されています。最新情報は配布ページをご確認ください。
+</footer>
+</body>
+</html>

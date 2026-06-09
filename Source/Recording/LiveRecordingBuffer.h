@@ -1,0 +1,118 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 Studio Asteroid
+
+#pragma once
+#include <JuceHeader.h>
+
+// Lock-free, audio-thread-safe リアルタイム波形バッファ
+//
+// 480KB のピーク配列を遅延確保する: 一度も録音されないトラックは 0 バイト。
+// reset() (録音開始) 時に確保し、Track 破棄まで保持する。
+// (録音停止毎に解放するのは pushSamples との競合が複雑なので避けている)
+class LiveRecordingBuffer
+{
+public:
+    static constexpr int maxPeaks       { 120000 };
+    static constexpr int samplesPerPeak { 256 };  // ~5.3ms @48kHz
+
+    void reset()
+    {
+        // 初回 reset で確保。以降は再利用してゼロクリアのみ。
+        // 確保完了を release-store し、audio thread 側の acquire-load と
+        // happens-before 関係を明示的に張る (#Minor-3)。
+        if (peaksStorage == nullptr)
+        {
+            peaksStorage = std::make_unique<float[]>((size_t) maxPeaks);
+            peaksPtr.store(peaksStorage.get(), std::memory_order_release);
+        }
+
+        peakCount.store(0, std::memory_order_release);
+        accumMax           = 0.0f;
+        samplesAccumulated = 0;
+    }
+
+    // Audio thread only
+    void pushSamples(const float* data, int numSamples)
+    {
+        float* p = peaksPtr.load(std::memory_order_acquire);
+        if (p == nullptr) return;  // reset() 未呼び出し (録音アームしていないトラック)
+        for (int i = 0; i < numSamples; ++i)
+        {
+            float s = std::abs(data[i]);
+            if (s > accumMax) accumMax = s;
+
+            if (++samplesAccumulated >= samplesPerPeak)
+            {
+                int idx = peakCount.load(std::memory_order_relaxed);
+                if (idx < maxPeaks)
+                {
+                    p[(size_t) idx] = accumMax;
+                    peakCount.store(idx + 1, std::memory_order_release);
+                }
+                accumMax           = 0.0f;
+                samplesAccumulated = 0;
+            }
+        }
+    }
+
+    // UI thread (peaksStorage の唯一の書き手は reset() = UI thread なので直接参照で安全)
+    int   getPeakCount() const       { return peaksStorage ? peakCount.load(std::memory_order_acquire) : 0; }
+    float getPeak(int i)  const      { return peaksStorage ? peaksStorage[(size_t) i] : 0.0f; }
+
+    double getDurationSeconds(double sampleRate) const
+    {
+        return (double)getPeakCount() * samplesPerPeak / sampleRate;
+    }
+
+    // Draw peaks as a waveform into bounds
+    void draw(juce::Graphics& g, juce::Rectangle<int> bounds,
+              juce::Colour colour, double startSeconds, double totalSeconds,
+              double sampleRate) const
+    {
+        if (peaksStorage == nullptr) return;
+        const int count = getPeakCount();
+        if (count == 0 || totalSeconds <= 0.0) return;
+
+        const double secsPerPeak = (double)samplesPerPeak / sampleRate;
+        const double startPeak   = startSeconds / secsPerPeak;
+        const double endPeak     = (startSeconds + totalSeconds) / secsPerPeak;
+        const double peaksPerPixel = (endPeak - startPeak) / bounds.getWidth();
+
+        g.setColour(colour.withAlpha(0.85f));
+
+        // 1px 毎に drawLine を呼ぶと長尺で UI が詰まるので、
+        // 全列を 1 つの Path に積んでから strokePath で一括描画する。
+        juce::Path wavePath;
+        wavePath.preallocateSpace(bounds.getWidth() * 3);
+        const float cyF = (float) bounds.getCentreY();
+        const float boundsH = (float) bounds.getHeight();
+        for (int px = 0; px < bounds.getWidth(); ++px)
+        {
+            double p0 = startPeak + px * peaksPerPixel;
+            double p1 = p0 + peaksPerPixel;
+            int i0 = juce::jlimit(0, count - 1, (int)p0);
+            int i1 = juce::jlimit(0, count - 1, (int)p1);
+
+            float maxVal = 0.0f;
+            for (int pi = i0; pi <= i1; ++pi)
+                maxVal = std::max(maxVal, peaksStorage[(size_t) pi]);
+
+            const float halfH = juce::jmax(0.5f, maxVal * 0.5f * boundsH);
+            const float xF    = (float)(bounds.getX() + px);
+            wavePath.startNewSubPath(xF, cyF - halfH);
+            wavePath.lineTo       (xF, cyF + halfH);
+        }
+        g.strokePath(wavePath, juce::PathStrokeType(1.0f));
+    }
+
+private:
+    // 遅延ヒープ確保 (録音アームしていないトラックでは 0 バイト)。
+    // reset() (UI スレッド) で確保し、peaksStorage が所有する。
+    // peaksPtr は audio スレッドが acquire-load する公開ポインタで、
+    // reset() の release-store と happens-before 関係を明示的に張る (#Minor-3)。
+    std::unique_ptr<float[]>    peaksStorage;
+    std::atomic<float*>         peaksPtr  { nullptr };
+    std::atomic<int>            peakCount { 0 };
+    float accumMax           { 0.0f };
+    int   samplesAccumulated { 0 };
+};

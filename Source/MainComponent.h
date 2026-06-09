@@ -1,0 +1,385 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2025-2026 Studio Asteroid
+
+#pragma once
+#include <JuceHeader.h>
+#include "Audio/AudioEngine.h"
+#include "Audio/AudioFileImporter.h"
+#include "Audio/AudioDeviceSettings.h"
+#include "VST/PluginManager.h"
+#include "Mac/GlobalKeyMonitor.h"
+#include "Tracks/TrackManager.h"
+#include "Recording/RecordingManager.h"
+#include "Edit/EditActions.h"
+#include "Project/ProjectManager.h"
+#include "Project/AppPreferences.h"
+#include "UI/Toolbar.h"
+#include "UI/TrackHeaderPanel.h"
+#include "UI/TimelineView.h"
+#include "UI/MasterPanel.h"
+#include "UI/StatusBar.h"
+#include "UI/PianoRollEditor.h"  // MainComponent::PianoRollWindow が unique_ptr<PianoRollEditor> を保持
+#include "AppSettings.h"
+
+class MainComponent : public juce::Component,
+                      public  juce::DragAndDropContainer,    // FX チップ D&D の親
+                      public  juce::MenuBarModel,
+                      public  juce::ApplicationCommandTarget,  // プラグインエディタ越しでもショートカットを効かせる
+                      private juce::Timer,
+                      public  juce::KeyListener,
+                      public  juce::ChangeListener   // AudioThumbnail のロード進捗通知用
+{
+public:
+    MainComponent();
+    ~MainComponent() override;
+
+    // MenuBarModel
+    juce::StringArray getMenuBarNames() override;
+    juce::PopupMenu   getMenuForIndex(int topLevelMenuIndex, const juce::String& menuName) override;
+    void              menuItemSelected(int menuItemID, int topLevelMenuIndex) override;
+
+    // ChangeListener (AudioThumbnail からのロード進捗通知)
+    void changeListenerCallback(juce::ChangeBroadcaster* src) override;
+
+    // 起動画面に戻すなど、ホストウィンドウへ通知するコールバック
+    std::function<void()> onCloseProject;
+    std::function<void()> onNewProject;
+
+    void paint(juce::Graphics&) override;
+    void resized() override;
+    void mouseDown(const juce::MouseEvent&) override;
+    bool keyPressed(const juce::KeyPress&, juce::Component*) override;
+    bool keyPressed(const juce::KeyPress& key) override
+    {
+        return keyPressed(key, this);
+    }
+
+    // ApplicationCommandTarget
+    enum CommandIDs
+    {
+        cmdPlayPause   = 0x6001,
+        cmdStop        = 0x6002,
+        cmdRecord      = 0x6003,
+        cmdExport      = 0x6004,
+        cmdSave        = 0x6005,
+        cmdOpen        = 0x6006,
+    };
+    juce::ApplicationCommandTarget* getNextCommandTarget() override { return nullptr; }
+    void getAllCommands(juce::Array<juce::CommandID>& commands) override;
+    void getCommandInfo(juce::CommandID commandID, juce::ApplicationCommandInfo& info) override;
+    bool perform(const InvocationInfo& info) override;
+
+    juce::ApplicationCommandManager& getCommandManager() { return commandManager; }
+
+    // 起動画面から呼ぶ：新規プロジェクトを生成し、現在のセッションを置き換える
+    bool createNewProject(const juce::File& projectFile, double sampleRate, int bitDepth);
+    // 起動画面から呼ぶ：既存プロジェクトを読み込み、現在のセッションを置き換える
+    bool openExistingProject(const juce::File& projectFile);
+
+    // ウィンドウ × ボタン等から呼ぶ: 未保存変更があれば確認ダイアログを出し、
+    // Save / Don't Save の後に onProceed を呼ぶ。Cancel なら何もしない。
+    void confirmCloseIfDirty(std::function<void()> onProceed);
+
+private:
+    static constexpr int toolbarHeight    { 56 };
+    static constexpr int statusBarHeight  { 22 };
+    static constexpr int trackHeaderWidth { 240 };
+    static constexpr int masterPanelWidth { 155 };
+
+    void timerCallback() override;
+
+    void addTrack();
+    void addMidiTrack();   // 空の MIDI トラックを作成 (ハモリ/ガイド打ち込み用)
+    // 入力モニター/Rec アーム/モニターリバーブ量をまとめてオーディオエンジンへ反映する。
+    void syncInputMonitorStateToEngine();
+    void togglePlay();
+    void stopTransport();
+    // 再生位置を seconds へ移動し、エンジン / ツールバー / タイムライン / ピアノロールを同期する。
+    // (N/B の小節移動、マーカー移動、ルーラークリック等の共通処理)
+    void seekTo(double seconds);
+    void startRecording();
+    void stopRecording();
+    void toggleRecord();
+    void showAudioSettings();
+    void showImportDialog();
+    void showImportMidiDialog();
+    // D&D 用: ファイルとドロップ位置を指定して MIDI 取り込みダイアログを表示
+    void importMidiFromFile(const juce::File& midiFile, double dropTimeOverride);
+    void showPreferences();
+    void showExportDialog();
+    void showMidiExportDialog();   // MIDI (SMF) を書き出す。設定でメニュー表示を ON にした時のみ使用
+    void showPluginManager();
+    void showAboutDialog();
+    void showShortcutsDialog();
+    void showDocumentation();      // 同梱の使い方ドキュメント (HTML) を既定ブラウザで開く
+    void addPluginToTrack(int trackIdx, int slotIdx = -1);
+    void openPluginEditor(int trackIdx, int slotIdx);
+    void closePluginEditorFor(juce::AudioPluginInstance* plugin);
+    void removePluginFromTrack(int trackIdx, int slotIdx);
+    // D&D: 他トラックからのドロップ。move (copy=false) または copy (copy=true)
+    // srcTrack == -1 はマスターを指す
+    void handlePluginDropAcrossTracks(int srcTrack, int srcSlot,
+                                      int dstTrack, int dstSlot, bool copy);
+
+    // マスターチェーン操作
+    void addPluginToMaster(int slotIdx);
+    void openMasterPluginEditor(int slotIdx);
+    void removeMasterPlugin(int slotIdx);
+    void handlePluginDropFromTrackToMaster(int srcTrack, int srcSlot,
+                                           int dstSlot, bool copy);
+
+    // プラグインを正しく破棄するための自己管理ウィンドウ
+    // (OwnedArray の解体には完全型が必要なため、ヘッダ内に定義を置く)
+    class PluginEditorWindow : public juce::DocumentWindow
+    {
+    public:
+        PluginEditorWindow(juce::AudioPluginInstance& p,
+                           std::function<void(PluginEditorWindow*)> onCloseCb);
+        ~PluginEditorWindow() override;
+        void closeButtonPressed() override;
+        juce::AudioPluginInstance* getPlugin() const { return &plugin; }
+    private:
+        juce::AudioPluginInstance& plugin;
+        juce::AudioProcessorEditor* editor { nullptr };
+        std::function<void(PluginEditorWindow*)> onClose;
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PluginEditorWindow)
+    };
+    juce::OwnedArray<PluginEditorWindow> pluginEditorWindows;
+
+    // ピアノロール 自己管理ウィンドウ
+    class PianoRollWindow : public juce::DocumentWindow
+    {
+    public:
+        PianoRollWindow(MidiClip& mc, Track& tr, double bpm,
+                        double initialFocusTimeSec,
+                        std::function<void(PianoRollWindow*)> onCloseCb,
+                        std::function<void()> onChangedCb,
+                        std::function<void(int, float, bool)> onPreviewCb,
+                        std::function<void(double /*secsInClip*/)> onSeekCb);
+        ~PianoRollWindow() override;
+        void closeButtonPressed() override;
+        MidiClip* getClip() const { return clipPtr; }
+        PianoRollEditor* getEditor() const { return editor.get(); }
+    private:
+        MidiClip* clipPtr { nullptr };
+        std::unique_ptr<PianoRollEditor> editor;
+        std::function<void(PianoRollWindow*)> onClose;
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PianoRollWindow)
+    };
+    juce::OwnedArray<PianoRollWindow> pianoRollWindows;
+    void openPianoRollFor(class MidiClip* clip, class Track* track);
+    void propagatePlayheadToPianoRolls(double playheadSecs);
+    void commitRetrospective();
+    // ── オーディオインポート ──
+    // 変換本体 (ファイル I/O のみ・UI/trackManager に触れない)。バックグラウンドスレッドから
+    // 呼ばれる。onProgress は 0..1 の進捗を報告し false で中断する。
+    juce::File doImportConversion(const juce::File& src,
+                                  const std::function<bool(double)>& onProgress);
+
+    // 複数ファイルをまとめて変換した結果 (UI スレッドでクリップ化する)。
+    struct ImportedItem
+    {
+        juce::String name;       // トラック名に使う元ファイル名 (拡張子なし)
+        juce::File   file;       // Audio/ 内の変換後ファイル
+        double       dur    { 0.0 };
+        bool         stereo { false };
+        bool         hasVol { false };   // ラウドネス測定で track vol を決めたか
+        float        volDb  { 0.0f };
+    };
+    // sources を順に変換 (リサンプル / メタ除去 / コピー + 尺・ch + ラウドネス測定)。
+    // report(overall 0..1, label) は進捗報告で false を返すと中断する。ファイル I/O のみで
+    // UI / trackManager のミューテーションはしないため、バックグラウンドスレッドから呼べる。
+    std::vector<ImportedItem> convertImportSources(
+        const juce::Array<juce::File>& sources,
+        const std::function<bool(double, const juce::String&)>& report);
+    // 進捗ウィンドウ「インポート中…」付きで sources をまとめて変換する (合計が小さければ窓を出さない)。
+    // メッセージスレッドから呼ぶこと (モーダル窓を出すため)。
+    std::vector<ImportedItem> convertImportSourcesWithProgress(const juce::Array<juce::File>& sources);
+    // ドラッグ&ドロップ経路: 変換 → dropTime / targetTrackIdx に従ってクリップ配置 +
+    // ラウドネス適用 + リフレッシュ。複数ドロップも 1 つの進捗ウィンドウにまとまる。
+    void importAudioFilesAtDrop(const juce::Array<juce::File>& sources,
+                                double dropTime, int targetTrackIdx);
+    // ファイル単体のラウドネスを測定し、target に合わせる track vol(dB) を outVolDb に返す。
+    // 測定不能なら false (autoNormalizeOnImport の判定は呼び出し側)。
+    bool computeLoudnessTargetVol(const juce::File& file, double fileOffset,
+                                  double duration, float& outVolDb);
+
+    // AudioThumbnail はバックグラウンドで非同期に読み込まれるため、
+    // 録音停止直後 / プロジェクト読み込み直後の repaint では波形が空状態になる。
+    // 各クリップの波形キャッシュを破棄しつつ、複数回遅延 repaint して
+    // 読み込み完了を反映させる。
+    void scheduleWaveformRefresh();
+
+    // 波形 (AudioThumbnail) のロード残数を数えてステータスバーに進捗表示する。
+    // 全クリップがロード完了したら「完了」メッセージを出す。
+    void updateWaveformLoadingStatus();
+    bool waveformWasLoading { false };
+    // プロジェクト読込で発生したデコードが完了したら波形ディスクキャッシュを書く
+    // (録音停止など他のロード完了では書かない)。
+    bool writeThumbCacheOnLoadComplete { false };
+
+    // appSettings.projectSampleRate をオーディオデバイスに適用
+    // （プロジェクト作成 / 読み込み時に呼び、デバイスをプロジェクトに追従させる）
+    void applyProjectSampleRateToDevice();
+
+
+    // トラックを複製 (右クリックメニュー「トラックを複製」から呼ばれる)。
+    // TrackManager::duplicateTrack でクリップ/設定をコピーし、
+    // この関数でプラグインチェーンをクローンする。
+    void duplicateTrack(int sourceTrackIdx);
+
+    // 指定 index 群のトラックをまとめて削除する (プラグイン後処理 + 再生スナップショット更新)。
+    // 2 本以上は確認ダイアログを出す (トラック削除は Undo 非対応のため)。
+    void deleteTracks(std::vector<int> indices);
+
+    // ── 音楽情報 (マーカー / テンポ変更 / 拍子変更 / 曲全体 BPM) の Undo ──
+    // これらは appSettings とルーラーに分散して保持されるが、Undo では値スナップショットを
+    // まとめて差し替える (生ポインタを持たないのでトラック削除等でダングリングしない)。
+    struct MusicState
+    {
+        double initialBpm       { 120.0 };
+        int    meterNumerator   { 4 };
+        int    meterDenominator { 4 };
+        std::vector<BpmChange>   bpmChanges;
+        std::vector<MeterChange> meterChanges;
+        std::vector<Marker>      markers;
+        bool operator==(const MusicState& o) const;
+        bool operator!=(const MusicState& o) const { return !(*this == o); }
+    };
+    MusicState captureMusicState() const;
+    void       applyMusicState(const MusicState&);
+    void       pushMusicUndo(const MusicState& before);  // after=capture; 差があれば Undo 登録
+    // ルーラー内編集 (マーカー/テンポ/拍子の削除・ドラッグ・色変更) の before/after 3 リストから
+    // Undo を登録する (曲頭 BPM/拍子は変わらないので現在値を使う)。
+    void       pushMusicUndoFromLists(const TimelineRuler::EditLists& before,
+                                      const TimelineRuler::EditLists& after);
+
+    // ── トラックのプロパティ (名前 / 色 / 内蔵シンセ設定) の Undo ──
+    // mutate を実行し、その前後の TrackState をスナップショットして Undo 登録する。
+    // Track* は apply 時に trackManager 内の生存を確認してから書き戻す (削除済みなら no-op)。
+    struct TrackState
+    {
+        juce::String name;
+        juce::Colour colour { juce::Colour(0xff3a6ea5) };
+        bool synthEnabled      { false };
+        int  synthWaveform     { 0 };
+        int  octaveShift       { 0 };
+        int  semitoneTranspose { 0 };
+        bool operator==(const TrackState& o) const;
+        bool operator!=(const TrackState& o) const { return !(*this == o); }
+    };
+    TrackState captureTrackState(Track*) const;
+    void       applyTrackState(Track*, const TrackState&);
+    void       applyTrackEditUndoable(Track*, std::function<void()> mutate);
+    bool       trackStillExists(Track*) const;
+    // ── プラグインチェーン操作の Undo (追加 / 削除 / バイパス / 並べ替え / トラック間移動) ──
+    // チェーンは Track* (nullptr=マスター) を apply 時に解決する。削除済みトラックなら no-op。
+    // (チェーン変更は onChainChanged で UI が自動更新されるため、onChange は markProjectDirty のみ)
+    PluginChain* resolveChainForUndo(Track* track);  // track==nullptr → マスター。削除済みは nullptr
+    std::function<PluginChain*()> makeChainResolver(Track* track);  // apply 時に解決するクロージャ
+    void swapTrackPluginsUndoable(int trackIdx, int a, int b);
+    void swapMasterPluginsUndoable(int a, int b);
+    void togglePluginBypassUndoable(int trackIdx, int slot);  // trackIdx<0 → マスター
+
+    // プロジェクト管理
+    void saveProject();        // 既存パスがあればそこへ、無ければ saveAs
+    void saveProjectAs(std::function<void(bool savedOk)> onDone = {});  // 完了コールバック付き
+    void openProject();        // ファイルチョーザでファイルを選択
+    bool saveProjectTo(const juce::File& f);
+    // 未保存変更の追跡
+    void markProjectDirty()  { projectDirty = true; }
+    void clearProjectDirty() { projectDirty = false; }
+
+    // 自動保存
+    void   performAutoSave();
+    void   restartAutoSaveTimer();
+    void   offerAutoSaveRecoveryIfNeeded(const juce::File& projectFile);
+    // 世代バックアップ: 命名/列挙/間引き/復旧判定は BackupManager (Source/Project/BackupManager.h)
+    // に集約 (オーディオ/GUI 非依存・単体テスト可能)。ここはフォルダ文脈を渡す薄いラッパのみ。
+    juce::File   getBackupDir() const;     // <project>/Backup を作成して返す ({}=不可)
+    juce::String backupBaseName() const;   // 保存済み=名前(拡張子なし) / 未保存(Untitled)=空
+    struct AutoSaveTickTimer : public juce::Timer
+    {
+        std::function<void()> tick;
+        void timerCallback() override { if (tick) tick(); }
+    };
+    std::unique_ptr<AutoSaveTickTimer> autoSaveTimer;
+
+    bool loadProjectFrom(const juce::File& f, bool isRecovery = false);
+    juce::File currentProjectFile;
+    juce::File untitledProjectDir;  // 未保存時の仮プロジェクトフォルダ
+
+    // プロジェクトフォルダ取得（未保存なら untitled、保存済みなら current の親）
+    juce::File getProjectFolder() const;
+    juce::File getProjectAudioFolder() const;
+    juce::File getProjectCacheFolder() const;
+    juce::File getProjectExportFolder() const;
+    // 全クリップの音声ファイルを新プロジェクトの Audio フォルダへ移動
+    void migrateAudioToProjectFolder(const juce::File& newProjectFile);
+
+    std::unique_ptr<juce::FileChooser> fileChooser;
+
+    AudioEngine       audioEngine;
+    TrackManager      trackManager  { audioEngine.getFormatManager() };
+    RecordingManager  recordingMgr  { audioEngine, trackManager,
+                                      audioEngine.getFormatManager() };
+    AudioFileImporter fileImporter  { audioEngine.getFormatManager() };
+    std::unique_ptr<AudioDeviceSettings::AutoSaver> deviceAutoSaver;
+    PluginManager     pluginManager;
+    juce::ApplicationCommandManager commandManager;
+    std::unique_ptr<GlobalKeyMonitor> globalKeyMonitor;
+
+   #if ! JUCE_MAC
+    // Windows / Linux ではウィンドウ内に MenuBarComponent を表示する
+    // (macOS は setMacMainMenu で OS のグローバルメニューバーに統合される)
+    std::unique_ptr<juce::MenuBarComponent> menuBar;
+   #endif
+
+    TransportBar     toolbar;
+    TrackHeaderPanel trackHeaderPanel { trackManager };
+    TimelineView     timelineView     { trackManager };
+    MasterPanel      masterPanel;
+    StatusBar        statusBar;
+    // ホバー時のツールチップ表示 (INS トグル等のアイコンボタンの説明)。
+    // これを 1 つ置くだけでアプリ全体の setTooltip が機能する。
+    juce::TooltipWindow tooltipWindow { this };
+
+    bool        isPlaying         { false };
+    bool        isRecording       { false };
+    double      bpm               { 120.0 };
+    double      playPosition      { 0.0 };
+    double      playStartPos      { 0.0 };
+    int         selectedTrackIndex { -1 };
+    AppSettings appSettings;
+    // アプリ全体設定 (プロジェクト非依存)。MIDI 書き出しメニューの表示可否などを保持
+    AppPreferences appPrefs { AppPreferences::load() };
+    juce::UndoManager undoManager;
+    bool projectDirty { false };   // 未保存変更があるかどうか
+    double loopStartSecs { 0.0 };
+    double loopEndSecs   { 0.0 };
+    bool   loopActive    { false };
+    int    lastLoopWrapCount { 0 };
+
+    // アイドル時にメーター計算をスキップするためのカウンタ (猶予 tick を数える)
+    int    idleMeterTicks { 0 };
+
+    // 再生バー平滑化: 視覚プレイヘッドは VBlankAttachment (onVBlank) でディスプレイの
+    // リフレッシュに同期して更新し、提示時刻タイムスタンプで等速補間する。これにより
+    // タイマー/オーディオブロック境界のジッタ由来のカクツキ (特に横ズーム時) を除去し、
+    // 60/120Hz どちらのパネルでもフレームを無駄にせず最も滑らかに動かす。
+    bool   playheadSmoothActive { false };
+    double smoothedPlayhead     { 0.0 };
+    double lastPlayheadWallSec  { 0.0 };
+    juce::VBlankAttachment vblankAttachment;
+    void   onVBlank (double timestampSec);  // ディスプレイ垂直同期に合わせた再生バー更新
+
+    // 録音前の Lane 0 スナップショット (Undo で録音クリップを除去するため)
+    struct PreRecSnapshot
+    {
+        Track* track { nullptr };
+        std::vector<EditActions::LaneSnapshotAction::ClipSnap> lane0Snap;
+    };
+    std::vector<PreRecSnapshot> preRecSnaps;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
+};
