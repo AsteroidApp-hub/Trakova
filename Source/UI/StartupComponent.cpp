@@ -111,14 +111,64 @@ StartupComponent::StartupComponent(bool showAds)
     openBtn.onClick = [this] { browseExisting(); };
     addAndMakeVisible(openBtn);
 
+    // アップデート通知 (右上)。更新が見つかるまで非表示。右寄せの赤いリンクテキスト。
+    // 幅はテキストに合わせて縮める (showUpdateBanner) ので、文字以外はクリック対象にならない。
+    updateBanner.setColour(juce::HyperlinkButton::textColourId, juce::Colour(0xffff5252));
+    updateBanner.setJustificationType(juce::Justification::centredRight);
+    updateBanner.setFont(juce::FontOptions(11.5f, juce::Font::bold), false,
+                         juce::Justification::centredRight);
+    addChildComponent(updateBanner);   // 追加するが可視化はしない (クリックで URL を開く)
+
     refreshRecents();
     setSize(adsEnabled ? kWidthWithAds : kWidthNoAds, kHeight);
+
+    startUpdateCheck();
 }
 
 StartupComponent::~StartupComponent()
 {
+    if (updateCancel != nullptr)
+        updateCancel->store(true);   // worker の結果配信を打ち切る
     startupDeviceManager.removeChangeListener(this);
     startupDeviceManager.closeAudioDevice();
+}
+
+void StartupComponent::startUpdateCheck()
+{
+    updateCancel = std::make_shared<std::atomic<bool>>(false);
+
+    juce::Component::SafePointer<StartupComponent> safe(this);
+    UpdateChecker::check(UpdateChecker::defaultApiBase(),
+                         UpdateChecker::defaultReleasesPageUrl(), updateCancel,
+        [safe](UpdateInfo info, bool ok) mutable
+        {
+            if (auto* self = safe.getComponent())
+                if (ok && UpdateChecker::isNewerVersion(info.version,
+                                                        UpdateChecker::currentAppVersion()))
+                    self->showUpdateBanner(info);
+        });
+}
+
+void StartupComponent::showUpdateBanner(const UpdateInfo& info)
+{
+    updateBanner.setButtonText(tr(u8"アップデートがあります") + "  " + info.tag + "   ↓");
+    updateBanner.setURL(juce::URL(info.pageUrl));            // クリックで既定ブラウザがこの URL を開く
+    updateBanner.setTooltip(tr(u8"ダウンロードページを開く"));  // setURL がツールチップを上書きするので後に
+    updateBanner.setVisible(true);
+    updateBanner.toFront(false);
+    layoutUpdateBanner();                                    // テキスト幅で右端に再配置
+}
+
+void StartupComponent::layoutUpdateBanner()
+{
+    if (! updateBanner.isVisible() || updateBannerArea.isEmpty())
+        return;
+
+    updateBanner.setBounds(updateBannerArea);     // まず領域全体に置いて高さを確定
+    updateBanner.changeWidthToFitText();          // 幅をテキストに合わせる (左上基準・+6px)
+    const int w = juce::jmin(updateBanner.getWidth(), updateBannerArea.getWidth());
+    updateBanner.setBounds(updateBannerArea.getRight() - w, updateBannerArea.getY(),
+                           w, updateBannerArea.getHeight());   // 右端へ寄せる
 }
 
 void StartupComponent::refreshRecents()
@@ -182,6 +232,17 @@ void StartupComponent::resized()
     subtitleLabel.setBounds(r.removeFromTop(20));
 
     const auto cols = computeColumns();
+
+    // アップデート通知リンク: ヘッダ帯 (タイトル+サブタイトルの高さ) の右側、右カラムの
+    // 左端からコンテンツ右端まで。タイトル文字は左側にあるので水平には重ならない。
+    // 実際のリンクはこの領域の右端へテキスト幅で寄せる (layoutUpdateBanner)。
+    {
+        auto band = getLocalBounds().reduced(28).removeFromTop(54);
+        band.setLeft(cols.recentsCol.getX());
+        // サブタイトルの高さに合わせて少し下げる (右寄せ・小さめのリンク)
+        updateBannerArea = band.reduced(0, 9).translated(0, 16);
+        layoutUpdateBanner();
+    }
     auto leftCol  = cols.newCol.reduced(20);
     auto rightCol = cols.recentsCol.reduced(20);
 

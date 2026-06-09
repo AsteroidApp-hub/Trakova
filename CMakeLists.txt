@@ -62,6 +62,7 @@ target_sources(Trakova PRIVATE
     Source/Project/WindowState.cpp
     Source/Project/AppPreferences.cpp
     Source/Project/AdService.cpp
+    Source/Project/UpdateChecker.cpp
     Source/Export/ExportEngine.cpp
     Source/Export/ExportDialog.cpp
     Source/Export/Mp3EncoderWriter.cpp
@@ -306,8 +307,10 @@ if(TRAKOVA_BUILD_TESTS)
         Tests/AudioFileImporterTests.cpp
         Tests/AppStorageTests.cpp
         Tests/AdServiceTests.cpp
+        Tests/UpdateCheckerTests.cpp
         Source/Audio/AudioFileImporter.cpp
         Source/Project/AdService.cpp
+        Source/Project/UpdateChecker.cpp
         Source/Project/RecentProjects.cpp
         Source/Project/WindowState.cpp
         Source/Project/BackupManager.cpp

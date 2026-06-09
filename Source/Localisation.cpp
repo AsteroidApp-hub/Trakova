@@ -547,7 +547,10 @@ static const char* const englishTranslations =
     "\"再読み込み\" = \"Reload\"\n"
     "\"詳しく見る ↗\" = \"Learn more ↗\"\n"
     "\"起動画面\" = \"Startup screen\"\n"
-    "\"起動画面に広告を表示する (OFF で通信しません。次回起動で反映)\" = \"Show ads on the startup screen (no network when off; applies on next launch)\"\n";
+    "\"起動画面に広告を表示する (OFF で通信しません。次回起動で反映)\" = \"Show ads on the startup screen (no network when off; applies on next launch)\"\n"
+    // ── アップデート通知 (起動画面右上のバナー) ──
+    "\"アップデートがあります\" = \"Update available\"\n"
+    "\"ダウンロードページを開く\" = \"Open the download page\"\n";
 
 void install(Language lang)
 {

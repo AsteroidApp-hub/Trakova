@@ -5,6 +5,7 @@
 #include <JuceHeader.h>
 #include "../Localisation.h"
 #include "../Audio/AudioDeviceSettings.h"
+#include "../Project/UpdateChecker.h"
 #include "AdPanel.h"
 
 class StartupComponent : public juce::Component,
@@ -41,6 +42,14 @@ private:
     void refreshRecents();
     void showDeviceDialog();
     void refreshDeviceLabel();
+
+    // アップデート通知 (右上のリンク)。GitHub の最新リリース / タグを非同期取得し、現在版より
+    // 新しければリンクを表示する。クリックでリリースページを既定ブラウザで開く。
+    void startUpdateCheck();
+    void showUpdateBanner(const UpdateInfo& info);
+    // リンクをテキスト幅に合わせて配置可能領域 (updateBannerArea) の右端へ寄せる。
+    // 文字以外がクリック対象にならないよう、ヒット領域をテキスト幅に限定する。
+    void layoutUpdateBanner();
 
     // 3 カラム (左:新規 / 中央:最近 / 右:広告) の枠 (角丸カード) を算出する。
     // 広告無効時は ad が空で、左右 2 カラムになる。paint / resized で共用。
@@ -80,6 +89,11 @@ private:
 
     juce::Array<juce::File> recents;
     std::unique_ptr<juce::FileChooser> fileChooser;
+
+    // アップデート通知 (新しい版がある時だけ可視・右寄せの赤いリンクテキスト)
+    juce::HyperlinkButton     updateBanner;
+    juce::Rectangle<int>      updateBannerArea;   // リンクを右寄せ配置する領域 (右端基準)
+    UpdateChecker::CancelFlag updateCancel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(StartupComponent)
 };
