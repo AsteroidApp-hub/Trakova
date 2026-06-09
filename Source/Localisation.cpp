@@ -380,7 +380,7 @@ static const char* const englishTranslations =
     "\"本アプリは AGPL v3 ライセンスの下で配布されています。\\n\" = \"This app is distributed under the AGPL v3 license.\\n\"\n"
     "\"ソースコードは GitHub にて公開しています。\\n\" = \"The source code is available on GitHub.\\n\"\n"
     "\"── 免責事項 (無保証・無責任) ──\\n\" = \"── Disclaimer (No warranty / No liability) ──\\n\"\n"
-    "\"本ソフトウェアは無料で「現状のまま」提供され、いかなる保証もありません。使用・使用不能で生じたいかなる損害についても、作者および Studio アステロイドは一切の責任を負いません。ご利用は自己責任でお願いします。(AGPL v3 第15条・第16条に基づく)\\n\\n\" = \"This software is free and provided AS IS, without warranty of any kind. The author and Studio Asteroid shall not be liable for any damages arising from the use of or inability to use it. Use it at your own risk. (Per Sections 15 and 16 of the AGPL v3)\\n\\n\"\n"
+    "\"本ソフトウェアは無料で「現状のまま」提供され、いかなる保証もありません。使用・使用不能で生じたいかなる損害についても、作者は一切の責任を負いません。ご利用は自己責任でお願いします。(AGPL v3 第15条・第16条に基づく)\\n\\n\" = \"This software is free and provided AS IS, without warranty of any kind. The author shall not be liable for any damages arising from the use of or inability to use it. Use it at your own risk. (Per Sections 15 and 16 of the AGPL v3)\\n\\n\"\n"
     "\"開発を応援する (寄付):\\n\" = \"Support development (donations):\\n\"\n"
     // ── 共通ボタン / ダイアログ ──
     "\"キャンセル\" = \"Cancel\"\n"

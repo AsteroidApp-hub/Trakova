@@ -88,7 +88,7 @@ void MainComponent::showAboutDialog()
               << "  https://github.com/AsteroidApp-hub/Trakova\n\n";
 
             t << J(u8"── 免責事項 (無保証・無責任) ──\n")
-              << J(u8"本ソフトウェアは無料で「現状のまま」提供され、いかなる保証もありません。使用・使用不能で生じたいかなる損害についても、作者および Studio アステロイドは一切の責任を負いません。ご利用は自己責任でお願いします。(AGPL v3 第15条・第16条に基づく)\n\n");
+              << J(u8"本ソフトウェアは無料で「現状のまま」提供され、いかなる保証もありません。使用・使用不能で生じたいかなる損害についても、作者は一切の責任を負いません。ご利用は自己責任でお願いします。(AGPL v3 第15条・第16条に基づく)\n\n");
 
             t << J(u8"開発を応援する (寄付):\n")
               << "  GitHub Sponsors: https://github.com/sponsors/AsteroidApp-hub\n\n";

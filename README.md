@@ -78,7 +78,7 @@ cmake --build build --target TrakovaTests --config Debug
 - 動作・品質・安全性・特定目的への適合性について、明示・黙示を問わず一切保証しません。
 - 本ソフトウェアの使用または使用できないことによって生じたいかなる損害（録音・プロジェクトデータの
   消失や破損、他のソフトウェア・機材への影響、逸失利益などを含み、これらに限りません）についても、
-  作者および Studio アステロイド（Studio Asteroid）は**一切の責任を負いません**。
+  作者は**一切の責任を負いません**。
 - ご利用は**利用者ご自身の責任**でお願いします。大切なデータは事前にバックアップしてください。
 
 これは AGPL-3.0-or-later 第15条（保証の否認）および第16条（責任の制限）に基づくものです。
@@ -86,7 +86,7 @@ cmake --build build --target TrakovaTests --config Debug
 ### Disclaimer (No warranty / No liability)
 
 This software is **free** and provided **"AS IS", without warranty of any kind**, either express or
-implied. To the maximum extent permitted by applicable law, the author and Studio Asteroid shall
+implied. To the maximum extent permitted by applicable law, the author shall
 **not be liable** for any damages whatsoever (including, without limitation, loss or corruption of
 recordings or project data, damage to other software or equipment, or lost profits) arising from the
 use of, or inability to use, this software. **Use it at your own risk** and back up important data.
