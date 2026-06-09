@@ -1,51 +1,68 @@
 # リリース手順 / Release Guide
 
-Trakova の配布物は **GitHub Releases** で公開し、利用者はそこから手動でダウンロードします。
-ビルドは GitHub Actions（`.github/workflows/build.yml`）が自動で行います。
+配布物（macOS / Windows のビルド済みアプリ）は **GitHub Releases** で公開します。
+ビルドは CI ではなく **各自のマシンで手動**で行い、生成した zip を Release にアップロードします。
+（ASIO 対応の Windows 版もこの手動ビルドで作れます）
 
-## 1. 通常リリース（自動・ASIO 無し）
+## 1. バージョン更新
 
-1. バージョンを更新（`CMakeLists.txt` の `VERSION` など）。
-2. タグを打って push:
-   ```sh
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
-3. GitHub Actions が **macOS（arm64）** と **Windows（WASAPI/DirectSound・ASIO 無し）** を
-   ビルド＆テストし、`Trakova-macOS.zip` / `Trakova-Windows.zip` を添付した
-   **Release を自動作成**します。
-4. 利用者は **リポジトリの「Releases」ページ**から、ログイン不要でダウンロードできます。
+`CMakeLists.txt` の `VERSION`（必要なら About 等）を更新する。
 
-## 2. ASIO 対応 Windows 版（手動・plan C・任意）
+## 2. macOS 版をビルド（Mac 上で）
 
-ASIO SDK は再配布不可のためリポジトリ・CI には含めません。ASIO 版が必要なときだけ、
-ローカルの Windows 環境（ASIO SDK を `Source/ThirdParty/asiosdk/` に配置済み）で手動ビルドします。
-
-```powershell
-# 1) リリースタグをチェックアウト
-git fetch --tags
-git checkout v0.1.0
-
-# 2) ビルド（JUCE は自動取得。asiosdk があれば JUCE_ASIO=1 が自動で有効）
+```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 
-# 3) パッケージ化（.exe + ライセンス / マニュアル）
-$exe = Get-ChildItem -Path build -Recurse -Filter Trakova.exe | Select-Object -First 1
-New-Item -ItemType Directory -Force -Path Trakova-Windows-ASIO | Out-Null
-Copy-Item $exe.FullName Trakova-Windows-ASIO/
-Copy-Item LICENSE,THIRD_PARTY_LICENSES.txt,Docs/MANUAL.html,README.md Trakova-Windows-ASIO/
-Compress-Archive -Path Trakova-Windows-ASIO -DestinationPath Trakova-Windows-ASIO.zip -Force
-
-# 4) 同じ Release に添付（gh CLI、または Releases 画面にドラッグ&ドロップ）
-gh release upload v0.1.0 Trakova-Windows-ASIO.zip
+# .app をライセンス類と一緒に zip
+APP=$(find build -type d -name "Trakova.app" | head -1)
+mkdir -p Trakova-macOS && cp -R "$APP" Trakova-macOS/
+cp LICENSE THIRD_PARTY_LICENSES.txt Docs/MANUAL.html README.md Trakova-macOS/
+ditto -c -k --sequesterRsrc --keepParent Trakova-macOS Trakova-macOS.zip
 ```
 
-> CMake configure 時に `ASIO SDK found ... — ASIO サポート有効` と表示されれば ASIO 付きでビルドされています。
-> 表示されない場合は WASAPI/DirectSound のみ（＝通常 CI と同じ）です。
+## 3. Windows 版をビルド（Windows 上で・ASIO 対応可）
 
-## 3. タグを打たずにビルドだけ取得したい場合
+ASIO を有効にする場合は、先に ASIO SDK を `Source/ThirdParty/asiosdk/` に配置する
+（CMake が自動検出して `JUCE_ASIO=1` を有効化）。
 
-GitHub Actions の **「Run workflow」（workflow_dispatch）** から任意に実行でき、生成物は実行ページの
-**「Artifacts」**からダウンロードできます（GitHub ログインが必要・既定 90 日で失効）。
-一般配布には Release（上記 1）を使ってください。
+```powershell
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
+
+# .exe をライセンス類と一緒に zip
+$exe = Get-ChildItem -Path build -Recurse -Filter Trakova.exe | Select-Object -First 1
+New-Item -ItemType Directory -Force -Path Trakova-Windows | Out-Null
+Copy-Item $exe.FullName Trakova-Windows/
+Copy-Item LICENSE,THIRD_PARTY_LICENSES.txt,Docs/MANUAL.html,README.md Trakova-Windows/
+Compress-Archive -Path Trakova-Windows -DestinationPath Trakova-Windows.zip -Force
+```
+
+> CMake configure 時に `ASIO SDK found ... — ASIO サポート有効` と表示されれば ASIO 付きです。
+> 表示されなければ WASAPI / DirectSound のみになります。
+
+## 4. ユニットテスト（任意・推奨）
+
+```sh
+cmake --build build --target TrakovaTests --config Release
+# 生成された TrakovaTests を実行（全合格で終了コード 0）
+```
+
+## 5. GitHub Release を作成してアップロード
+
+- リポジトリの **「Releases」→「Draft a new release」**
+- **タグ** `v0.1.0` を新規作成（target: main）
+- タイトル・説明を記入し、**手順 2・3 で作った zip をドラッグ&ドロップ**
+- **Publish release**
+
+gh CLI を使う場合:
+
+```sh
+gh release create v0.1.0 Trakova-macOS.zip Trakova-Windows.zip \
+  --title "Trakova v0.1.0" --notes "初回リリース"
+```
+
+> 利用者は **Releases ページ**からログイン不要でダウンロードできます。
+> 本リリースは AGPL-3.0-or-later で配布されます。対応するソースコードは同じタグのリポジトリです
+> （同梱ライブラリのライセンスは THIRD_PARTY_LICENSES.txt を参照）。
+> macOS 版は ad-hoc 署名のため、初回は Finder で右クリック →「開く」で起動してください。

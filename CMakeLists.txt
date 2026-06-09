@@ -111,7 +111,7 @@ target_compile_definitions(Trakova PRIVATE
 
 # ── 起動画面の広告枠 (任意・既定 OFF) ──
 # 公開ソースの既定はオフ (起動画面は従来どおり 2 列・通信なし)。公式配布ビルドだけが
-# CI (GitHub Actions) で以下を渡して 3 列の広告枠を有効化し、本番フィード URL を埋め込む:
+# 配布ビルド時に以下を渡して 3 列の広告枠を有効化し、本番フィード URL を埋め込む:
 #   cmake -DTRAKOVA_ADS_ENABLED=ON -DTRAKOVA_AD_FEED_URL="https://.../feed.json" ...
 # 実効表示は (TRAKOVA_ADS_ENABLED && AppPreferences::showAds)。URL 未指定時はソースの既定値。
 #
@@ -255,8 +255,8 @@ target_link_libraries(Trakova PRIVATE
     juce::juce_gui_basics
     juce::juce_gui_extra
     juce::juce_recommended_config_flags
-    # LTO は無効化 (juce_recommended_lto_flags を外した)。有効だと macOS CI ランナー
-    # (メモリ少) で LTO リンクがハング/極端に遅くなるため。性能差は配布用途では軽微。
+    # LTO は無効化 (juce_recommended_lto_flags を外した)。有効だとメモリの少ない環境で
+    # LTO リンクがハング/極端に遅くなるため。性能差は配布用途では軽微。
     juce::juce_recommended_warning_flags
     lame_static
     rubberband_static
