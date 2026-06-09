@@ -255,7 +255,8 @@ target_link_libraries(Trakova PRIVATE
     juce::juce_gui_basics
     juce::juce_gui_extra
     juce::juce_recommended_config_flags
-    juce::juce_recommended_lto_flags
+    # LTO は無効化 (juce_recommended_lto_flags を外した)。有効だと macOS CI ランナー
+    # (メモリ少) で LTO リンクがハング/極端に遅くなるため。性能差は配布用途では軽微。
     juce::juce_recommended_warning_flags
     lame_static
     rubberband_static
