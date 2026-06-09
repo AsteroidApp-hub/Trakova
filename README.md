@@ -106,8 +106,9 @@ This follows Sections 15 and 16 of the AGPL-3.0-or-later.
 
 ## 貢献
 
-プルリクエスト等は [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください
-（コントリビューションは AGPL-3.0-or-later、DCO サインオフが必要です）。
+Pull Request やバグ報告・提案を受け付けています。ただし個人開発のため、内容の確認・反映に
+お時間をいただくことや、内容によっては取り込みをお約束できない場合があります。送る際は
+[CONTRIBUTING.md](CONTRIBUTING.md) の条件（AGPL-3.0-or-later / DCO サインオフ）をご確認ください。
 
 ---
 

@@ -1,6 +1,9 @@
 # Contributing to Trakova / コントリビューションについて
 
-ご協力ありがとうございます。バグ報告・要望・修正の提案を歓迎します。
+Pull Request やバグ報告・改善のご提案を受け付けています。
+ただし個人開発のため、内容の確認や反映までお時間をいただくことがあり、
+また内容によっては取り込みをお約束できない場合があります。あらかじめご了承ください。
+Pull Request を送る場合は、以下の条件に同意したものとみなします。
 
 ## ライセンス（重要 / inbound = outbound）
 
@@ -49,7 +52,9 @@ cmake --build build --target TrakovaTests --config Debug
 
 ## English
 
-Contributions are accepted under **AGPL-3.0-or-later** (inbound = outbound): opening a pull
+Pull requests, bug reports, and suggestions are welcome. As this is a personal project, however,
+review and integration may take some time, and a merge cannot always be guaranteed — thank you for
+your understanding. Contributions are accepted under **AGPL-3.0-or-later** (inbound = outbound): opening a pull
 request means you agree to license your changes under AGPL-3.0-or-later. Trakova links **JUCE**
 (dual-licensed AGPLv3 / commercial); this project uses the AGPL option and accepts contributions
 under AGPL.
