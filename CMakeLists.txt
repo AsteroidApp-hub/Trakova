@@ -52,6 +52,8 @@ target_sources(Trakova PRIVATE
     Source/Audio/AudioEngine.cpp
     Source/Audio/AudioFileImporter.cpp
     Source/Audio/AudioDeviceSettings.cpp
+    Source/Audio/PitchEngine.cpp
+    Source/Audio/pitchcore/PitchShiftEngine.cpp
     Source/Tracks/AudioClip.cpp
     Source/Tracks/Track.cpp
     Source/Tracks/TrackManager.cpp
@@ -198,50 +200,6 @@ else()
     )
 endif()
 
-# ── Rubber Band Library (R3 高品質ピッチシフト) を静的ライブラリとしてビルド ──
-file(GLOB RB_COMMON_SOURCES Source/ThirdParty/rubberband/src/common/*.cpp)
-file(GLOB RB_FINER_SOURCES  Source/ThirdParty/rubberband/src/finer/*.cpp)
-file(GLOB RB_FASTER_SOURCES Source/ThirdParty/rubberband/src/faster/*.cpp)
-add_library(rubberband_static STATIC
-    ${RB_COMMON_SOURCES}
-    ${RB_FINER_SOURCES}
-    ${RB_FASTER_SOURCES}
-    Source/ThirdParty/rubberband/src/RubberBandStretcher.cpp
-)
-target_include_directories(rubberband_static PUBLIC
-    Source/ThirdParty/rubberband
-)
-target_include_directories(rubberband_static PRIVATE
-    Source/ThirdParty/rubberband/src
-)
-if(APPLE)
-    target_compile_definitions(rubberband_static PRIVATE
-        HAVE_VDSP=1          # Apple Accelerate vDSP を FFT バックエンドに
-        LACK_SINCOS=1        # macOS には sincos() が無い
-        USE_BQRESAMPLER=1    # 内蔵 BQResampler
-        USE_PTHREADS=1       # POSIX threads
-    )
-elseif(WIN32)
-    target_compile_definitions(rubberband_static PRIVATE
-        USE_BUILTIN_FFT=1    # 内蔵 FFT (vDSP/FFTW/IPP に依存しない)
-        USE_BQRESAMPLER=1    # 内蔵 BQResampler
-        NOMINMAX=1           # Windows.h の min/max マクロ衝突回避
-    )
-else()
-    target_compile_definitions(rubberband_static PRIVATE
-        USE_BUILTIN_FFT=1
-        USE_BQRESAMPLER=1
-        USE_PTHREADS=1
-    )
-endif()
-target_compile_features(rubberband_static PUBLIC cxx_std_17)
-if(NOT MSVC)
-    target_compile_options(rubberband_static PRIVATE -Wno-everything)
-else()
-    # MSVC: サードパーティ警告を抑制 + UTF-8 で .c/.cpp を解釈
-    target_compile_options(rubberband_static PRIVATE /W0 /utf-8)
-endif()
-
 target_link_libraries(Trakova PRIVATE
     juce::juce_audio_basics
     juce::juce_audio_devices
@@ -249,7 +207,6 @@ target_link_libraries(Trakova PRIVATE
     juce::juce_audio_processors
     juce::juce_audio_utils
     juce::juce_core
-    juce::juce_dsp
     juce::juce_data_structures
     juce::juce_events
     juce::juce_graphics
@@ -260,7 +217,6 @@ target_link_libraries(Trakova PRIVATE
     # LTO リンクがハング/極端に遅くなるため。性能差は配布用途では軽微。
     juce::juce_recommended_warning_flags
     lame_static
-    rubberband_static
 )
 
 # ── 使い方ドキュメント (HTML) をアプリに同梱 ──
@@ -308,7 +264,10 @@ if(TRAKOVA_BUILD_TESTS)
         Tests/AppStorageTests.cpp
         Tests/AdServiceTests.cpp
         Tests/UpdateCheckerTests.cpp
+        Tests/PitchEngineTests.cpp
         Source/Audio/AudioFileImporter.cpp
+        Source/Audio/PitchEngine.cpp
+        Source/Audio/pitchcore/PitchShiftEngine.cpp
         Source/Project/AdService.cpp
         Source/Project/UpdateChecker.cpp
         Source/Project/RecentProjects.cpp
@@ -358,7 +317,6 @@ if(TRAKOVA_BUILD_TESTS)
         juce::juce_audio_processors
         juce::juce_audio_utils
         juce::juce_core
-        juce::juce_dsp
         juce::juce_data_structures
         juce::juce_events
         juce::juce_graphics
@@ -366,5 +324,39 @@ if(TRAKOVA_BUILD_TESTS)
         juce::juce_gui_extra
         juce::juce_recommended_config_flags
         lame_static
+    )
+
+    # ── キー変更 CLI ツール (開発用) ──
+    # 自社製ピッチシフト (pitchcore) で単発変換する。品質チューニング時の聴き比べ素材
+    # 生成と、ライブラリ単体配布時の使用例を兼ねる。
+    # 使い方: TrakovaPitchTool <audiofile> <semitones> [outDir]
+    juce_add_console_app(TrakovaPitchTool PRODUCT_NAME "TrakovaPitchTool")
+    juce_generate_juce_header(TrakovaPitchTool)
+    target_sources(TrakovaPitchTool PRIVATE
+        Tests/PitchToolMain.cpp
+        Source/Audio/PitchEngine.cpp
+        Source/Audio/pitchcore/PitchShiftEngine.cpp
+    )
+    target_include_directories(TrakovaPitchTool SYSTEM PRIVATE
+        Source/ThirdParty/r8brain
+    )
+    target_compile_definitions(TrakovaPitchTool PRIVATE
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_MODAL_LOOPS_PERMITTED=1
+        JUCE_APPLICATION_NAME_STRING="TrakovaPitchTool"
+        JUCE_APPLICATION_VERSION_STRING="0.1.0"
+        JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP=0
+    )
+    if(MSVC)
+        target_compile_options(TrakovaPitchTool PRIVATE /utf-8 /wd4819)
+        target_compile_definitions(TrakovaPitchTool PRIVATE NOMINMAX=1 _USE_MATH_DEFINES=1)
+    endif()
+    target_link_libraries(TrakovaPitchTool PRIVATE
+        juce::juce_audio_basics
+        juce::juce_audio_formats
+        juce::juce_core
+        juce::juce_events
+        juce::juce_recommended_config_flags
     )
 endif()

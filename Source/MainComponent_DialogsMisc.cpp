@@ -103,10 +103,6 @@ void MainComponent::showAboutDialog()
               << J(u8"  Copyright (c) The LAME project (http://lame.sourceforge.net/).\n")
               << J(u8"  GNU LGPL v2.0 or later\n\n");
 
-            t << "Rubber Band Library\n"
-              << J(u8"  Copyright (c) Particular Programs Ltd.\n")
-              << J(u8"  GPL v2 or later\n\n");
-
             t << "r8brain-free-src\n"
               << J(u8"  Copyright (c) Aleksey Vaneev.  MIT License\n\n");
 

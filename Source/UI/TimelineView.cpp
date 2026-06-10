@@ -8,7 +8,6 @@
 #include "../Edit/SilenceDetector.h"
 #include "../Audio/BpmDetector.h"
 #include "../Audio/LufsMeter.h"
-#include "../Audio/PitchShifter.h"
 #include "TextImageCache.h"
 #include <set>
 #include <map>

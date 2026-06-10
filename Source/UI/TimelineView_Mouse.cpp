@@ -13,7 +13,7 @@
 #include "../Edit/SilenceDetector.h"
 #include "../Audio/BpmDetector.h"
 #include "../Audio/LufsMeter.h"
-#include "../Audio/PitchShifter.h"
+#include "../Audio/PitchEngine.h"
 #include "TextImageCache.h"
 #include <set>
 #include <map>
@@ -698,8 +698,8 @@ void TimelineView::mouseDown(const juce::MouseEvent& e)
 
                             void run() override
                             {
-                                ok = PitchShifter::process(inFile, outFile, formatManager,
-                                                            semitones, 32,
+                                ok = PitchEngine::processFile(inFile, outFile, formatManager,
+                                                              semitones, 32,
                                     [this](double p) { setProgress(p); });
                             }
                             bool ok { false };
