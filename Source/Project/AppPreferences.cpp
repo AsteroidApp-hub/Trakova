@@ -5,7 +5,7 @@
 
 bool AppPreferences::adsCompiledIn()
 {
-   #if defined(TRAKOVA_ADS_ENABLED) && (TRAKOVA_ADS_ENABLED)
+   #if defined(UTAWAVE_ADS_ENABLED) && (UTAWAVE_ADS_ENABLED)
     return true;
    #else
     return false;   // 公開ソース / 通常ビルドの既定
@@ -15,7 +15,7 @@ bool AppPreferences::adsCompiledIn()
 juce::File AppPreferences::getStoreFile()
 {
     auto root = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-                    .getChildFile("Trakova");
+                    .getChildFile("Utawave");
     root.createDirectory();
     return root.getChildFile("app_prefs.xml");
 }

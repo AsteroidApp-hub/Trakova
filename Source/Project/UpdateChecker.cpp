@@ -8,14 +8,14 @@ namespace
     // 接続タイムアウト。到達不能なサーバーへの接続でスレッドが長く居座らないよう抑えめに。
     constexpr int kConnectTimeoutMs = 5000;
 
-    // GitHub API へ GET し、ボディ文字列を返す (失敗時は空)。User-Agent は GitHub API で必須。
+    // version JSON へ GET し、ボディ文字列を返す (失敗時は空)。
     juce::String httpGet(const juce::String& url)
     {
         juce::URL u(url);
         const auto opts = juce::URL::InputStreamOptions(juce::URL::ParameterHandling::inAddress)
                               .withConnectionTimeoutMs(kConnectTimeoutMs)
-                              .withExtraHeaders("User-Agent: Trakova\r\n"
-                                                "Accept: application/vnd.github+json");
+                              .withExtraHeaders("User-Agent: Utawave\r\n"
+                                                "Accept: application/json");
         if (auto in = u.createInputStream(opts))
             return in->readEntireStreamAsString();
         return {};
@@ -36,36 +36,24 @@ namespace
     }
 }
 
-void UpdateChecker::check(juce::String apiBase, juce::String releasesPageUrl, CancelFlag cancel,
+void UpdateChecker::check(juce::String versionUrl, juce::String fallbackPageUrl, CancelFlag cancel,
                           std::function<void(UpdateInfo, bool)> cb)
 {
     // 引数はすべて値コピーされ、デタッチスレッドが所有する。
     // run 中に呼び出し元 (StartupComponent) のメンバへは一切触れない。
-    juce::Thread::launch([apiBase, releasesPageUrl, cancel, cb = std::move(cb)]
+    juce::Thread::launch([versionUrl, fallbackPageUrl, cancel, cb = std::move(cb)]
     {
         const auto cancelled = [&cancel] { return cancel != nullptr && cancel->load(); };
 
         UpdateInfo info;
         bool ok = false;
 
-        // 1) Releases を優先 (正式リリースならダウンロードページ html_url が得られる)。
         if (! cancelled())
         {
-            info = parseLatestRelease(httpGet(apiBase + "/releases/latest"));
-            ok   = info.tag.isNotEmpty() && info.pageUrl.isNotEmpty();
-        }
-
-        // 2) リリースが無ければ Tags にフォールバック (タグだけ打ってあれば検知)。
-        if (! ok && ! cancelled())
-        {
-            const auto newest = pickNewestTag(parseTags(httpGet(apiBase + "/tags")));
-            if (newest.isNotEmpty())
-            {
-                info.tag     = newest;
-                info.version = normaliseVersion(newest);
-                info.pageUrl = releasesPageUrl;   // タグにファイルは無いのでリリース一覧へ誘導
-                ok           = info.pageUrl.isNotEmpty();
-            }
+            info = parseVersionInfo(httpGet(versionUrl));
+            if (info.pageUrl.isEmpty())
+                info.pageUrl = fallbackPageUrl;   // JSON に url が無ければ既定のダウンロードページへ
+            ok = info.version.isNotEmpty() && info.pageUrl.isNotEmpty();
         }
 
         if (cancelled())
@@ -80,54 +68,25 @@ void UpdateChecker::check(juce::String apiBase, juce::String releasesPageUrl, Ca
     });
 }
 
-UpdateInfo UpdateChecker::parseLatestRelease(const juce::String& jsonText)
+UpdateInfo UpdateChecker::parseVersionInfo(const juce::String& jsonText)
 {
     UpdateInfo info;
 
     const auto v = juce::JSON::parse(jsonText);
     if (auto* obj = v.getDynamicObject())
     {
-        info.tag     = obj->getProperty("tag_name").toString().trim();
-        info.pageUrl = obj->getProperty("html_url").toString().trim();
+        info.tag     = obj->getProperty("version").toString().trim();
+        info.pageUrl = obj->getProperty("url").toString().trim();
         info.version = normaliseVersion(info.tag);
     }
     return info;
-}
-
-std::vector<juce::String> UpdateChecker::parseTags(const juce::String& jsonText)
-{
-    std::vector<juce::String> names;
-
-    const auto v = juce::JSON::parse(jsonText);
-    if (auto* arr = v.getArray())
-        for (auto& e : *arr)
-            if (auto* o = e.getDynamicObject())
-            {
-                const auto n = o->getProperty("name").toString().trim();
-                if (n.isNotEmpty())
-                    names.push_back(n);
-            }
-    return names;
-}
-
-juce::String UpdateChecker::pickNewestTag(const std::vector<juce::String>& tags)
-{
-    juce::String best;
-    for (auto& t : tags)
-    {
-        if (normaliseVersion(t).isEmpty())          // 数字を含まないタグは無視
-            continue;
-        if (best.isEmpty() || isNewerVersion(t, best))
-            best = t;
-    }
-    return best;
 }
 
 juce::String UpdateChecker::normaliseVersion(const juce::String& raw)
 {
     const auto s = raw.trim();
 
-    // 先頭の数字位置を探す ("v0.2.0" / "Trakova-v0.2.0" のような接頭辞を飛ばす)。
+    // 先頭の数字位置を探す ("v0.2.0" / "Utawave-v0.2.0" のような接頭辞を飛ばす)。
     int start = -1;
     for (int i = 0; i < s.length(); ++i)
         if (juce::CharacterFunctions::isDigit(s[i])) { start = i; break; }
@@ -163,14 +122,24 @@ bool UpdateChecker::isNewerVersion(const juce::String& latest, const juce::Strin
     return false;   // 同一バージョン
 }
 
-juce::String UpdateChecker::defaultApiBase()
+juce::String UpdateChecker::defaultVersionUrl()
 {
-    return "https://api.github.com/repos/AsteroidApp-hub/Trakova";
+    // 公式ビルドは CMake の UTAWAVE_VERSION_URL でビルド時に本番 URL を埋め込む
+    // (AdService の UTAWAVE_AD_FEED_URL と同じ作法)。
+   #if defined(UTAWAVE_VERSION_URL)
+    return juce::String::fromUTF8(UTAWAVE_VERSION_URL);
+   #else
+    return "https://utawave.com/version.json";   // プレースホルダ (未稼働なら取得失敗 → 通知なし)
+   #endif
 }
 
-juce::String UpdateChecker::defaultReleasesPageUrl()
+juce::String UpdateChecker::defaultDownloadPageUrl()
 {
-    return "https://github.com/AsteroidApp-hub/Trakova/releases";
+   #if defined(UTAWAVE_DOWNLOAD_PAGE_URL)
+    return juce::String::fromUTF8(UTAWAVE_DOWNLOAD_PAGE_URL);
+   #else
+    return "https://utawave.com/";               // プレースホルダ (公式サイトトップ)
+   #endif
 }
 
 juce::String UpdateChecker::currentAppVersion()

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Studio Asteroid
 
-// Trakova — MIDI 入出力 (MidiImporter / MidiExporter) のユニットテスト
+// Utawave — MIDI 入出力 (MidiImporter / MidiExporter) のユニットテスト
 //
 // オーディオデバイス不要・決定論的に SMF の読み書きを検証する。中心は「往復 (round-trip)」:
 //   1. TrackManager / Track / MidiClip で MIDI シーンを構築
@@ -11,7 +11,7 @@
 // これに加え、エクスポータとは独立に「手書き SMF を import」して importer 単体も検証する
 // (両者に相殺するバグがあっても往復だけでは見逃すため)。
 //
-// 既存の TrakovaTests (ExportEngineTests.cpp) が main() を持ち UnitTestRunner で全テストを
+// 既存の UtawaveTests (ExportEngineTests.cpp) が main() を持ち UnitTestRunner で全テストを
 // 走らせる。juce::UnitTest は構築時に自身を登録するので、ここでは静的インスタンスを置くだけ。
 //
 // 注意 (CLAUDE.md のテスト定石): expect の文字列は ASCII で書く
@@ -88,7 +88,7 @@ public:
     void runTest() override
     {
         outDir = juce::File::getSpecialLocation(juce::File::tempDirectory)
-                     .getChildFile("TrakovaMidiIoTests");
+                     .getChildFile("UtawaveMidiIoTests");
         outDir.deleteRecursively();
         outDir.createDirectory();
 

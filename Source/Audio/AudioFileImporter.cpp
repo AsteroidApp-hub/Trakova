@@ -7,7 +7,7 @@
 juce::File AudioFileImporter::getDefaultCacheFolder()
 {
     auto f = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
-                .getChildFile("Trakova").getChildFile("Cache");
+                .getChildFile("Utawave").getChildFile("Cache");
     f.createDirectory();
     return f;
 }

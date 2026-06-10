@@ -14,7 +14,7 @@
 #include "MIDI/MidiExporter.h"
 
 // ─────────────────────────────────────────────────────────────────────────
-//  Trakova について ダイアログ (バージョン + OSS ライセンス表記)
+//  Utawave について ダイアログ (バージョン + OSS ライセンス表記)
 // ─────────────────────────────────────────────────────────────────────────
 void MainComponent::showAboutDialog()
 {
@@ -29,7 +29,7 @@ void MainComponent::showAboutDialog()
         {
             auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
 
-            titleLabel.setText("Trakova", juce::dontSendNotification);
+            titleLabel.setText("Utawave", juce::dontSendNotification);
             titleLabel.setFont(juce::FontOptions(28.0f, juce::Font::bold));
             titleLabel.setColour(juce::Label::textColourId, juce::Colours::white);
             titleLabel.setJustificationType(juce::Justification::centred);
@@ -82,10 +82,10 @@ void MainComponent::showAboutDialog()
         {
             auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
             juce::String t;
-            t << J(u8"Trakova © 2025-2026 Studio アステロイド\n");
+            t << J(u8"Utawave © 2025-2026 Studio アステロイド\n");
             t << J(u8"本アプリは AGPL v3 ライセンスの下で配布されています。\n")
               << J(u8"ソースコードは GitHub にて公開しています。\n")
-              << "  https://github.com/AsteroidApp-hub/Trakova\n\n";
+              << "  https://github.com/AsteroidApp-hub/Utawave\n\n";
 
             t << J(u8"── 免責事項 (無保証・無責任) ──\n")
               << J(u8"本ソフトウェアは無料で「現状のまま」提供され、いかなる保証もありません。使用・使用不能で生じたいかなる損害についても、作者は一切の責任を負いません。ご利用は自己責任でお願いします。(AGPL v3 第15条・第16条に基づく)\n\n");
@@ -145,7 +145,7 @@ void MainComponent::showAboutDialog()
     auto* dlg = new AboutDlg();
     juce::DialogWindow::LaunchOptions opts;
     opts.content.setOwned(dlg);
-    opts.dialogTitle = tr(u8"Trakova について");
+    opts.dialogTitle = tr(u8"Utawave について");
     opts.dialogBackgroundColour = juce::Colour(0xff2a2c30);
     opts.escapeKeyTriggersCloseButton = true;
     opts.useNativeTitleBar = true;

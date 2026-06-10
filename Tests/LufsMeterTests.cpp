@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Studio Asteroid
 
-// Trakova — LufsMeter (ITU-R BS.1770 簡易実装) のユニットテスト
+// Utawave — LufsMeter (ITU-R BS.1770 簡易実装) のユニットテスト
 //
 // インポート時の自動ラウドネス正規化を駆動する測定器。絶対 LUFS は K特性フィルタ応答に
 // 依存するので、**第一原理で厳密に導ける相対関係**を中心に検証する:
@@ -53,7 +53,7 @@ public:
 
     void runTest() override
     {
-        dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("TrakovaLufsTests");
+        dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("UtawaveLufsTests");
         dir.deleteRecursively(); dir.createDirectory();
         juce::AudioFormatManager fmt; fmt.registerBasicFormats();
 

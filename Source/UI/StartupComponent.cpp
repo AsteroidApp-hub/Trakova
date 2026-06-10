@@ -8,7 +8,7 @@
 StartupComponent::StartupComponent(bool showAds)
     : adsEnabled(showAds)
 {
-    titleLabel.setText("Trakova", juce::dontSendNotification);
+    titleLabel.setText("Utawave", juce::dontSendNotification);
     titleLabel.setFont(juce::FontOptions(28.0f, juce::Font::bold));
     titleLabel.setJustificationType(juce::Justification::centredLeft);
     titleLabel.setColour(juce::Label::textColourId, juce::Colours::white);
@@ -62,7 +62,7 @@ StartupComponent::StartupComponent(bool showAds)
     addAndMakeVisible(nameEditor);
 
     auto defaultLoc = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
-                          .getChildFile("Trakova");
+                          .getChildFile("Utawave");
     defaultLoc.createDirectory();
     locationEditor.setText(defaultLoc.getFullPathName(), juce::dontSendNotification);
     addAndMakeVisible(locationEditor);
@@ -138,8 +138,8 @@ void StartupComponent::startUpdateCheck()
     updateCancel = std::make_shared<std::atomic<bool>>(false);
 
     juce::Component::SafePointer<StartupComponent> safe(this);
-    UpdateChecker::check(UpdateChecker::defaultApiBase(),
-                         UpdateChecker::defaultReleasesPageUrl(), updateCancel,
+    UpdateChecker::check(UpdateChecker::defaultVersionUrl(),
+                         UpdateChecker::defaultDownloadPageUrl(), updateCancel,
         [safe](UpdateInfo info, bool ok) mutable
         {
             if (auto* self = safe.getComponent())
@@ -333,12 +333,13 @@ void StartupComponent::chooseLocation()
 void StartupComponent::browseExisting()
 {
     juce::File startDir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
-                              .getChildFile("Trakova");
+                              .getChildFile("Utawave");
     if (!startDir.isDirectory())
         startDir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory);
 
     fileChooser = std::make_unique<juce::FileChooser>(
-        tr(u8"プロジェクトを開く"), startDir, "*.trakova", true);
+        // 旧名 (Trakova) 時代の .trakova も開ける (ProjectManager::openWildcard と同義。include を増やさないため直書き)
+        tr(u8"プロジェクトを開く"), startDir, "*.utawave;*.trakova", true);
 
     fileChooser->launchAsync(juce::FileBrowserComponent::openMode
                             | juce::FileBrowserComponent::canSelectFiles,
@@ -374,7 +375,7 @@ void StartupComponent::createNewProject()
     }
 
     auto projectDir  = loc.getChildFile(name);
-    auto projectFile = projectDir.getChildFile(name + ".trakova");
+    auto projectFile = projectDir.getChildFile(name + ".utawave");
 
     if (projectDir.exists() && !projectDir.isDirectory())
     {

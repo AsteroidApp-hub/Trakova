@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Studio Asteroid
 
-// Trakova — SilenceDetector::regionsToKeep のユニットテスト
+// Utawave — SilenceDetector::regionsToKeep のユニットテスト
 //
 // Strip Silence (破壊編集) の心臓部。区間演算は off-by-one で必要な音を落とす / ゼロ長クリップを
 // 生む事故源。regionsToKeep は純関数 (vector のみ) なので最も安く網羅できる:

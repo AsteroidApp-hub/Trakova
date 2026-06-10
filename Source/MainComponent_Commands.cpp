@@ -61,7 +61,7 @@ juce::PopupMenu MainComponent::getMenuForIndex(int topLevelMenuIndex, const juce
         addItem(m, 102, tr(u8"使い方ドキュメント..."), "");
         addItem(m, 101, tr(u8"ショートカット一覧..."), tr(u8"⌘/"));
         m.addSeparator();
-        addItem(m, 100, tr(u8"Trakova について..."), "");
+        addItem(m, 100, tr(u8"Utawave について..."), "");
     }
     return m;
 }

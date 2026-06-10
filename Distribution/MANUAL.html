@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Trakova マニュアル — 歌い手向けDAW</title>
+<title>Utawave マニュアル — 歌い手向けDAW</title>
 <style>
   :root {
     --bg: #1a1a1a;
@@ -145,7 +145,7 @@
 <body>
 
 <header>
-  <h1>Trakova</h1>
+  <h1>Utawave</h1>
   <p>歌い手 (ボーカルカバー投稿者) 向け 録音特化 DAW — クイックマニュアル</p>
 </header>
 
@@ -181,8 +181,8 @@
 
 <h3>インストール手順</h3>
 <ol>
-  <li>配布された <code>Trakova.app</code> をダウンロード (zip の場合は展開)</li>
-  <li><code>Trakova.app</code> を <strong>アプリケーションフォルダ</strong> へドラッグ</li>
+  <li>配布された <code>Utawave.app</code> をダウンロード (zip の場合は展開)</li>
+  <li><code>Utawave.app</code> を <strong>アプリケーションフォルダ</strong> へドラッグ</li>
   <li>初回起動: Finder で <strong>右クリック → 開く</strong> を選択。「開発元を確認できません」と出ても <strong>開く</strong> をクリック<br>
     <small>(Apple のコード署名/公証を取得していないため、通常のダブルクリックでは Gatekeeper にブロックされます)</small></li>
 </ol>
@@ -199,7 +199,7 @@
 
 <ul>
   <li><strong>新規プロジェクト</strong> ― サンプリングレート / ビット深度を指定して作成</li>
-  <li><strong>プロジェクトを開く</strong> ― 既存の <code>.trakova</code> ファイルを開く</li>
+  <li><strong>プロジェクトを開く</strong> ― 既存の <code>.utawave</code> ファイルを開く</li>
   <li><strong>最近使ったプロジェクト</strong> ― リストから素早く再開</li>
 </ul>
 
@@ -216,7 +216,7 @@
 
 <table>
   <tr><th>用語</th><th>説明</th></tr>
-  <tr><td><strong>プロジェクト</strong></td><td>1 曲分の作業データ。<code>.trakova</code> ファイル + 同じフォルダの <code>Audio</code> / <code>Cache</code> / <code>Backup</code> / <code>Export</code> サブフォルダで構成。</td></tr>
+  <tr><td><strong>プロジェクト</strong></td><td>1 曲分の作業データ。<code>.utawave</code> ファイル + 同じフォルダの <code>Audio</code> / <code>Cache</code> / <code>Backup</code> / <code>Export</code> サブフォルダで構成。</td></tr>
   <tr><td><strong>トラック</strong></td><td>音源 1 つ分の入れ物。インスト用・ボーカル用などを別々のトラックに分けて配置。</td></tr>
   <tr><td><strong>クリップ</strong></td><td>トラック上に配置される音声/MIDIブロック。録音やインポートで生成される。</td></tr>
   <tr><td><strong>Lane (レーン)</strong></td><td>1 つのトラックに複数の段。<strong>Lane 0</strong> がメイン (再生対象)。<strong>Lane 1+</strong> はテイクの控え (Take Lane)。</td></tr>
@@ -230,7 +230,7 @@
   <li>保存先フォルダとプロジェクト名を指定</li>
   <li>サンプリングレート (44.1k / 48k / 96k 等) を選択</li>
   <li>ビット深度 (16 / 24 / 32-bit) を選択</li>
-  <li>作成すると <code>MyProject.trakova</code> と <code>Audio</code> 等のフォルダが生成される</li>
+  <li>作成すると <code>MyProject.utawave</code> と <code>Audio</code> 等のフォルダが生成される</li>
 </ol>
 
 <div class="callout">
@@ -524,14 +524,14 @@
 <p>A: Finder で <strong>右クリック → 開く</strong> を選択し、確認ダイアログで <strong>開く</strong> をクリックしてください。次回からは通常のダブルクリックで OK です。</p>
 
 <h4>Q: 音が鳴らない / 録音できない</h4>
-<p>A: 右上の <strong>AUDIO</strong> ボタンからオーディオデバイスを確認してください。USB マイク等は OS の「サウンド入力」を Trakova 側で選び直す必要があります。</p>
+<p>A: 右上の <strong>AUDIO</strong> ボタンからオーディオデバイスを確認してください。USB マイク等は OS の「サウンド入力」を Utawave 側で選び直す必要があります。</p>
 
 <h4>Q: プラグインが見つからない</h4>
 <p>A: 初回はメニュー → <strong>プラグイン管理</strong> でスキャンしてください。スキャン後、トラックの INS スロットから挿せます。</p>
 
-<h4>Q: 「"Trakova" は壊れているため開けません」と出る (Apple Silicon)</h4>
+<h4>Q: 「"Utawave" は壊れているため開けません」と出る (Apple Silicon)</h4>
 <p>A: ダウンロードした zip に付く検疫属性が原因です。ターミナルで次を 1 回実行してください:<br>
-<code>xattr -cr /Applications/Trakova.app</code><br>
+<code>xattr -cr /Applications/Utawave.app</code><br>
 その後は通常どおり起動できます (アプリを「アプリケーション」へ入れてから実行)。</p>
 
 <h4>Q: 大きなプロジェクトの波形読み込みが遅い</h4>
@@ -541,10 +541,10 @@
 <p>A: 右下 ステータスバーの CPU% を確認。多数のプラグインを使う場合は バッファサイズを増やしてください (AUDIO 設定)。</p>
 
 <h4>Q: 自動保存はどこに?</h4>
-<p>A: プロジェクトフォルダ内の <code>Backup/</code> サブフォルダに <code>&lt;name&gt;.autosave.trakova</code> として保存されています。クラッシュ後の起動時に復旧候補があれば自動でダイアログが出ます。</p>
+<p>A: プロジェクトフォルダ内の <code>Backup/</code> サブフォルダに <code>&lt;name&gt;.autosave.utawave</code> として保存されています。クラッシュ後の起動時に復旧候補があれば自動でダイアログが出ます。</p>
 
 <footer>
-  Trakova © 2026 — AGPLv3 / オープンソースライブラリのライセンスは同梱の THIRD_PARTY_LICENSES.txt を参照
+  Utawave © 2026 — AGPLv3 / オープンソースライブラリのライセンスは同梱の THIRD_PARTY_LICENSES.txt を参照
 </footer>
 
 </div>

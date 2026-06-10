@@ -37,10 +37,15 @@ public:
         std::vector<juce::String>*  missingFiles   { nullptr };
     };
 
-    static juce::String fileExtension() { return ".trakova"; }
+    static juce::String fileExtension() { return ".utawave"; }
 
-    // .trakova ファイルへ書き出し
+    // 旧名 (Trakova) 時代の拡張子。既存プロジェクトを開くためだけに残す (保存は常に新拡張子)
+    static juce::String legacyFileExtension() { return ".trakova"; }
+    // 「開く」ダイアログ用ワイルドカード (新旧両方の拡張子に一致)
+    static juce::String openWildcard() { return "*" + fileExtension() + ";*" + legacyFileExtension(); }
+
+    // .utawave ファイルへ書き出し
     static bool save(const juce::File& projectFile, const State& s);
-    // .trakova ファイルから読み込み（呼び出し側で TrackManager 等の状態を復元）
+    // .utawave ファイルから読み込み（呼び出し側で TrackManager 等の状態を復元）
     static bool load(const juce::File& projectFile, State& s);
 };

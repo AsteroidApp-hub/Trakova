@@ -44,7 +44,7 @@ bool ProjectManager::save(const juce::File& projectFile, const State& s)
     if (!s.trackManager || !s.appSettings) return false;
     auto projectDir = projectFile.getParentDirectory();
 
-    auto root = std::make_unique<juce::XmlElement>("TrakovaProject");
+    auto root = std::make_unique<juce::XmlElement>("UtawaveProject");
     root->setAttribute("version", "1.0");
 
     // Transport
@@ -327,7 +327,8 @@ bool ProjectManager::load(const juce::File& projectFile, State& s)
     if (!projectFile.existsAsFile()) return false;
 
     auto xml = juce::XmlDocument::parse(projectFile);
-    if (!xml || !xml->hasTagName("TrakovaProject")) return false;
+    // 旧名 (Trakova) 時代に保存されたプロジェクト (TrakovaProject ルート) も受理する。保存は常に UtawaveProject
+    if (!xml || !(xml->hasTagName("UtawaveProject") || xml->hasTagName("TrakovaProject"))) return false;
     auto projectDir = projectFile.getParentDirectory();
 
     // 既存トラックを全削除

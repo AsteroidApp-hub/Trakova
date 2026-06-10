@@ -76,7 +76,7 @@ public:
         beginTest("cache round-trip preserves fields (no images)");
         {
             auto dir = juce::File::getSpecialLocation(juce::File::tempDirectory)
-                           .getChildFile("TrakovaAdCacheTest");
+                           .getChildFile("UtawaveAdCacheTest");
             dir.deleteRecursively();
             dir.createDirectory();
 
@@ -106,7 +106,7 @@ public:
         beginTest("loadCache: missing dir -> empty");
         {
             auto missing = juce::File::getSpecialLocation(juce::File::tempDirectory)
-                               .getChildFile("TrakovaAdCacheTest_DoesNotExist");
+                               .getChildFile("UtawaveAdCacheTest_DoesNotExist");
             missing.deleteRecursively();
             expect(AdService::loadCache(missing, "ja").empty(), "no cache dir -> empty");
         }

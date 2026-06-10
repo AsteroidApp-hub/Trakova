@@ -494,7 +494,7 @@ void MainComponent::openProject()
         currentProjectFile.existsAsFile()
             ? currentProjectFile.getParentDirectory()
             : juce::File::getSpecialLocation(juce::File::userDocumentsDirectory),
-        "*" + ProjectManager::fileExtension());
+        ProjectManager::openWildcard());
     fileChooser->launchAsync(juce::FileBrowserComponent::openMode
                               | juce::FileBrowserComponent::canSelectFiles,
         [this](const juce::FileChooser& fc) {

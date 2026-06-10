@@ -23,7 +23,7 @@ void AdPanel::load()
     if (fetching)   // 多重取得を防止 (連打 / 再読み込み中の再要求を無視)
         return;
 
-    // 開発用 (TRAKOVA_ADS_DEBUG): サーバー無しで組み込みサンプル広告を表示し、通信はしない
+    // 開発用 (UTAWAVE_ADS_DEBUG): サーバー無しで組み込みサンプル広告を表示し、通信はしない
     if (AdService::debugSampleMode())
     {
         setAds(AdService::sampleAds());

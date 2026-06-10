@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Studio Asteroid
 
-// Trakova — AppSettings の音楽位置/テンポ計算 + グリッド量子化のユニットテスト
+// Utawave — AppSettings の音楽位置/テンポ計算 + グリッド量子化のユニットテスト
 //
 // 純粋演算 (依存ゼロ・ヘッダオンリー)。ルーラー/グリッドスナップ/書き出し小節範囲の土台で、
 // 区分積分と 0 始まり barIndex ↔ 1 始まり bar の対応はバグの温床。

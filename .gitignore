@@ -17,9 +17,11 @@
 # 配布バイナリ (アプリ本体は GitHub Releases で配布。リポジトリにはソースのみ)
 # README.txt / MANUAL.html / LICENSE.txt 等の同梱テキストはコミット対象に残す
 /Distribution/*.app/
+# 旧名時代のベータ配布物 (歴史的アーティファクトなのでフォルダ名はリネームしない)
 /Trakova-beta-v0.1.0/*.app/
 
 # 派生アイコン (Icon/*.png から JUCE が生成。元素材の PNG はコミットする)
+/Icon/Utawave.icns
 /Icon/Trakova.icns
 
 # 個人用の開発メモ (Git 管理外・公開しない)

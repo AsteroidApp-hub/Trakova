@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22)
 
 set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING "Minimum macOS version" FORCE)
 
-project(Trakova VERSION 0.1.0)
+project(Utawave VERSION 0.1.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -25,21 +25,21 @@ else()
     FetchContent_MakeAvailable(JUCE)
 endif()
 
-juce_add_gui_app(Trakova
-    PRODUCT_NAME                    "Trakova"
-    COMPANY_NAME                    "Trakova"
-    BUNDLE_ID                       "com.trakova.app"
+juce_add_gui_app(Utawave
+    PRODUCT_NAME                    "Utawave"
+    COMPANY_NAME                    "Utawave"
+    BUNDLE_ID                       "com.utawave.app"
     VERSION                         "0.1.0"
     ICON_BIG                        "${CMAKE_CURRENT_SOURCE_DIR}/Icon/icon_1024.png"
     ICON_SMALL                      "${CMAKE_CURRENT_SOURCE_DIR}/Icon/icon_256.png"
     MICROPHONE_PERMISSION_ENABLED   TRUE
-    MICROPHONE_PERMISSION_TEXT      "Trakova は音声の録音にマイクへのアクセスを必要とします。 / Trakova needs microphone access for audio recording."
+    MICROPHONE_PERMISSION_TEXT      "Utawave は音声の録音にマイクへのアクセスを必要とします。 / Utawave needs microphone access for audio recording."
     PLIST_TO_MERGE                  "<plist version=\"1.0\"><dict><key>NSHumanReadableCopyright</key><string>Copyright (C) 2025-2026 Studio Asteroid</string></dict></plist>"
 )
 
-juce_generate_juce_header(Trakova)
+juce_generate_juce_header(Utawave)
 
-target_sources(Trakova PRIVATE
+target_sources(Utawave PRIVATE
     Source/Main.cpp
     Source/MainComponent.cpp
     Source/MainComponent_Commands.cpp
@@ -96,11 +96,11 @@ target_sources(Trakova PRIVATE
     Source/UI/StatusBar.cpp
 )
 
-target_include_directories(Trakova SYSTEM PRIVATE
+target_include_directories(Utawave SYSTEM PRIVATE
     Source/ThirdParty/r8brain
 )
 
-target_compile_definitions(Trakova PRIVATE
+target_compile_definitions(Utawave PRIVATE
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_MICROPHONE_PERMISSION_ENABLED=1
@@ -108,43 +108,60 @@ target_compile_definitions(Trakova PRIVATE
     # プラグインホスティング: VST3 のみ (AU は非対応)
     JUCE_PLUGINHOST_VST3=1
     JUCE_PLUGINHOST_AU=0
-    JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:Trakova,JUCE_PRODUCT_NAME>"
-    JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:Trakova,JUCE_VERSION>"
+    JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:Utawave,JUCE_PRODUCT_NAME>"
+    JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:Utawave,JUCE_VERSION>"
 )
 
 # ── 起動画面の広告枠 (任意・既定 OFF) ──
 # 公開ソースの既定はオフ (起動画面は従来どおり 2 列・通信なし)。公式配布ビルドだけが
 # 配布ビルド時に以下を渡して 3 列の広告枠を有効化し、本番フィード URL を埋め込む:
-#   cmake -DTRAKOVA_ADS_ENABLED=ON -DTRAKOVA_AD_FEED_URL="https://.../feed.json" ...
-# 実効表示は (TRAKOVA_ADS_ENABLED && AppPreferences::showAds)。URL 未指定時はソースの既定値。
+#   cmake -DUTAWAVE_ADS_ENABLED=ON -DUTAWAVE_AD_FEED_URL="https://.../feed.json" ...
+# 実効表示は (UTAWAVE_ADS_ENABLED && AppPreferences::showAds)。URL 未指定時はソースの既定値。
 #
-# 開発時に見た目を確認するには -DTRAKOVA_ADS_DEBUG=ON を渡す。広告枠を有効化し、サーバー無しで
+# 開発時に見た目を確認するには -DUTAWAVE_ADS_DEBUG=ON を渡す。広告枠を有効化し、サーバー無しで
 # 組み込みのサンプル広告 (複数件・画像つき) を表示する (通信しない)。
-option(TRAKOVA_ADS_ENABLED "Enable the startup-screen ad panel (official builds only)" OFF)
-option(TRAKOVA_ADS_DEBUG   "Show built-in sample ads for development (implies ads enabled, no server)" OFF)
-set(TRAKOVA_AD_FEED_URL "" CACHE STRING "Ad feed JSON URL embedded at build time (official builds set this)")
-if(TRAKOVA_ADS_ENABLED OR TRAKOVA_ADS_DEBUG)
-    target_compile_definitions(Trakova PRIVATE TRAKOVA_ADS_ENABLED=1)
+option(UTAWAVE_ADS_ENABLED "Enable the startup-screen ad panel (official builds only)" OFF)
+option(UTAWAVE_ADS_DEBUG   "Show built-in sample ads for development (implies ads enabled, no server)" OFF)
+set(UTAWAVE_AD_FEED_URL "" CACHE STRING "Ad feed JSON URL embedded at build time (official builds set this)")
+if(UTAWAVE_ADS_ENABLED OR UTAWAVE_ADS_DEBUG)
+    target_compile_definitions(Utawave PRIVATE UTAWAVE_ADS_ENABLED=1)
 endif()
-if(TRAKOVA_ADS_DEBUG)
-    target_compile_definitions(Trakova PRIVATE TRAKOVA_ADS_DEBUG=1)
-    message(STATUS "Trakova: startup ad panel ENABLED (debug sample mode / no server)")
-elseif(TRAKOVA_ADS_ENABLED)
-    message(STATUS "Trakova: startup ad panel ENABLED")
+if(UTAWAVE_ADS_DEBUG)
+    target_compile_definitions(Utawave PRIVATE UTAWAVE_ADS_DEBUG=1)
+    message(STATUS "Utawave: startup ad panel ENABLED (debug sample mode / no server)")
+elseif(UTAWAVE_ADS_ENABLED)
+    message(STATUS "Utawave: startup ad panel ENABLED")
 else()
-    message(STATUS "Trakova: startup ad panel disabled (default / public source)")
+    message(STATUS "Utawave: startup ad panel disabled (default / public source)")
 endif()
-if(TRAKOVA_AD_FEED_URL)
-    target_compile_definitions(Trakova PRIVATE TRAKOVA_AD_FEED_URL="${TRAKOVA_AD_FEED_URL}")
-    message(STATUS "Trakova: ad feed URL = ${TRAKOVA_AD_FEED_URL}")
+if(UTAWAVE_AD_FEED_URL)
+    target_compile_definitions(Utawave PRIVATE UTAWAVE_AD_FEED_URL="${UTAWAVE_AD_FEED_URL}")
+    message(STATUS "Utawave: ad feed URL = ${UTAWAVE_AD_FEED_URL}")
+endif()
+
+# ── 起動画面のアップデート通知 (公式サイトの version JSON) ──
+# 公式ビルドは配布サイトの version JSON / ダウンロードページ URL をビルド時に埋め込む:
+#   cmake -DUTAWAVE_VERSION_URL="https://.../version.json" \
+#         -DUTAWAVE_DOWNLOAD_PAGE_URL="https://.../download" ...
+# 未指定時はソースのプレースホルダ (サーバー未稼働なら取得失敗 → 通知を出さない)。
+# JSON 仕様は Docs/UPDATE_SETUP.md を参照。
+set(UTAWAVE_VERSION_URL "" CACHE STRING "Update-check version JSON URL embedded at build time (official builds set this)")
+set(UTAWAVE_DOWNLOAD_PAGE_URL "" CACHE STRING "Fallback download page URL when the version JSON has no url field")
+if(UTAWAVE_VERSION_URL)
+    target_compile_definitions(Utawave PRIVATE UTAWAVE_VERSION_URL="${UTAWAVE_VERSION_URL}")
+    message(STATUS "Utawave: version check URL = ${UTAWAVE_VERSION_URL}")
+endif()
+if(UTAWAVE_DOWNLOAD_PAGE_URL)
+    target_compile_definitions(Utawave PRIVATE UTAWAVE_DOWNLOAD_PAGE_URL="${UTAWAVE_DOWNLOAD_PAGE_URL}")
+    message(STATUS "Utawave: download page URL = ${UTAWAVE_DOWNLOAD_PAGE_URL}")
 endif()
 
 # MSVC は既定で Shift-JIS としてソースを読むため u8 リテラル等が壊れる。
 # /utf-8 でソース・実行ファイル両方を UTF-8 解釈に統一する。
 # /wd4819 はコードページ警告を抑制。NOMINMAX は Windows.h の min/max マクロ衝突回避。
 if(MSVC)
-    target_compile_options(Trakova PRIVATE /utf-8 /wd4819)
-    target_compile_definitions(Trakova PRIVATE NOMINMAX=1 _USE_MATH_DEFINES=1)
+    target_compile_options(Utawave PRIVATE /utf-8 /wd4819)
+    target_compile_definitions(Utawave PRIVATE NOMINMAX=1 _USE_MATH_DEFINES=1)
 endif()
 
 # ── Windows: ASIO SDK が置かれていれば自動的に ASIO サポートを有効化 ──
@@ -156,8 +173,8 @@ set(ASIO_SDK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Source/ThirdParty/asiosdk")
 if(WIN32)
     if(EXISTS "${ASIO_SDK_DIR}/common/iasiodrv.h")
         message(STATUS "ASIO SDK found at ${ASIO_SDK_DIR} — ASIO サポート有効")
-        target_compile_definitions(Trakova PRIVATE JUCE_ASIO=1)
-        target_include_directories(Trakova SYSTEM PRIVATE
+        target_compile_definitions(Utawave PRIVATE JUCE_ASIO=1)
+        target_include_directories(Utawave SYSTEM PRIVATE
             "${ASIO_SDK_DIR}/common"
             "${ASIO_SDK_DIR}/host"
             "${ASIO_SDK_DIR}/host/pc"
@@ -200,7 +217,7 @@ else()
     )
 endif()
 
-target_link_libraries(Trakova PRIVATE
+target_link_libraries(Utawave PRIVATE
     juce::juce_audio_basics
     juce::juce_audio_devices
     juce::juce_audio_formats
@@ -223,26 +240,26 @@ target_link_libraries(Trakova PRIVATE
 # ヘルプメニュー「使い方ドキュメント...」が既定ブラウザで開く単一 HTML ファイル。
 # macOS: .app/Contents/Resources/help.html に配置 (Xcode の Copy Bundle Resources)。
 # Windows: 実行ファイル隣へ POST_BUILD でコピー。
-set(TRAKOVA_HELP_DOC "${CMAKE_CURRENT_SOURCE_DIR}/Docs/help.html")
-target_sources(Trakova PRIVATE "${TRAKOVA_HELP_DOC}")
-set_source_files_properties("${TRAKOVA_HELP_DOC}" PROPERTIES
+set(UTAWAVE_HELP_DOC "${CMAKE_CURRENT_SOURCE_DIR}/Docs/help.html")
+target_sources(Utawave PRIVATE "${UTAWAVE_HELP_DOC}")
+set_source_files_properties("${UTAWAVE_HELP_DOC}" PROPERTIES
     MACOSX_PACKAGE_LOCATION Resources)
 if(WIN32)
-    add_custom_command(TARGET Trakova POST_BUILD
+    add_custom_command(TARGET Utawave POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${TRAKOVA_HELP_DOC}" "$<TARGET_FILE_DIR:Trakova>/help.html"
+            "${UTAWAVE_HELP_DOC}" "$<TARGET_FILE_DIR:Utawave>/help.html"
         VERBATIM)
 endif()
 
-# ── ユニットテスト (コンソールアプリ TrakovaTests) ──
+# ── ユニットテスト (コンソールアプリ UtawaveTests) ──
 # 書き出し経路 (ExportEngine + AudioEngine + シーン構築) をオーディオデバイス無しで検証する。
-# juce::UnitTest / UnitTestRunner ベース。`-DTRAKOVA_BUILD_TESTS=OFF` で無効化可能。
-option(TRAKOVA_BUILD_TESTS "Build TrakovaTests unit tests" ON)
-if(TRAKOVA_BUILD_TESTS)
-    juce_add_console_app(TrakovaTests PRODUCT_NAME "TrakovaTests")
-    juce_generate_juce_header(TrakovaTests)
+# juce::UnitTest / UnitTestRunner ベース。`-DUTAWAVE_BUILD_TESTS=OFF` で無効化可能。
+option(UTAWAVE_BUILD_TESTS "Build UtawaveTests unit tests" ON)
+if(UTAWAVE_BUILD_TESTS)
+    juce_add_console_app(UtawaveTests PRODUCT_NAME "UtawaveTests")
+    juce_generate_juce_header(UtawaveTests)
 
-    target_sources(TrakovaTests PRIVATE
+    target_sources(UtawaveTests PRIVATE
         Tests/ExportEngineTests.cpp
         Tests/MidiIoTests.cpp
         Tests/BackupManagerTests.cpp
@@ -289,28 +306,28 @@ if(TRAKOVA_BUILD_TESTS)
         Source/Localisation.cpp
     )
 
-    target_include_directories(TrakovaTests SYSTEM PRIVATE
+    target_include_directories(UtawaveTests SYSTEM PRIVATE
         Source/ThirdParty/r8brain
     )
 
     # 本体と同じプラグインホスト定義に揃える (共有する JUCE モジュールの構成不一致を防ぐ)。
-    target_compile_definitions(TrakovaTests PRIVATE
+    target_compile_definitions(UtawaveTests PRIVATE
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
         JUCE_MODAL_LOOPS_PERMITTED=1
         JUCE_PLUGINHOST_VST3=1
         JUCE_PLUGINHOST_AU=0
-        JUCE_APPLICATION_NAME_STRING="TrakovaTests"
+        JUCE_APPLICATION_NAME_STRING="UtawaveTests"
         JUCE_APPLICATION_VERSION_STRING="0.1.0"
         JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP=0
     )
 
     if(MSVC)
-        target_compile_options(TrakovaTests PRIVATE /utf-8 /wd4819)
-        target_compile_definitions(TrakovaTests PRIVATE NOMINMAX=1 _USE_MATH_DEFINES=1)
+        target_compile_options(UtawaveTests PRIVATE /utf-8 /wd4819)
+        target_compile_definitions(UtawaveTests PRIVATE NOMINMAX=1 _USE_MATH_DEFINES=1)
     endif()
 
-    target_link_libraries(TrakovaTests PRIVATE
+    target_link_libraries(UtawaveTests PRIVATE
         juce::juce_audio_basics
         juce::juce_audio_devices
         juce::juce_audio_formats
@@ -329,30 +346,30 @@ if(TRAKOVA_BUILD_TESTS)
     # ── キー変更 CLI ツール (開発用) ──
     # 自社製ピッチシフト (pitchcore) で単発変換する。品質チューニング時の聴き比べ素材
     # 生成と、ライブラリ単体配布時の使用例を兼ねる。
-    # 使い方: TrakovaPitchTool <audiofile> <semitones> [outDir]
-    juce_add_console_app(TrakovaPitchTool PRODUCT_NAME "TrakovaPitchTool")
-    juce_generate_juce_header(TrakovaPitchTool)
-    target_sources(TrakovaPitchTool PRIVATE
+    # 使い方: UtawavePitchTool <audiofile> <semitones> [outDir]
+    juce_add_console_app(UtawavePitchTool PRODUCT_NAME "UtawavePitchTool")
+    juce_generate_juce_header(UtawavePitchTool)
+    target_sources(UtawavePitchTool PRIVATE
         Tests/PitchToolMain.cpp
         Source/Audio/PitchEngine.cpp
         Source/Audio/pitchcore/PitchShiftEngine.cpp
     )
-    target_include_directories(TrakovaPitchTool SYSTEM PRIVATE
+    target_include_directories(UtawavePitchTool SYSTEM PRIVATE
         Source/ThirdParty/r8brain
     )
-    target_compile_definitions(TrakovaPitchTool PRIVATE
+    target_compile_definitions(UtawavePitchTool PRIVATE
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
         JUCE_MODAL_LOOPS_PERMITTED=1
-        JUCE_APPLICATION_NAME_STRING="TrakovaPitchTool"
+        JUCE_APPLICATION_NAME_STRING="UtawavePitchTool"
         JUCE_APPLICATION_VERSION_STRING="0.1.0"
         JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP=0
     )
     if(MSVC)
-        target_compile_options(TrakovaPitchTool PRIVATE /utf-8 /wd4819)
-        target_compile_definitions(TrakovaPitchTool PRIVATE NOMINMAX=1 _USE_MATH_DEFINES=1)
+        target_compile_options(UtawavePitchTool PRIVATE /utf-8 /wd4819)
+        target_compile_definitions(UtawavePitchTool PRIVATE NOMINMAX=1 _USE_MATH_DEFINES=1)
     endif()
-    target_link_libraries(TrakovaPitchTool PRIVATE
+    target_link_libraries(UtawavePitchTool PRIVATE
         juce::juce_audio_basics
         juce::juce_audio_formats
         juce::juce_core

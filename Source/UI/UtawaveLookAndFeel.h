@@ -5,10 +5,10 @@
 #include <JuceHeader.h>
 #include "../AppColours.h"
 
-class TrakovanLookAndFeel : public juce::LookAndFeel_V4
+class UtawaveLookAndFeel : public juce::LookAndFeel_V4
 {
 public:
-    TrakovanLookAndFeel()
+    UtawaveLookAndFeel()
     {
         setColour(juce::ResizableWindow::backgroundColourId, AppColours::panelBg);
         setColour(juce::AlertWindow::backgroundColourId,     AppColours::panelBg);

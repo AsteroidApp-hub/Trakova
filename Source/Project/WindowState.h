@@ -5,7 +5,7 @@
 #include <JuceHeader.h>
 
 // メインウィンドウのサイズを次回起動時に復元するためのグローバル設定。
-// ~/Library/Application Support/Trakova/window.txt に保存される。
+// ~/Library/Application Support/Utawave/window.txt に保存される。
 class WindowState
 {
 public:

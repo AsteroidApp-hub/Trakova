@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Studio Asteroid
 
-// Trakova — 録音まわりのユニットテスト
+// Utawave — 録音まわりのユニットテスト
 //
 // オーディオデバイス不要・決定論的に検証する:
 //   ・パンチインのクロスフェード Track::trimAndCrossfadeOnLane0 の全ケース
@@ -70,7 +70,7 @@ public:
         juce::AudioFormatManager fmt; fmt.registerBasicFormats();
         TrackManager tm(fmt);
         auto* t = tm.addTrack();
-        const juce::File dummy("/tmp/trakova_punch.wav");
+        const juce::File dummy("/tmp/utawave_punch.wav");
 
         addLane0(t, dummy, 1.0, 1.0);          // existing [1,2]
         auto* nc = addLane0(t, dummy, 0.0, 4.0);   // new [0,4] (contains existing)
@@ -87,7 +87,7 @@ public:
         juce::AudioFormatManager fmt; fmt.registerBasicFormats();
         TrackManager tm(fmt);
         auto* t = tm.addTrack();
-        const juce::File dummy("/tmp/trakova_punch.wav");
+        const juce::File dummy("/tmp/utawave_punch.wav");
 
         addLane0(t, dummy, 0.0, 4.0, /*fo=*/0.0);   // existing [0,4]
         auto* nc = addLane0(t, dummy, 1.0, 2.0);    // new [1,3] (punch start=1 dur=2)
@@ -125,7 +125,7 @@ public:
         juce::AudioFormatManager fmt; fmt.registerBasicFormats();
         TrackManager tm(fmt);
         auto* t = tm.addTrack();
-        const juce::File dummy("/tmp/trakova_punch.wav");
+        const juce::File dummy("/tmp/utawave_punch.wav");
 
         addLane0(t, dummy, 0.0, 2.0);            // existing [0,2]
         auto* nc = addLane0(t, dummy, 1.0, 2.0); // new [1,3]
@@ -148,7 +148,7 @@ public:
         juce::AudioFormatManager fmt; fmt.registerBasicFormats();
         TrackManager tm(fmt);
         auto* t = tm.addTrack();
-        const juce::File dummy("/tmp/trakova_punch.wav");
+        const juce::File dummy("/tmp/utawave_punch.wav");
 
         addLane0(t, dummy, 2.0, 2.0, /*fo=*/0.0);   // existing [2,4] fileOffset 0
         auto* nc = addLane0(t, dummy, 1.0, 2.0);    // new [1,3]
@@ -175,7 +175,7 @@ public:
         juce::AudioFormatManager fmt; fmt.registerBasicFormats();
         TrackManager tm(fmt);
         auto* t = tm.addTrack();
-        const juce::File dummy("/tmp/trakova_punch.wav");
+        const juce::File dummy("/tmp/utawave_punch.wav");
 
         auto* other = addLane0(t, dummy, 5.0, 1.0);   // existing [5,6] (far away)
         const double offFade = other->getFadeOutSecs();
@@ -194,7 +194,7 @@ public:
         juce::AudioFormatManager fmt; fmt.registerBasicFormats();
         TrackManager tm(fmt);
         auto* t = tm.addTrack();
-        const juce::File dummy("/tmp/trakova_punch.wav");
+        const juce::File dummy("/tmp/utawave_punch.wav");
 
         // existing [2.999, 3.005] : 右端だけ punch [1,3] を僅かに超える → 開始押し出しで残り ~0.006s
         addLane0(t, dummy, 2.999, 0.006);
@@ -236,7 +236,7 @@ public:
         TrackManager tm(fmt);
         auto* t = tm.addTrack();
         auto dir = juce::File::getSpecialLocation(juce::File::tempDirectory)
-                       .getChildFile("TrakovaRecTests4");
+                       .getChildFile("UtawaveRecTests4");
         dir.createDirectory();
         auto f = writeWavHalves(dir, "rec.wav", 48000.0, 4.0);
         expect(f.existsAsFile(), "distinctive WAV written");
@@ -319,7 +319,7 @@ public:
         TrackManager tm(fmt);
         auto* t = tm.addTrack();
         auto dir = juce::File::getSpecialLocation(juce::File::tempDirectory)
-                       .getChildFile("TrakovaRecTests");
+                       .getChildFile("UtawaveRecTests");
         dir.createDirectory();
         auto wavOld = writeWav(dir, "old.wav", 48000.0, 4.0);
         auto wavNew = writeWav(dir, "new.wav", 48000.0, 2.0);
@@ -350,7 +350,7 @@ public:
         TrackManager tm(fmt);
         auto* t = tm.addTrack();
         auto dir = juce::File::getSpecialLocation(juce::File::tempDirectory)
-                       .getChildFile("TrakovaRecTests3");
+                       .getChildFile("UtawaveRecTests3");
         dir.createDirectory();
         auto wavOld = writeWav(dir, "old.wav", 48000.0, 8.0);
         auto wavNew = writeWav(dir, "new.wav", 48000.0, 2.0);
@@ -386,7 +386,7 @@ public:
         TrackManager tm(fmt);
         auto* t = tm.addTrack();
         auto dir = juce::File::getSpecialLocation(juce::File::tempDirectory)
-                       .getChildFile("TrakovaRecTests2");
+                       .getChildFile("UtawaveRecTests2");
         dir.createDirectory();
         auto wavOld = writeWav(dir, "old.wav", 48000.0, 4.0);
         auto wavNew = writeWav(dir, "new.wav", 48000.0, 2.0);

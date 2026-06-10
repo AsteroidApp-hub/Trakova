@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Studio Asteroid
 
-// Trakova — EditActions の Undo/Redo 往復ユニットテスト
+// Utawave — EditActions の Undo/Redo 往復ユニットテスト
 //
 // 「Undo でユーザー編集を黙って失う」事故を防ぐ安全網。各 UndoableAction の
 // perform()/undo()/redo() を直接叩いて (UndoManager 不要)、状態の往復を検証する:

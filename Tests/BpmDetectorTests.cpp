@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Studio Asteroid
 
-// Trakova — BpmDetector のユニットテスト (看板機能の回帰テスト)
+// Utawave — BpmDetector のユニットテスト (看板機能の回帰テスト)
 //
 // 合成クリック列 (各拍に短いバースト) を一時 WAV に書き、検出 BPM を検証する。
 // CLAUDE.md 記載の「WAV 直読み検証」を正式な UnitTest 化し、HW 重み/kStepRatio/探索範囲を
@@ -105,7 +105,7 @@ public:
 
     void runTest() override
     {
-        dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("TrakovaBpmTests");
+        dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("UtawaveBpmTests");
         dir.deleteRecursively(); dir.createDirectory();
         juce::AudioFormatManager fmt; fmt.registerBasicFormats();
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Studio Asteroid
 
-// Trakova — オーディオ書き出し (ExportEngine) の WAV ユニットテスト
+// Utawave — オーディオ書き出し (ExportEngine) の WAV ユニットテスト
 //
 // オフライン書き出し経路 (ExportEngine::render → AudioEngine::renderOfflineRange) を
 // オーディオデバイス無しで検証する。各テストは:
@@ -163,7 +163,7 @@ public:
     void runTest() override
     {
         outDir = juce::File::getSpecialLocation(juce::File::tempDirectory)
-                     .getChildFile("TrakovaExportTests");
+                     .getChildFile("UtawaveExportTests");
         outDir.deleteRecursively();
         outDir.createDirectory();
 
@@ -1058,7 +1058,7 @@ int main()
         failures += r->failures;
     }
 
-    std::cout << "\n==== TrakovaTests: " << passes << " checks passed, "
+    std::cout << "\n==== UtawaveTests: " << passes << " checks passed, "
               << failures << " failed ====" << std::endl;
 
     juce::Logger::setCurrentLogger(nullptr);

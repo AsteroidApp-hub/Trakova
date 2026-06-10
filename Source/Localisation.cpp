@@ -114,8 +114,8 @@ static const char* const englishTranslations =
     "\"ショートカット一覧...\" = \"Keyboard Shortcuts...\"\n"
     "\"使い方ドキュメント...\" = \"User Guide...\"\n"
     "\"ドキュメントファイル (help.html) が見つかりませんでした。\" = \"The documentation file (help.html) could not be found.\"\n"
-    "\"Trakova について\" = \"About Trakova\"\n"
-    "\"Trakova について...\" = \"About Trakova...\"\n"
+    "\"Utawave について\" = \"About Utawave\"\n"
+    "\"Utawave について...\" = \"About Utawave...\"\n"
     "\"環境設定\" = \"Preferences\"\n"
     "\"環境設定 (Cmd+,)\" = \"Preferences (Cmd+,)\"\n"
     // ── 起動画面 ──
@@ -375,7 +375,7 @@ static const char* const englishTranslations =
     "\"バージョン \" = \"Version \"\n"
     "\"オープンソース (AGPL v3)\" = \"Open source (AGPL v3)\"\n"
     "\"© 2025-2026 Studio アステロイド  ・  オープンソース (AGPL v3)\" = \"© 2025-2026 Studio Asteroid  ·  Open source (AGPL v3)\"\n"
-    "\"Trakova © 2025-2026 Studio アステロイド\\n\" = \"Trakova © 2025-2026 Studio Asteroid\\n\"\n"
+    "\"Utawave © 2025-2026 Studio アステロイド\\n\" = \"Utawave © 2025-2026 Studio Asteroid\\n\"\n"
     "\"ライセンス情報 / 利用しているオープンソース\" = \"License / Open-source acknowledgements\"\n"
     "\"本アプリは AGPL v3 ライセンスの下で配布されています。\\n\" = \"This app is distributed under the AGPL v3 license.\\n\"\n"
     "\"ソースコードは GitHub にて公開しています。\\n\" = \"The source code is available on GitHub.\\n\"\n"
@@ -566,7 +566,7 @@ void installJapanese() { install(Language::Japanese); }
 static juce::File languageStoreFile()
 {
     auto root = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-                    .getChildFile("Trakova");
+                    .getChildFile("Utawave");
     root.createDirectory();
     return root.getChildFile("language.txt");
 }

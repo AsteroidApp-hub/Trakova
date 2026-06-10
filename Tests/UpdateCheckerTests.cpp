@@ -4,8 +4,9 @@
 #include <JuceHeader.h>
 #include "../Source/Project/UpdateChecker.h"
 
-// UpdateChecker のネットワーク非依存な純関数 (parseLatestRelease / normaliseVersion /
+// UpdateChecker のネットワーク非依存な純関数 (parseVersionInfo / normaliseVersion /
 // isNewerVersion) を検証する。check() の通信経路はユニットテスト対象外。
+// 取得元は公式サイトの version JSON: { "version": "...", "url": "..." } (url は任意)。
 class UpdateCheckerTests : public juce::UnitTest
 {
 public:
@@ -13,66 +14,42 @@ public:
 
     void runTest() override
     {
-        beginTest("parseLatestRelease: well-formed releases/latest JSON");
+        beginTest("parseVersionInfo: well-formed version JSON");
         {
             const juce::String json = R"({
-              "tag_name": "v0.2.0",
-              "name": "Trakova 0.2.0",
-              "html_url": "https://github.com/AsteroidApp-hub/Trakova/releases/tag/v0.2.0",
-              "assets": []
+              "version": "v0.2.0",
+              "url": "https://utawave.com/download"
             })";
-            auto info = UpdateChecker::parseLatestRelease(json);
+            auto info = UpdateChecker::parseVersionInfo(json);
             expectEquals(info.tag,     juce::String("v0.2.0"));
             expectEquals(info.version, juce::String("0.2.0"));
-            expectEquals(info.pageUrl,
-                juce::String("https://github.com/AsteroidApp-hub/Trakova/releases/tag/v0.2.0"));
+            expectEquals(info.pageUrl, juce::String("https://utawave.com/download"));
         }
 
-        beginTest("parseLatestRelease: missing fields / not found");
+        beginTest("parseVersionInfo: url is optional, unknown fields ignored");
         {
-            // GitHub が releases 無しで返す 404 ボディ
-            auto info = UpdateChecker::parseLatestRelease(R"({ "message": "Not Found" })");
-            expect(info.tag.isEmpty(),     "no tag_name");
-            expect(info.pageUrl.isEmpty(), "no html_url");
-            expect(info.version.isEmpty(), "no version");
+            // url 無し → pageUrl 空 (check() が fallback を入れる)。余分なフィールドは無視。
+            auto info = UpdateChecker::parseVersionInfo(
+                R"({ "version": "0.3.1", "notes": "bugfix", "minOs": "12" })");
+            expectEquals(info.tag,     juce::String("0.3.1"));
+            expectEquals(info.version, juce::String("0.3.1"));
+            expect(info.pageUrl.isEmpty(), "no url field -> empty pageUrl");
         }
 
-        beginTest("parseLatestRelease: malformed / non-object");
+        beginTest("parseVersionInfo: missing version");
         {
-            expect(UpdateChecker::parseLatestRelease("not json").tag.isEmpty());
-            expect(UpdateChecker::parseLatestRelease("").tag.isEmpty());
-            expect(UpdateChecker::parseLatestRelease("[ 1, 2, 3 ]").tag.isEmpty());
+            auto info = UpdateChecker::parseVersionInfo(R"({ "url": "https://x.example/" })");
+            expect(info.tag.isEmpty(),     "no version field");
+            expect(info.version.isEmpty(), "no comparable version");
         }
 
-        beginTest("parseTags: extracts tag names in order");
+        beginTest("parseVersionInfo: malformed / non-object");
         {
-            const juce::String json = R"([
-              { "name": "v0.3.0", "commit": { "sha": "aaa" } },
-              { "name": "v0.2.0", "commit": { "sha": "bbb" } },
-              { "name": "v0.1.0", "commit": { "sha": "ccc" } }
-            ])";
-            auto tags = UpdateChecker::parseTags(json);
-            expectEquals((int) tags.size(), 3, "three tags parsed");
-            expectEquals(tags[0], juce::String("v0.3.0"));
-            expectEquals(tags[2], juce::String("v0.1.0"));
-        }
-
-        beginTest("parseTags: empty / malformed / non-array");
-        {
-            expect(UpdateChecker::parseTags("[]").empty(),            "empty array");
-            expect(UpdateChecker::parseTags("not json").empty(),     "malformed");
-            expect(UpdateChecker::parseTags(R"({"x":1})").empty(),   "object, not array");
-        }
-
-        beginTest("pickNewestTag: highest semver wins regardless of order");
-        {
-            // API 順がバラバラでも最大を選ぶ。数字を含まないタグ ("nightly") は無視。
-            expectEquals(UpdateChecker::pickNewestTag(
-                { "v0.1.0", "v0.10.0", "v0.2.0", "nightly" }), juce::String("v0.10.0"));
-            expectEquals(UpdateChecker::pickNewestTag({ "1.0.0" }), juce::String("1.0.0"));
-            expect(UpdateChecker::pickNewestTag({}).isEmpty(),            "no tags → empty");
-            expect(UpdateChecker::pickNewestTag({ "nightly", "edge" }).isEmpty(),
-                   "no version-like tags → empty");
+            expect(UpdateChecker::parseVersionInfo("not json").tag.isEmpty());
+            expect(UpdateChecker::parseVersionInfo("").tag.isEmpty());
+            expect(UpdateChecker::parseVersionInfo("[ 1, 2, 3 ]").tag.isEmpty());
+            expect(UpdateChecker::parseVersionInfo(R"("0.2.0")").tag.isEmpty(),
+                   "bare string is not an object");
         }
 
         beginTest("normaliseVersion: strips prefixes and suffixes");
@@ -80,7 +57,7 @@ public:
             expectEquals(UpdateChecker::normaliseVersion("v0.2.0"),          juce::String("0.2.0"));
             expectEquals(UpdateChecker::normaliseVersion("0.2.0"),           juce::String("0.2.0"));
             expectEquals(UpdateChecker::normaliseVersion("V1.0"),            juce::String("1.0"));
-            expectEquals(UpdateChecker::normaliseVersion("Trakova-v1.2.3"),  juce::String("1.2.3"));
+            expectEquals(UpdateChecker::normaliseVersion("Utawave-v1.2.3"),  juce::String("1.2.3"));
             expectEquals(UpdateChecker::normaliseVersion("0.2.0-beta"),      juce::String("0.2.0"));
             expectEquals(UpdateChecker::normaliseVersion("1.2."),            juce::String("1.2"));
             expectEquals(UpdateChecker::normaliseVersion("  v3.4.5  "),      juce::String("3.4.5"));

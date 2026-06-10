@@ -5,7 +5,7 @@
 セキュリティ上の問題を見つけた場合は、**公開の Issue では報告しないでください**。
 代わりに GitHub の **Security Advisories（Report a vulnerability）** から非公開でご連絡ください:
 
-https://github.com/AsteroidApp-hub/Trakova/security/advisories/new
+https://github.com/AsteroidApp-hub/Utawave/security/advisories/new
 
 可能であれば以下を含めてください:
 
@@ -26,7 +26,7 @@ https://github.com/AsteroidApp-hub/Trakova/security/advisories/new
 Please do **not** report security issues via public Issues. Instead, use GitHub's private
 **Security Advisories → "Report a vulnerability"**:
 
-https://github.com/AsteroidApp-hub/Trakova/security/advisories/new
+https://github.com/AsteroidApp-hub/Utawave/security/advisories/new
 
 Please include a summary and impact, reproduction steps (PoC if any), and the affected
 version / OS. Only the latest release is supported.

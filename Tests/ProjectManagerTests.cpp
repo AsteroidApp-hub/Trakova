@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Studio Asteroid
 
-// Trakova — ProjectManager (.trakova 保存/読み込み) のユニットテスト
+// Utawave — ProjectManager (.utawave 保存/読み込み) のユニットテスト
 //
 // データ永続性の耐久性契約。シリアライズのバグはユーザーのプロジェクトを黙って破壊する
 // (テイク消失・ゲイン誤り・MIDI 破損)。save/load は手書き XML の二重写経で、片方だけに
@@ -54,12 +54,13 @@ public:
 
     void runTest() override
     {
-        dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("TrakovaPMTests");
+        dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("UtawavePMTests");
         dir.deleteRecursively();
         dir.createDirectory();
 
         testRoundTrip();
         testSettingsFallback();
+        testLegacyRootTag();
         testRelativePathAndMissingFile();
         testAtomicAndGuards();
 
@@ -73,7 +74,7 @@ public:
         auto projDir = dir.getChildFile("Proj");
         projDir.createDirectory();
         auto wav = writeWav(projDir.getChildFile("Audio").getChildFile("clip.wav"), 48000.0, 1.0);
-        auto projFile = projDir.getChildFile("Proj.trakova");
+        auto projFile = projDir.getChildFile("Proj.utawave");
 
         // ── シーン構築 (A) ──
         juce::AudioFormatManager fmtA; fmtA.registerBasicFormats();
@@ -293,9 +294,9 @@ public:
     void testSettingsFallback()
     {
         beginTest("load: missing Settings attributes fall back to AppSettings{} defaults");
-        auto f = dir.getChildFile("fallback.trakova");
+        auto f = dir.getChildFile("fallback.utawave");
         {
-            juce::XmlElement root("TrakovaProject");
+            juce::XmlElement root("UtawaveProject");
             root.setAttribute("version", "1.0");
             root.createNewChildElement("Settings");   // 空 (属性なし)
             root.writeTo(f);
@@ -324,6 +325,27 @@ public:
         expect(set.returnToStartOnStop == def.returnToStartOnStop, "returnToStartOnStop -> default (true)");
     }
 
+    // ── 旧名 (Trakova) 時代のルートタグ互換 ──
+    void testLegacyRootTag()
+    {
+        beginTest("load: legacy TrakovaProject root tag is accepted");
+        auto f = dir.getChildFile("legacy.trakova");
+        {
+            juce::XmlElement root("TrakovaProject");
+            root.setAttribute("version", "1.0");
+            root.createNewChildElement("Settings");
+            root.writeTo(f);
+        }
+
+        juce::AudioFormatManager fmt; fmt.registerBasicFormats();
+        TrackManager tm(fmt);
+        AppSettings set;
+        ProjectManager::State s;
+        s.trackManager = &tm; s.appSettings = &set;
+        s.pluginManager = nullptr; s.masterChain = nullptr;
+        expect(ProjectManager::load(f, s), "load legacy-root project");
+    }
+
     // ── 相対パス保存 + 欠損ファイル検出 ──
     void testRelativePathAndMissingFile()
     {
@@ -331,7 +353,7 @@ public:
         auto projDir = dir.getChildFile("Proj2");
         projDir.createDirectory();
         auto wav = writeWav(projDir.getChildFile("Audio").getChildFile("a.wav"), 48000.0, 1.0);
-        auto projFile = projDir.getChildFile("Proj2.trakova");
+        auto projFile = projDir.getChildFile("Proj2.utawave");
 
         juce::AudioFormatManager fmt; fmt.registerBasicFormats();
         TrackManager tm(fmt);
@@ -378,7 +400,7 @@ public:
         beginTest("save: atomic (no .tmp leftover); guards (null / missing / bad XML) return false");
         auto projDir = dir.getChildFile("Proj3");
         projDir.createDirectory();
-        auto projFile = projDir.getChildFile("Proj3.trakova");
+        auto projFile = projDir.getChildFile("Proj3.utawave");
 
         juce::AudioFormatManager fmt; fmt.registerBasicFormats();
         TrackManager tm(fmt);
@@ -399,10 +421,10 @@ public:
         expect(! ProjectManager::load(projFile, bad), "load with null trackManager -> false");
 
         // load: 存在しないファイル / 不正 XML -> false
-        expect(! ProjectManager::load(dir.getChildFile("nope.trakova"), s), "load missing file -> false");
-        auto badXml = dir.getChildFile("bad.trakova");
-        badXml.replaceWithText("<NotATrakovaProject/>");
-        expect(! ProjectManager::load(badXml, s), "load non-TrakovaProject XML -> false");
+        expect(! ProjectManager::load(dir.getChildFile("nope.utawave"), s), "load missing file -> false");
+        auto badXml = dir.getChildFile("bad.utawave");
+        badXml.replaceWithText("<NotAUtawaveProject/>");
+        expect(! ProjectManager::load(badXml, s), "load non-UtawaveProject XML -> false");
     }
 };
 

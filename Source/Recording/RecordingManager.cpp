@@ -23,7 +23,7 @@ juce::File RecordingManager::getRecordingsFolder() const
 {
     if (getAudioFolder) return getAudioFolder();
     return juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
-               .getChildFile("Trakova").getChildFile("Recordings");
+               .getChildFile("Utawave").getChildFile("Recordings");
 }
 
 juce::File RecordingManager::createRecordingFile(const juce::String& trackName) const

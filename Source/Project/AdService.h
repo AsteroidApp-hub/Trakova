@@ -71,11 +71,11 @@ public:
                                      const juce::String& rawJson,
                                      const std::vector<Ad>& ads);
 
-    // 広告キャッシュの保存先 ( ~/Library/Application Support/Trakova/AdCache )。
+    // 広告キャッシュの保存先 ( ~/Library/Application Support/Utawave/AdCache )。
     static juce::File cacheDir();
 
     // ── 開発用 (デバッグサンプルモード) ──
-    // TRAKOVA_ADS_DEBUG ビルドか (組み込みサンプル広告を表示するモード)。
+    // UTAWAVE_ADS_DEBUG ビルドか (組み込みサンプル広告を表示するモード)。
     static bool debugSampleMode();
     // サーバー不要で見た目を確認するための組み込みサンプル広告 (画像は動的生成)。
     static std::vector<Ad> sampleAds();

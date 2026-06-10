@@ -39,7 +39,7 @@ void TimelineView::consolidateSelectedClips()
 
     // バウンス先 WAV ファイルを作成（録音用と同じディレクトリに置く）
     auto outFile = juce::File::getSpecialLocation(juce::File::userMusicDirectory)
-                       .getChildFile("Trakova")
+                       .getChildFile("Utawave")
                        .getChildFile("Consolidated_" + juce::Time::getCurrentTime().formatted("%Y%m%d_%H%M%S") + ".wav");
     outFile.getParentDirectory().createDirectory();
 

@@ -1,4 +1,4 @@
-# Trakova 広告枠 セットアップガイド
+# Utawave 広告枠 セットアップガイド
 
 起動画面の広告枠を**有効化して配布する人向け**の手順書です。
 （コードの内部実装は `CLAUDE.md`「起動画面の広告枠」を参照）
@@ -17,11 +17,11 @@
 
 | スイッチ | 種類 | 既定 | 役割 |
 |---|---|---|---|
-| `TRAKOVA_ADS_ENABLED` | **ビルド時**（CMake） | OFF | 広告機能のマスタースイッチ。OFF だと広告コードは一切動かない |
+| `UTAWAVE_ADS_ENABLED` | **ビルド時**（CMake） | OFF | 広告機能のマスタースイッチ。OFF だと広告コードは一切動かない |
 | `showAds` | 実行時（環境設定） | ON | 公式ビルド内で**各ユーザーが**広告を切るためのトグル |
 
-実際に広告が表示される条件は **`TRAKOVA_ADS_ENABLED` が ON かつ `showAds` が ON** の両方です。
-公開ソースの通常ビルドは `TRAKOVA_ADS_ENABLED` が OFF なので、環境設定にも広告トグルは出ません。
+実際に広告が表示される条件は **`UTAWAVE_ADS_ENABLED` が ON かつ `showAds` が ON** の両方です。
+公開ソースの通常ビルドは `UTAWAVE_ADS_ENABLED` が OFF なので、環境設定にも広告トグルは出ません。
 
 ---
 
@@ -29,11 +29,11 @@
 
 | CMake 変数 | 例 | 説明 |
 |---|---|---|
-| `TRAKOVA_ADS_ENABLED` | `ON` | 広告枠を有効化（3 列表示） |
-| `TRAKOVA_AD_FEED_URL` | `https://example.com/ads/feed.json` | 広告 JSON の取得先 URL（実行ファイルに埋め込まれる） |
+| `UTAWAVE_ADS_ENABLED` | `ON` | 広告枠を有効化（3 列表示） |
+| `UTAWAVE_AD_FEED_URL` | `https://example.com/ads/feed.json` | 広告 JSON の取得先 URL（実行ファイルに埋め込まれる） |
 
-`TRAKOVA_AD_FEED_URL` を省略すると、ソース内のプレースホルダ URL
-（`https://trakova.app/ads/feed.json`）が使われます。本番では必ず自分の URL を指定してください。
+`UTAWAVE_AD_FEED_URL` を省略すると、ソース内のプレースホルダ URL
+（`https://utawave.com/ads/feed.json`）が使われます。本番では必ず自分の URL を指定してください。
 
 ---
 
@@ -42,18 +42,18 @@
 ```bash
 # 設定（広告 ON ＋ 取得先 URL を指定）
 cmake -S . -B build \
-      -DTRAKOVA_ADS_ENABLED=ON \
-      -DTRAKOVA_AD_FEED_URL="https://example.com/ads/feed.json"
+      -DUTAWAVE_ADS_ENABLED=ON \
+      -DUTAWAVE_AD_FEED_URL="https://example.com/ads/feed.json"
 
 # ビルド
-cmake --build build --target Trakova --config Release
+cmake --build build --target Utawave --config Release
 ```
 
 configure 時に次のようなログが出れば有効化できています:
 
 ```
--- Trakova: startup ad panel ENABLED
--- Trakova: ad feed URL = https://example.com/ads/feed.json
+-- Utawave: startup ad panel ENABLED
+-- Utawave: ad feed URL = https://example.com/ads/feed.json
 ```
 
 ### 元に戻す（広告オフのビルドに戻す）
@@ -61,47 +61,47 @@ configure 時に次のようなログが出れば有効化できています:
 `build/` の CMake キャッシュにフラグが残るので、明示的にオフへ戻します:
 
 ```bash
-cmake -S . -B build -DTRAKOVA_ADS_ENABLED=OFF -DTRAKOVA_AD_FEED_URL=""
+cmake -S . -B build -DUTAWAVE_ADS_ENABLED=OFF -DUTAWAVE_AD_FEED_URL=""
 ```
 
 ### 開発用: サンプル広告で見た目を確認する（サーバー不要）
 
 本番サーバーがまだ無い段階で広告枠の見た目（2 件ピーク表示の縦スクロール・自動送り・クリック・
-画像なしの表示など）を確認したいときは、`TRAKOVA_ADS_DEBUG` を使います。広告枠を有効化したうえで、
+画像なしの表示など）を確認したいときは、`UTAWAVE_ADS_DEBUG` を使います。広告枠を有効化したうえで、
 **通信せず内蔵のサンプル広告（30 件・画像つき）を用意**し、そこから毎回ランダムに 15 件を表示します
 （ランダム抜粋・件数の見え方の確認用）。
 
 ```bash
 # 設定（デバッグサンプルモード）
-cmake -S . -B build -DTRAKOVA_ADS_DEBUG=ON
+cmake -S . -B build -DUTAWAVE_ADS_DEBUG=ON
 
 # Debug でビルド
-cmake --build build --target Trakova --config Debug
+cmake --build build --target Utawave --config Debug
 
 # 実行（macOS）
-open build/Trakova_artefacts/Debug/Trakova.app
+open build/Utawave_artefacts/Debug/Utawave.app
 ```
 
 configure 時に次のログが出れば OK:
 
 ```
--- Trakova: startup ad panel ENABLED (debug sample mode / no server)
+-- Utawave: startup ad panel ENABLED (debug sample mode / no server)
 ```
 
-- `TRAKOVA_ADS_DEBUG=ON` は **自動的に広告枠を有効化**します（`TRAKOVA_ADS_ENABLED` を別途付ける
+- `UTAWAVE_ADS_DEBUG=ON` は **自動的に広告枠を有効化**します（`UTAWAVE_ADS_ENABLED` を別途付ける
   必要はありません）。
 - 表示されるのは `AdService::sampleAds()` が返す**ダミー広告**です（バナー画像はコード内で動的生成）。
   内容を変えたい場合は `Source/Project/AdService.cpp` の `sampleAds()` を編集します。
 - Debug でなく Release でビルドしても、フラグが付いていればサンプル広告が出ます
   （フラグはビルド構成ではなく configure で決まります）。
 - **本番ビルドにこのフラグを付けないこと**（サンプル広告が出てしまいます）。確認が終わったら
-  上の「元に戻す」に加えて `-DTRAKOVA_ADS_DEBUG=OFF` を付けて再 configure してください:
+  上の「元に戻す」に加えて `-DUTAWAVE_ADS_DEBUG=OFF` を付けて再 configure してください:
   ```bash
-  cmake -S . -B build -DTRAKOVA_ADS_ENABLED=OFF -DTRAKOVA_ADS_DEBUG=OFF -DTRAKOVA_AD_FEED_URL=""
+  cmake -S . -B build -DUTAWAVE_ADS_ENABLED=OFF -DUTAWAVE_ADS_DEBUG=OFF -DUTAWAVE_AD_FEED_URL=""
   ```
 
 > 実際のネットワーク取得（本番 JSON / 画像 DL / キャッシュ）を Debug で試したい場合は、
-> サンプルではなく `-DTRAKOVA_ADS_ENABLED=ON -DTRAKOVA_AD_FEED_URL="http://localhost:8000/feed.json"`
+> サンプルではなく `-DUTAWAVE_ADS_ENABLED=ON -DUTAWAVE_AD_FEED_URL="http://localhost:8000/feed.json"`
 > のように**実 URL** を指定してください（例: `python3 -m http.server` でローカルに JSON と画像を配信）。
 
 ---
@@ -116,7 +116,7 @@ GitHub リポジトリの **Settings → Secrets and variables → Actions → V
 新しい変数を作成します（URL は秘密情報ではなく実行ファイルに埋め込まれるため、Secret ではなく
 **Variable** で十分です。社内方針で隠したい場合は Secret でも可）。
 
-- 名前: `TRAKOVA_AD_FEED_URL`
+- 名前: `UTAWAVE_AD_FEED_URL`
 - 値: `https://example.com/ads/feed.json`
 
 ### 4-2. ワークフロー例
@@ -144,26 +144,26 @@ jobs:
         run: >
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=Release
-          -DTRAKOVA_ADS_ENABLED=ON
-          -DTRAKOVA_AD_FEED_URL="${{ vars.TRAKOVA_AD_FEED_URL }}"
+          -DUTAWAVE_ADS_ENABLED=ON
+          -DUTAWAVE_AD_FEED_URL="${{ vars.UTAWAVE_AD_FEED_URL }}"
 
       - name: Build
-        run: cmake --build build --target Trakova --config Release
+        run: cmake --build build --target Utawave --config Release
 
       # 以降、署名・公証・アーティファクト化など既存のリリース手順を続ける
 ```
 
 ポイント:
-- **公式リリースのワークフローだけ** `-DTRAKOVA_ADS_ENABLED=ON` を付けます。
+- **公式リリースのワークフローだけ** `-DUTAWAVE_ADS_ENABLED=ON` を付けます。
   通常の CI（テスト用など）はフラグを付けなければ広告オフのままです。
-- `vars.TRAKOVA_AD_FEED_URL` が空のままだとプレースホルダ URL になり広告は出ません。
+- `vars.UTAWAVE_AD_FEED_URL` が空のままだとプレースホルダ URL になり広告は出ません。
   リリース前に変数の登録を確認してください。
 
 ---
 
 ## 5. 広告フィード（JSON）の仕様
 
-`TRAKOVA_AD_FEED_URL` が返す JSON の形式です。サーバー側で用意します。
+`UTAWAVE_AD_FEED_URL` が返す JSON の形式です。サーバー側で用意します。
 
 ### スキーマ
 
@@ -242,7 +242,7 @@ jobs:
 
 ```bash
 # CI で URL に {lang} を含める
--DTRAKOVA_AD_FEED_URL="https://example.com/ads/{lang}.json"
+-DUTAWAVE_AD_FEED_URL="https://example.com/ads/{lang}.json"
 ```
 → 日本語ユーザーは `.../ads/ja.json`、それ以外は `.../ads/en.json` を取得します。
 `ja.json` と `en.json` をそれぞれ用意してください（各最大 30 件）。
@@ -304,8 +304,8 @@ jobs:
 - **取得**: 起動時にバックグラウンドで JSON を取得（接続タイムアウト 5 秒）。UI はブロックしません。
 - **キャッシュ**: 直近に取得できた広告と画像を端末に保存し、次回起動時はまず即時表示 → 裏で最新へ更新。
   オフライン時は前回の広告が出ます。
-  - 保存先: macOS `~/Library/Application Support/Trakova/AdCache/`、
-    Windows `%APPDATA%\Trakova\AdCache\`
+  - 保存先: macOS `~/Library/Application Support/Utawave/AdCache/`、
+    Windows `%APPDATA%\Utawave\AdCache\`
 - **データが無い / 取得失敗時**: 「広告を読み込めませんでした / インターネット接続を確認してください」
   と **再読み込み**ボタンを表示します（= 仕様どおりのフォールバック。サーバー未稼働時もこれが出ます）。
 
@@ -322,12 +322,12 @@ jobs:
 
 ## 8. リリース前チェックリスト
 
-- [ ] 広告 JSON を返すサーバー（`TRAKOVA_AD_FEED_URL`）が稼働している
+- [ ] 広告 JSON を返すサーバー（`UTAWAVE_AD_FEED_URL`）が稼働している
 - [ ] JSON が「5. 仕様」の形式・文字コード（UTF-8）で返る
 - [ ] 画像 URL（`imageUrl`）が `https` で到達でき、表示できる形式（PNG/JPEG）である
 - [ ] `linkUrl` が正しいランディングページを指している
-- [ ] CI（GitHub Actions）の変数 `TRAKOVA_AD_FEED_URL` が登録済み
-- [ ] リリースワークフローで `-DTRAKOVA_ADS_ENABLED=ON` が付いている
+- [ ] CI（GitHub Actions）の変数 `UTAWAVE_AD_FEED_URL` が登録済み
+- [ ] リリースワークフローで `-DUTAWAVE_ADS_ENABLED=ON` が付いている
 - [ ] 通常 CI（テスト等）にはフラグを**付けていない**（広告オフのまま）
 - [ ] 配布ビルドで起動画面に 3 列・広告が表示されることを実機確認
 
@@ -337,7 +337,7 @@ jobs:
 
 | 症状 | 原因と対処 |
 |---|---|
-| 広告枠が出ない（2 列のまま） | `TRAKOVA_ADS_ENABLED=ON` でビルドできていない。configure ログの `ad panel ENABLED` を確認 |
+| 広告枠が出ない（2 列のまま） | `UTAWAVE_ADS_ENABLED=ON` でビルドできていない。configure ログの `ad panel ENABLED` を確認 |
 | 「広告を読み込めませんでした」 | URL に到達できない／JSON が壊れている／配列が空。URL とレスポンスを確認 |
 | 画像が出ずテキストだけ | `imageUrl` が到達不能 or 非対応形式。`https` の PNG/JPEG にする |
 | 古い広告が出続ける | 最新の取得に失敗し、キャッシュ（前回の広告）にフォールバック中。サーバー / ネットワーク / URL を確認。手動でリセットするなら `AdCache/` を削除 |

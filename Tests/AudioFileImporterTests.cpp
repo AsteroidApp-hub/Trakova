@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Studio Asteroid
 
-// Trakova — AudioFileImporter のユニットテスト (メタデータ除去 / 自動リサンプル)
+// Utawave — AudioFileImporter のユニットテスト (メタデータ除去 / 自動リサンプル)
 //
 // 他 DAW が埋め込んだテンポ・ループ・各種メタデータがプロジェクトに流入するのを防ぐ中核保証。
 //   copyStrippingMetadata:
@@ -83,7 +83,7 @@ public:
 
     void runTest() override
     {
-        dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("TrakovaImporterTests");
+        dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("UtawaveImporterTests");
         dir.deleteRecursively(); dir.createDirectory();
         juce::AudioFormatManager fmt; fmt.registerBasicFormats();
 

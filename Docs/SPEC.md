@@ -1,17 +1,17 @@
-# Trakova 仕様書
+# Utawave 仕様書
 
 ## プロダクト概要
 
 | 項目 | 内容 |
 |------|------|
-| アプリ名 | Trakova |
+| アプリ名 | Utawave |
 | ターゲット | 国内の歌い手（ボーカルカバー投稿者） |
 | 配布形態 | 無料・オープンソース（AGPL v3） |
 | プラットフォーム | Windows / macOS |
 | コンセプト | 録音特化・初心者〜中堅フレンドリー |
-| Bundle ID | com.trakova.app |
-| プロジェクトファイル拡張子 | .trakova |
-| ドメイン候補 | trakova.app / trakova.com |
+| Bundle ID | com.utawave.app |
+| プロジェクトファイル拡張子 | .utawave |
+| ドメイン候補 | utawave.com / utawave.com |
 
 ---
 
@@ -24,7 +24,7 @@
 | ライセンス | AGPL v3 |
 | 開発環境（メイン） | macOS + Xcode |
 | Windows ビルド | UTM（仮想マシン）+ GitHub Actions |
-| バージョン管理 | Git / GitHub (https://github.com/AsteroidApp-hub/Trakova) |
+| バージョン管理 | Git / GitHub (https://github.com/AsteroidApp-hub/Utawave) |
 | 内蔵 MP3 エンコーダ | LAME (静的リンク) |
 | リサンプラー | r8brain-free-src (MIT) |
 | ピッチシフト | Rubber Band Library R3 (GPL v2+) |
@@ -189,7 +189,7 @@
 
 | 機能 | 仕様 |
 |------|------|
-| プロジェクトファイル | .trakova (XML)・音声参照は相対パス |
+| プロジェクトファイル | .utawave (XML)・音声参照は相対パス |
 | 新規 / 開く / 保存 / 別名で保存 | 標準操作 |
 | 最近使用プロジェクト | 起動画面とファイルメニューから |
 | 自動保存 | 5 / 10 / 15 / 20 / 25 / 30 分から選択 (Backup/ 配下) |
@@ -203,7 +203,7 @@
 
 ```
 MyProject/
-├── MyProject.trakova        # XML プロジェクト
+├── MyProject.utawave        # XML プロジェクト
 ├── Audio/                   # 録音 / インポート音声
 ├── Cache/                   # 波形キャッシュ等
 ├── Backup/                  # 自動保存
@@ -317,7 +317,7 @@ MyProject/
 
 # 不採用
 
-検討の結果、Trakova としては実装しないと決めた項目。
+検討の結果、Utawave としては実装しないと決めた項目。
 
 | 項目 | 理由 |
 |------|------|

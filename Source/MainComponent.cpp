@@ -25,7 +25,7 @@ MainComponent::MainComponent()
     // 未保存プロジェクト用の仮フォルダを作成（録音/インポートはここに溜まる）
     {
         auto root = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
-                        .getChildFile("Trakova");
+                        .getChildFile("Utawave");
         auto ts = juce::Time::getCurrentTime().formatted("%Y%m%d_%H%M%S");
         untitledProjectDir = root.getChildFile("Untitled-" + ts);
         untitledProjectDir.getChildFile("Audio").createDirectory();

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Studio Asteroid
 
-// Trakova — AudioClip (波形まわり) のユニットテスト
+// Utawave — AudioClip (波形まわり) のユニットテスト
 //
 // オーディオデバイス / GUI 不要・決定論的に、クリップの基礎演算を検証する:
 //   ・フェード曲線 applyFadeCurve (4 種、端点/クランプ/中点/単調性)
@@ -158,8 +158,8 @@ public:
         juce::AudioFormatManager fmt; fmt.registerBasicFormats();
         juce::AudioThumbnailCache cache(8);
         const auto tmp   = juce::File::getSpecialLocation(juce::File::tempDirectory);
-        const auto fileA = tmp.getChildFile("trakova_xfade_A.wav");   // 実体は不要 (パス比較のみ)
-        const auto fileB = tmp.getChildFile("trakova_xfade_B.wav");
+        const auto fileA = tmp.getChildFile("utawave_xfade_A.wav");   // 実体は不要 (パス比較のみ)
+        const auto fileB = tmp.getChildFile("utawave_xfade_B.wav");
 
         // Cmd+Click 分割: 同一ファイル・連続。anchor (fileOffset - start) が一致
         AudioClip a(fileA, 0.0, 2.0, fmt, cache);                 // anchor = 0 - 0 = 0

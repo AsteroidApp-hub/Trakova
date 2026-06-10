@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Studio Asteroid
 
-// Trakova — InternalSynth のユニットテスト (ADSR / アイドル早期return / ピッチホイール)
+// Utawave — InternalSynth のユニットテスト (ADSR / アイドル早期return / ピッチホイール)
 //
 // オフラインで processBlock / noteOn / setPitchWheel を直接駆動して検証する。デバイス不要。
 //   ・アイドル/消音ボイスは無音: 空 MIDI + 全ボイス Idle なら buffer は 1 サンプルも書かれない

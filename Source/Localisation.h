@@ -16,7 +16,7 @@ namespace Localisation
     // 後方互換 (= install(Language::Japanese))
     void installJapanese();
 
-    // アプリ全体の言語設定の永続化 (~/Library/Trakova/language.txt)
+    // アプリ全体の言語設定の永続化 (~/Library/Utawave/language.txt)
     Language getSavedLanguage();
     void     saveLanguage(Language lang);
 

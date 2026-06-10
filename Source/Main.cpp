@@ -8,7 +8,7 @@
 #include "Project/WindowState.h"
 #include "Project/AppPreferences.h"
 
-class TrakovaApplication : public juce::JUCEApplication
+class UtawaveApplication : public juce::JUCEApplication
 {
 public:
     const juce::String getApplicationName() override
@@ -74,7 +74,7 @@ public:
             // (次回プロジェクトを開いた時に同じサイズで開けるように)
             persistWindowSizeIfMain();
 
-            // 広告枠はコンパイル時フラグ (TRAKOVA_ADS_ENABLED) が ON かつユーザー設定が ON の時だけ。
+            // 広告枠はコンパイル時フラグ (UTAWAVE_ADS_ENABLED) が ON かつユーザー設定が ON の時だけ。
             // 公開ソースの既定はフラグ OFF なので従来どおり 2 列表示になる。
             const bool showAds = AppPreferences::load().adsEffective();
             auto* startup = new StartupComponent(showAds);
@@ -141,4 +141,4 @@ private:
     std::unique_ptr<MainWindow> mainWindow;
 };
 
-START_JUCE_APPLICATION(TrakovaApplication)
+START_JUCE_APPLICATION(UtawaveApplication)

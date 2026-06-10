@@ -77,9 +77,9 @@ void PluginManager::initialise()
     // VST3 のみ登録 (AU は JUCE_PLUGINHOST_AU=0 のためビルドに含まれない)。
     juce::addDefaultFormatsToManager(formatManager);
 
-    propsOptions.applicationName     = "Trakova";
+    propsOptions.applicationName     = "Utawave";
     propsOptions.filenameSuffix      = "settings";
-    propsOptions.folderName          = "Trakova";
+    propsOptions.folderName          = "Utawave";
     propsOptions.osxLibrarySubFolder = "Application Support";
     props = std::make_unique<juce::PropertiesFile>(getStoreFile(), propsOptions);
 
@@ -172,7 +172,7 @@ void PluginManager::setSearchPathsForFormat(const juce::String& formatName, cons
 juce::File PluginManager::getStoreFile()
 {
     auto root = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-                    .getChildFile("Trakova");
+                    .getChildFile("Utawave");
     root.createDirectory();
     return root.getChildFile("plugin_list.xml");
 }
@@ -180,7 +180,7 @@ juce::File PluginManager::getStoreFile()
 juce::File PluginManager::getDeadMansPedalFile()
 {
     auto root = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-                    .getChildFile("Trakova");
+                    .getChildFile("Utawave");
     root.createDirectory();
     return root.getChildFile("plugin_crash.txt");
 }

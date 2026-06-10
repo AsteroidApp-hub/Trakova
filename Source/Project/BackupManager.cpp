@@ -6,10 +6,10 @@
 
 namespace BackupManager
 {
-    // ※ ProjectManager::fileExtension() (".trakova") と一致させること。
+    // ※ ProjectManager::fileExtension() (".utawave") と一致させること。
     //    BackupManager を GUI/オーディオ非依存に保つため (ProjectManager.h は TimelineView.h を
     //    引き込む) ここでは定数を持つ。
-    static const juce::String kExt = ".trakova";
+    static const juce::String kExt = ".utawave";
 
     juce::String filePrefix(const juce::String& baseName)
     {
@@ -31,7 +31,7 @@ namespace BackupManager
     {
         juce::Array<juce::File> files;
         if (backupDir == juce::File() || ! backupDir.isDirectory()) return files;
-        // ワイルドカードは固定の "*.trakova" のみ (ユーザー名は入れない) → 結果を前方一致で絞る
+        // ワイルドカードは固定の "*.utawave" のみ (ユーザー名は入れない) → 結果を前方一致で絞る
         const auto prefix = matchPrefix(baseName);
         for (auto& f : backupDir.findChildFiles(juce::File::findFiles, false, "*" + kExt))
             if (f.getFileName().startsWith(prefix))

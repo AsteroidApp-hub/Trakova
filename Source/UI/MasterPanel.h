@@ -3,7 +3,7 @@
 
 #pragma once
 #include <JuceHeader.h>
-#include "TrakovanLookAndFeel.h"
+#include "UtawaveLookAndFeel.h"
 
 class PluginChain;
 
@@ -79,7 +79,7 @@ private:
     juce::Rectangle<int> getInsertsInnerArea() const;
     int  findInsertSlotAt(juce::Point<int> localPos) const;
 
-    TrakovanLookAndFeel laf;
+    UtawaveLookAndFeel laf;
     juce::Slider        masterFader;
     juce::Label         masterLabel;
     juce::Label         gainLabel;

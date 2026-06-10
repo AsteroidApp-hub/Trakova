@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Studio Asteroid
 
-// Trakova — MidiClip 編集 op のユニットテスト
+// Utawave — MidiClip 編集 op のユニットテスト
 //
 // 純粋・ヘッダオンリー。ピアノロール/トランスポーズで毎回走る基礎演算:
 //   transposeSemitones (note 番号 [0,127] クランプ・非ノートは不変)

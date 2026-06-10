@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Studio Asteroid
 
-// Trakova — キー変更 CLI ツール (開発用コンソールアプリ)
+// Utawave — キー変更 CLI ツール (開発用コンソールアプリ)
 //
 // 自社製ピッチシフトエンジン (pitchcore) で単発変換する。品質チューニング時の
 // 聴き比べ素材の生成と、ライブラリ単体配布時の使用例を兼ねる:
-//   TrakovaPitchTool <audiofile> <semitones> [outDir]
+//   UtawavePitchTool <audiofile> <semitones> [outDir]
 //     → <stem>_pitch<±N>.wav (32bit float)
 // 処理時間も表示する。コンソール出力は ASCII のみ。
 
@@ -17,7 +17,7 @@ int main (int argc, char* argv[])
 {
     if (argc < 3)
     {
-        std::cout << "Usage: TrakovaPitchTool <audiofile> <semitones> [outDir]\n"
+        std::cout << "Usage: UtawavePitchTool <audiofile> <semitones> [outDir]\n"
                      "Writes <stem>_pitch<+/-N>.wav next to the input (or into outDir).\n";
         return 2;
     }

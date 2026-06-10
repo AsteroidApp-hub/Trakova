@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Studio Asteroid
 
-// Trakova — Localisation (多言語化) のユニットテスト
+// Utawave — Localisation (多言語化) のユニットテスト
 //
 // アプリ文言は日本語をキーに tr(u8"...") → juce::translate で表示する。English モードでは
 // englishTranslations テーブルを引く。テーブルのキーは末尾スペース・改行・エスケープまで

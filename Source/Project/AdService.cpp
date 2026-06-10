@@ -18,19 +18,19 @@ namespace
 
 juce::String AdService::defaultFeedUrl()
 {
-    // 公式ビルドは CMake の TRAKOVA_AD_FEED_URL でビルド時に本番 URL を埋め込む
+    // 公式ビルドは CMake の UTAWAVE_AD_FEED_URL でビルド時に本番 URL を埋め込む
     // (GitHub Actions で差し替える)。未指定 (公開ソースの通常ビルド) はプレースホルダ。
-   #if defined(TRAKOVA_AD_FEED_URL)
-    return juce::String::fromUTF8(TRAKOVA_AD_FEED_URL);
+   #if defined(UTAWAVE_AD_FEED_URL)
+    return juce::String::fromUTF8(UTAWAVE_AD_FEED_URL);
    #else
-    return "https://trakova.app/ads/feed.json";
+    return "https://utawave.com/ads/feed.json";
    #endif
 }
 
 juce::File AdService::cacheDir()
 {
     auto root = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-                    .getChildFile("Trakova")
+                    .getChildFile("Utawave")
                     .getChildFile("AdCache");
     root.createDirectory();
     return root;
@@ -38,7 +38,7 @@ juce::File AdService::cacheDir()
 
 bool AdService::debugSampleMode()
 {
-   #if defined(TRAKOVA_ADS_DEBUG) && (TRAKOVA_ADS_DEBUG)
+   #if defined(UTAWAVE_ADS_DEBUG) && (UTAWAVE_ADS_DEBUG)
     return true;
    #else
     return false;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Studio Asteroid
 
-// Trakova — TrackManager のユニットテスト (色サイクル / 自動命名 / 複製 / フォルダ署名)
+// Utawave — TrackManager のユニットテスト (色サイクル / 自動命名 / 複製 / フォルダ署名)
 //
 //   ・色サイクル: nextColourIndex が mod 8 で巡回し、9 本目が 1 本目と同色 (負数対応は paletteColour)
 //   ・自動命名: 空名は既存 "Track N" の最大 + 1。明示名は尊重
@@ -96,7 +96,7 @@ public:
         src->setInputMonitor(true); src->setInputChannel(1); src->setStereo(true);
         src->setCustomHeight(140);
 
-        juce::File dummy("/tmp/trakova_dummy_clip.wav");
+        juce::File dummy("/tmp/utawave_dummy_clip.wav");
         auto* clip = src->addClip(dummy, 1.0, 2.0);
         expect(clip != nullptr, "source clip created");
         clip->setFileOffset(0.5); clip->setGain(0.7f);
@@ -195,7 +195,7 @@ public:
     {
         beginTest("audioFolderSignature: extension filter / content-change / non-dir / deterministic");
         auto dir = juce::File::getSpecialLocation(juce::File::tempDirectory)
-                       .getChildFile("TrakovaTMSigTest");
+                       .getChildFile("UtawaveTMSigTest");
         dir.deleteRecursively(); dir.createDirectory();
 
         expect(TrackManager::audioFolderSignature(dir.getChildFile("nope")) == juce::String(),

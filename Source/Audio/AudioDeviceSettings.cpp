@@ -9,7 +9,7 @@ namespace AudioDeviceSettings
 juce::File getStateFile()
 {
     auto root = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-                    .getChildFile("Trakova");
+                    .getChildFile("Utawave");
     root.createDirectory();
     return root.getChildFile("audio_device.xml");
 }

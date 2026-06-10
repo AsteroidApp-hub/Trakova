@@ -6,7 +6,7 @@
 juce::File WindowState::getStoreFile()
 {
     auto root = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-                    .getChildFile("Trakova");
+                    .getChildFile("Utawave");
     root.createDirectory();
     return root.getChildFile("window.txt");
 }

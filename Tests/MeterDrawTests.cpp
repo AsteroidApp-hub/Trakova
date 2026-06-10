@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Studio Asteroid
 
-// Trakova — MeterDraw (メーター描画の共通ヘルパ) のユニットテスト
+// Utawave — MeterDraw (メーター描画の共通ヘルパ) のユニットテスト
 //
 // dbToNorm (dB→0..1 正規化) と colourForDb (緑/黄/赤の閾値判定) は純関数で、
 // トラックヘッダ (横メーター) とマスターパネル (縦メーター) の両方が依存する。

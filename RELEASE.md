@@ -15,10 +15,10 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 
 # .app をライセンス類と一緒に zip
-APP=$(find build -type d -name "Trakova.app" | head -1)
-mkdir -p Trakova-macOS && cp -R "$APP" Trakova-macOS/
-cp LICENSE THIRD_PARTY_LICENSES.txt Docs/MANUAL.html README.md Trakova-macOS/
-ditto -c -k --sequesterRsrc --keepParent Trakova-macOS Trakova-macOS.zip
+APP=$(find build -type d -name "Utawave.app" | head -1)
+mkdir -p Utawave-macOS && cp -R "$APP" Utawave-macOS/
+cp LICENSE THIRD_PARTY_LICENSES.txt Docs/MANUAL.html README.md Utawave-macOS/
+ditto -c -k --sequesterRsrc --keepParent Utawave-macOS Utawave-macOS.zip
 ```
 
 ## 3. Windows 版をビルド（Windows 上で・ASIO 対応可）
@@ -31,11 +31,11 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 
 # .exe をライセンス類と一緒に zip
-$exe = Get-ChildItem -Path build -Recurse -Filter Trakova.exe | Select-Object -First 1
-New-Item -ItemType Directory -Force -Path Trakova-Windows | Out-Null
-Copy-Item $exe.FullName Trakova-Windows/
-Copy-Item LICENSE,THIRD_PARTY_LICENSES.txt,Docs/MANUAL.html,README.md Trakova-Windows/
-Compress-Archive -Path Trakova-Windows -DestinationPath Trakova-Windows.zip -Force
+$exe = Get-ChildItem -Path build -Recurse -Filter Utawave.exe | Select-Object -First 1
+New-Item -ItemType Directory -Force -Path Utawave-Windows | Out-Null
+Copy-Item $exe.FullName Utawave-Windows/
+Copy-Item LICENSE,THIRD_PARTY_LICENSES.txt,Docs/MANUAL.html,README.md Utawave-Windows/
+Compress-Archive -Path Utawave-Windows -DestinationPath Utawave-Windows.zip -Force
 ```
 
 > CMake configure 時に `ASIO SDK found ... — ASIO サポート有効` と表示されれば ASIO 付きです。
@@ -44,8 +44,8 @@ Compress-Archive -Path Trakova-Windows -DestinationPath Trakova-Windows.zip -For
 ## 4. ユニットテスト（任意・推奨）
 
 ```sh
-cmake --build build --target TrakovaTests --config Release
-# 生成された TrakovaTests を実行（全合格で終了コード 0）
+cmake --build build --target UtawaveTests --config Release
+# 生成された UtawaveTests を実行（全合格で終了コード 0）
 ```
 
 ## 5. GitHub Release を作成してアップロード
@@ -58,8 +58,8 @@ cmake --build build --target TrakovaTests --config Release
 gh CLI を使う場合:
 
 ```sh
-gh release create v0.1.0 Trakova-macOS.zip Trakova-Windows.zip \
-  --title "Trakova v0.1.0" --notes "初回リリース"
+gh release create v0.1.0 Utawave-macOS.zip Utawave-Windows.zip \
+  --title "Utawave v0.1.0" --notes "初回リリース"
 ```
 
 > 利用者は **Releases ページ**からログイン不要でダウンロードできます。

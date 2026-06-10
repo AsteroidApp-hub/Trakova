@@ -6,7 +6,7 @@
 
 // アプリ全体の UI 設定 (プロジェクトに依存しないグローバル設定)。
 // 言語 (Localisation) や ウィンドウサイズ (WindowState) と同じく、プロジェクトファイル
-// (.trakova) ではなく ~/Library/Application Support/Trakova/app_prefs.xml に保存する。
+// (.utawave) ではなく ~/Library/Application Support/Utawave/app_prefs.xml に保存する。
 class AppPreferences
 {
 public:
@@ -19,7 +19,7 @@ public:
     bool showAds { true };
 
     // 広告機能のコンパイル時マスタースイッチ。公開ソースの既定は OFF (起動画面は 2 列・通信なし)。
-    // 公式配布ビルドのみ CMake の TRAKOVA_ADS_ENABLED=1 で有効化する (詳細は CMakeLists / CLAUDE.md)。
+    // 公式配布ビルドのみ CMake の UTAWAVE_ADS_ENABLED=1 で有効化する (詳細は CMakeLists / CLAUDE.md)。
     static bool adsCompiledIn();
 
     // 実効的に起動画面へ広告を出すか (= コンパイル時に有効 かつ ユーザーが showAds を ON)。

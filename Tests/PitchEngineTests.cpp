@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Studio Asteroid
 
-// Trakova — PitchEngine (自社製オフラインピッチシフト) のユニットテスト
+// Utawave — PitchEngine (自社製オフラインピッチシフト) のユニットテスト
 //
 // shiftBuffer (フェーズボコーダ + r8brain リサンプル) をデバイス無し・決定論的に検証する。
 // 周波数は正方向ゼロ交差の「最初と最後の交差間の周期数」から推定する (窓端に依存しない)。
@@ -294,7 +294,7 @@ public:
         fmt.registerBasicFormats();
 
         auto dir = juce::File::getSpecialLocation(juce::File::tempDirectory)
-                       .getChildFile("TrakovaPitchEngineTest");
+                       .getChildFile("UtawavePitchEngineTest");
         dir.deleteRecursively();
         dir.createDirectory();
         auto inFile  = dir.getChildFile("in.wav");

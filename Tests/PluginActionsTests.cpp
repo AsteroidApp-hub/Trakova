@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Studio Asteroid
 
-// Trakova — プラグインチェーン Undo アクションの往復ユニットテスト
+// Utawave — プラグインチェーン Undo アクションの往復ユニットテスト
 //
 // 追加/削除/バイパス/並べ替え/トラック間移動を perform()/undo()/redo() で直接叩き、
 // (1) チェーン状態の往復、(2) 同一インスタンスが undo/redo を跨いで保たれること (identity)、
