@@ -16,7 +16,7 @@ Licensed under the **GNU Affero General Public License v3.0 or later (AGPL-3.0-o
 - マルチトラック録音 / 再生（複数トラック同時録音・パンチイン・遡及録音・ループ録音）
 - 波形編集（移動 / リサイズ / 分割 / 結合 / フェード / クロスフェード / 無音カット）
 - MIDI トラック・ピアノロール・内蔵シンセ
-- ミキサー / メータリング / 簡易リバーブ / プラグイン（VST3・AU）ホスト
+- ミキサー / メータリング / 簡易リバーブ / プラグイン（VST3）ホスト
 - WAV / AIFF / MP3 書き出し（内蔵エンコーダ・高品質ディザ）
 - 日本語 / English
 
@@ -71,26 +71,25 @@ cmake --build build --target UtawaveTests --config Debug
 対応するソースコードを提供する必要があり、本リポジトリがその対応ソースです。利用しているオープンソース
 ライブラリ・SDK のライセンスは [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt) を参照してください。
 
-## 免責事項（無保証・無責任）
+## 免責事項
 
-本ソフトウェアは**無料**で「**現状のまま（AS IS）**」提供されます。**いかなる保証もありません。**
+本ソフトウェアは無料で「現状のまま（AS IS）」提供されます。動作の確認には努めていますが、
+すべての環境での動作や特定の目的への適合をお約束するものではありません。
 
-- 動作・品質・安全性・特定目的への適合性について、明示・黙示を問わず一切保証しません。
-- 本ソフトウェアの使用または使用できないことによって生じたいかなる損害（録音・プロジェクトデータの
-  消失や破損、他のソフトウェア・機材への影響、逸失利益などを含み、これらに限りません）についても、
-  作者は**一切の責任を負いません**。
-- ご利用は**利用者ご自身の責任**でお願いします。大切なデータは事前にバックアップしてください。
+万一、本ソフトウェアの使用（または使用できないこと）により損害（録音・プロジェクトデータの
+消失や破損、他のソフトウェア・機材への影響などを含みます）が生じた場合でも、作者は責任を
+負いかねます。大切なデータは事前のバックアップをお願いします。
 
-これは AGPL-3.0-or-later 第15条（保証の否認）および第16条（責任の制限）に基づくものです。
+詳細は AGPL-3.0-or-later 第15条（保証の否認）および第16条（責任の制限）をご覧ください。
 
-### Disclaimer (No warranty / No liability)
+### Disclaimer
 
-This software is **free** and provided **"AS IS", without warranty of any kind**, either express or
-implied. To the maximum extent permitted by applicable law, the author shall
-**not be liable** for any damages whatsoever (including, without limitation, loss or corruption of
-recordings or project data, damage to other software or equipment, or lost profits) arising from the
-use of, or inability to use, this software. **Use it at your own risk** and back up important data.
-This follows Sections 15 and 16 of the AGPL-3.0-or-later.
+This software is free and provided "AS IS". While every effort is made to ensure it works well,
+it comes with no guarantee that it will fit any particular environment or purpose. The author
+cannot accept liability for damages (including loss or corruption of recordings or project data,
+or damage to other software or equipment) arising from the use of, or inability to use, this
+software. Please back up important data. See Sections 15 and 16 of the AGPL-3.0-or-later for
+details.
 
 ## 支援 / Support
 

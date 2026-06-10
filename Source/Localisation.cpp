@@ -379,8 +379,8 @@ static const char* const englishTranslations =
     "\"ライセンス情報 / 利用しているオープンソース\" = \"License / Open-source acknowledgements\"\n"
     "\"本アプリは AGPL v3 ライセンスの下で配布されています。\\n\" = \"This app is distributed under the AGPL v3 license.\\n\"\n"
     "\"ソースコードは GitHub にて公開しています。\\n\" = \"The source code is available on GitHub.\\n\"\n"
-    "\"── 免責事項 (無保証・無責任) ──\\n\" = \"── Disclaimer (No warranty / No liability) ──\\n\"\n"
-    "\"本ソフトウェアは無料で「現状のまま」提供され、いかなる保証もありません。使用・使用不能で生じたいかなる損害についても、作者は一切の責任を負いません。ご利用は自己責任でお願いします。(AGPL v3 第15条・第16条に基づく)\\n\\n\" = \"This software is free and provided AS IS, without warranty of any kind. The author shall not be liable for any damages arising from the use of or inability to use it. Use it at your own risk. (Per Sections 15 and 16 of the AGPL v3)\\n\\n\"\n"
+    "\"── 免責事項 ──\\n\" = \"── Disclaimer ──\\n\"\n"
+    "\"本ソフトウェアは無料で「現状のまま」提供されます。万一、使用（または使用できないこと）により損害が生じた場合でも、作者は責任を負いかねます。大切なデータはバックアップしてください。(詳細は AGPL v3 第15条・第16条)\\n\\n\" = \"This software is free and provided AS IS. The author cannot accept liability for damages arising from the use of, or inability to use, this software. Please back up important data. (See Sections 15 and 16 of the AGPL v3 for details)\\n\\n\"\n"
     "\"開発を応援する (寄付):\\n\" = \"Support development (donations):\\n\"\n"
     // ── 共通ボタン / ダイアログ ──
     "\"キャンセル\" = \"Cancel\"\n"
