@@ -7,6 +7,7 @@
 #include "Localisation.h"
 #include "Project/WindowState.h"
 #include "Project/AppPreferences.h"
+#include "Project/CrashReporter.h"
 
 class UtawaveApplication : public juce::JUCEApplication
 {
@@ -25,8 +26,13 @@ public:
 
     void initialise(const juce::String&) override
     {
+        CrashReporter::install();   // クラッシュ時にスタックトレースをローカルへ保存
         Localisation::install(Localisation::getSavedLanguage());
         mainWindow.reset(new MainWindow(getApplicationName()));
+
+        // 前回クラッシュのログが残っていれば、起動画面表示後に同意ダイアログを出す
+        // (同意した時だけ送信する。詳細は CrashReporter.h)
+        juce::MessageManager::callAsync([] { CrashReporter::offerPendingReports(); });
     }
 
     void shutdown() override

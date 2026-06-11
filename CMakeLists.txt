@@ -63,6 +63,7 @@ target_sources(Utawave PRIVATE
     Source/Project/RecentProjects.cpp
     Source/Project/WindowState.cpp
     Source/Project/AppPreferences.cpp
+    Source/Project/CrashReporter.cpp
     Source/Project/AdService.cpp
     Source/Project/UpdateChecker.cpp
     Source/Export/ExportEngine.cpp
@@ -155,6 +156,16 @@ endif()
 if(UTAWAVE_DOWNLOAD_PAGE_URL)
     target_compile_definitions(Utawave PRIVATE UTAWAVE_DOWNLOAD_PAGE_URL="${UTAWAVE_DOWNLOAD_PAGE_URL}")
     message(STATUS "Utawave: download page URL = ${UTAWAVE_DOWNLOAD_PAGE_URL}")
+endif()
+
+# ── クラッシュレポート送信先 (任意・公式ビルドのみ) ──
+# 指定すると、起動時にクラッシュログを検出した際「送信してもよいか」の同意ダイアログを出し、
+# 同意時のみ JSON を POST する。未指定 (公開ソースの既定) は送信機能ごと無効で、
+# ローカルのログ確認のみになる。詳細は Source/Project/CrashReporter.h。
+set(UTAWAVE_CRASH_REPORT_URL "" CACHE STRING "Crash report POST endpoint embedded at build time (official builds set this)")
+if(UTAWAVE_CRASH_REPORT_URL)
+    target_compile_definitions(Utawave PRIVATE UTAWAVE_CRASH_REPORT_URL="${UTAWAVE_CRASH_REPORT_URL}")
+    message(STATUS "Utawave: crash report URL = ${UTAWAVE_CRASH_REPORT_URL}")
 endif()
 
 # MSVC は既定で Shift-JIS としてソースを読むため u8 リテラル等が壊れる。
@@ -283,12 +294,14 @@ if(UTAWAVE_BUILD_TESTS)
         Tests/AppStorageTests.cpp
         Tests/AdServiceTests.cpp
         Tests/UpdateCheckerTests.cpp
+        Tests/CrashReporterTests.cpp
         Tests/PitchEngineTests.cpp
         Source/Audio/AudioFileImporter.cpp
         Source/Audio/PitchEngine.cpp
         Source/Audio/pitchcore/PitchShiftEngine.cpp
         Source/Project/AdService.cpp
         Source/Project/UpdateChecker.cpp
+        Source/Project/CrashReporter.cpp
         Source/Project/RecentProjects.cpp
         Source/Project/WindowState.cpp
         Source/Project/BackupManager.cpp
