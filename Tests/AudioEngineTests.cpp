@@ -51,8 +51,12 @@ struct FakeAudioIODevice : public juce::AudioIODevice
     int getCurrentBitDepth() override                         { return 32; }
     juce::BigInteger getActiveOutputChannels() const override { juce::BigInteger b; b.setRange(0, 2, true); return b; }
     juce::BigInteger getActiveInputChannels() const override  { juce::BigInteger b; b.setRange(0, 2, true); return b; }
-    int getOutputLatencyInSamples() override                  { return 0; }
-    int getInputLatencyInSamples() override                   { return 0; }
+    int getOutputLatencyInSamples() override                  { return outLatency; }
+    int getInputLatencyInSamples() override                   { return inLatency; }
+
+    // 録音レイテンシ補正テスト用 (既定 0 = 他テストへの影響なし)
+    int inLatency  { 0 };
+    int outLatency { 0 };
 };
 
 bool writeMonoConstWav(const juce::File& f, int numSamples, float value)
@@ -112,6 +116,7 @@ struct AudioEngineRealtimeTests : public juce::UnitTest
         testMultiTrackClipIndexRouting();
         testClearPlaybackBarrier();
         testDeferredDestructionRebuild();
+        testRecordingLatencyComp();
 
         tempDir.deleteRecursively();
     }
@@ -324,6 +329,30 @@ struct AudioEngineRealtimeTests : public juce::UnitTest
         runBlocks(s.engine, 10);
         auto peaks = runBlocks(s.engine, 3);
         expectEquals(peaks.getEnd(), 0.0f, "silent after the clip was removed (post declick)");
+    }
+
+    // ── 録音レイテンシ補正: デバイス報告値 + 手動オフセットの合成 ──
+    void testRecordingLatencyComp()
+    {
+        beginTest("recording latency comp = device round trip + manual offset");
+        AudioEngine engine;
+        FakeAudioIODevice dev;
+        dev.inLatency  = 480;   // 10ms @48k
+        dev.outLatency = 960;   // 20ms @48k
+        engine.audioDeviceAboutToStart(&dev);
+
+        expectWithinAbsoluteError(engine.getDeviceRoundTripLatencySecs(), 0.030, 1e-9);
+
+        engine.setRecordingLatencyComp(true, 5.0);
+        expectWithinAbsoluteError(engine.getRecordingLatencyCompSecs(), 0.035, 1e-9);
+
+        engine.setRecordingLatencyComp(false, 12.0);   // 自動 OFF は手動分のみ
+        expectWithinAbsoluteError(engine.getRecordingLatencyCompSecs(), 0.012, 1e-9);
+
+        engine.setRecordingLatencyComp(true, -40.0);   // 手動マイナスで自動分を打ち消せる
+        expectWithinAbsoluteError(engine.getRecordingLatencyCompSecs(), -0.010, 1e-9);
+
+        engine.audioDeviceStopped();
     }
 };
 

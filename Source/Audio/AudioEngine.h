@@ -84,6 +84,25 @@ public:
     // 書き込まれたサンプル数。ループ録音の尺をサンプルベースで算出するために使う。
     juce::int64 getRecordedSampleCount() const { return recordedSamples.load(); }
 
+    // ── 録音レイテンシ補正 ──
+    // 録音は「出力レイテンシ分遅れて聞いた再生」に合わせて歌った声が「入力レイテンシ分
+    // 遅れて」コールバックに届くため、入出力レイテンシの合計 (round trip) だけ遅れて
+    // ファイルに書かれる。録音クリップ配置時にこの量だけ手前へずらして補正する。
+    // デバイス報告の入出力レイテンシ合計 (秒)。audioDeviceAboutToStart で更新。
+    double getDeviceRoundTripLatencySecs() const { return deviceRoundTripSecs.load(); }
+    // 自動補正 ON/OFF + 手動追加オフセット (ms, +で手前へ)。アプリ全体設定から反映。
+    void setRecordingLatencyComp(bool autoComp, double manualMs)
+    {
+        recLatencyAutoComp.store(autoComp);
+        recLatencyManualMs.store(manualMs);
+    }
+    // 録音クリップを手前へずらす補正量 (秒) = 自動分 (デバイス報告値) + 手動分
+    double getRecordingLatencyCompSecs() const
+    {
+        const double dev = recLatencyAutoComp.load() ? deviceRoundTripSecs.load() : 0.0;
+        return dev + recLatencyManualMs.load() * 0.001;
+    }
+
     // 遡及録音: 再生中の入力を専用ライターに書き出す (実装は .cpp / 録音 config スナップショット)。
     void setRetrospectiveTarget(juce::AudioFormatWriter::ThreadedWriter* writer,
                                 LiveRecordingBuffer* liveBuf = nullptr,
@@ -450,6 +469,11 @@ private:
     std::atomic<bool>                             anyTrackRecArmed      { false };
     // setRecordingActive(true) 以降に recordingTarget へ書き込んだサンプル累計
     std::atomic<juce::int64>                      recordedSamples       { 0 };
+
+    // ── 録音レイテンシ補正 (getRecordingLatencyCompSecs 参照) ──
+    std::atomic<double> deviceRoundTripSecs { 0.0 };
+    std::atomic<bool>   recLatencyAutoComp  { true };
+    std::atomic<double> recLatencyManualMs  { 0.0 };
 
     double currentSampleRate { 48000.0 };
     int    currentBufferSize { 512 };

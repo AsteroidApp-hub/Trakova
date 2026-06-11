@@ -48,6 +48,13 @@ public:
     }
     int  getBitDepth() const { return recordingBitDepth; }
 
+    // 録音レイテンシ補正: クリップ配置 (start, dur, fileOffset) を compSecs だけ手前へ
+    // ずらす純関数。開始がタイムライン 0 を割る場合は 0 にクランプし、不足分はファイル
+    // 先頭を fileOffset で読み飛ばして内容の整合を保つ (尺はその分縮む)。
+    struct ClipPlacement { double start; double dur; double fileOffset; };
+    static ClipPlacement compensateLatency(double start, double dur,
+                                           double fileOffset, double compSecs);
+
 private:
     juce::File createRecordingFile(const juce::String& trackName) const;
 
@@ -81,12 +88,17 @@ private:
     bool recording { false };
     int  recordingBitDepth { 24 };
 
+    // 録音開始時に確定したレイテンシ補正量 (秒)。録音中のデバイス変更に影響されないよう
+    // start 時に AudioEngine::getRecordingLatencyCompSecs() をスナップショットする
+    double activeLatencyComp { 0.0 };
+
     // 遡及録音
     Track*     retroTrack    { nullptr };
     juce::File retroFile;
     double     retroPlayStart { 0.0 };
     bool       retroActive   { false };
     bool       retroStereo   { false };
+    double     retroLatencyComp { 0.0 };   // startRetrospective 時に確定した補正量 (秒)
     std::unique_ptr<juce::AudioFormatWriter::ThreadedWriter> retroWriter;
 
     // 遡及録音 → 通常録音 (Punch from Retro)

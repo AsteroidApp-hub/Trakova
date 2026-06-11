@@ -18,6 +18,12 @@ public:
     // ただし実効表示はコンパイル時マスタースイッチ (adsCompiledIn) との AND になる。
     bool showAds { true };
 
+    // ── 録音レイテンシ補正 (ハードウェア依存のためアプリ全体設定) ──
+    // 録音クリップをデバイス報告の入出力レイテンシ分だけ手前へずらすか (既定: ON)。
+    bool recLatencyAutoComp { true };
+    // 追加の手動オフセット (ms, +で手前へ)。報告値が不正確なデバイス向けの微調整。
+    double recLatencyManualMs { 0.0 };
+
     // 広告機能のコンパイル時マスタースイッチ。公開ソースの既定は OFF (起動画面は 2 列・通信なし)。
     // 公式配布ビルドのみ CMake の UTAWAVE_ADS_ENABLED=1 で有効化する (詳細は CMakeLists / CLAUDE.md)。
     static bool adsCompiledIn();

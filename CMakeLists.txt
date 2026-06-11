@@ -70,6 +70,7 @@ target_sources(Utawave PRIVATE
     Source/Export/ExportDialog.cpp
     Source/Export/Mp3EncoderWriter.cpp
     Source/VST/PluginManager.cpp
+    Source/VST/PluginScannerProcess.cpp
     Source/VST/PluginChain.cpp
     Source/MIDI/MidiImporter.cpp
     Source/MIDI/MidiExporter.cpp
@@ -307,10 +308,12 @@ if(UTAWAVE_BUILD_TESTS)
         Source/Project/BackupManager.cpp
         Source/Project/ProjectManager.cpp
         Source/VST/PluginManager.cpp
+        Source/VST/PluginScannerProcess.cpp
         Source/Export/ExportEngine.cpp
         Source/Export/Mp3EncoderWriter.cpp
         Source/Audio/AudioEngine.cpp
         Source/Audio/AudioDeviceSettings.cpp
+        Source/Recording/RecordingManager.cpp
         Source/Tracks/Track.cpp
         Source/Tracks/AudioClip.cpp
         Source/Tracks/TrackManager.cpp

@@ -74,7 +74,8 @@ void Track::startLiveRecording(double startPosSecs)
     liveRecordingLaneIdx = 0;
 }
 
-AudioClip* Track::finishLiveRecording(const juce::File& file, double startPos, double dur)
+AudioClip* Track::finishLiveRecording(const juce::File& file, double startPos, double dur,
+                                      double fileOffset)
 {
     if (liveRecordingLaneIdx < 0 || lanes.empty())
     {
@@ -141,14 +142,18 @@ AudioClip* Track::finishLiveRecording(const juce::File& file, double startPos, d
     // Lane 0 に新クリップを追加（既存クリップと重なってOK = パンチイン）
     auto* clip = lanes[0]->addClip(file, startPos, dur, formatManager, thumbnailCache);
     // 録音直後のファイルはサムネイルキャッシュが古い/未完なので必ず再読込
-    if (clip) clip->refreshThumbnail();
+    if (clip)
+    {
+        if (fileOffset > 0.0) clip->setFileOffset(fileOffset);
+        clip->refreshThumbnail();
+    }
 
     // 既存クリップをトリムして境界に最小クロスフェードを作成
     trimAndCrossfadeOnLane0(clip, startPos, dur);
 
     // 新しいクリップ自体もTakeレーンにバックアップ
     // （テイク選びで最新録音も参照できるように）
-    if (auto* bk = backupToTakeLane(file, startPos, dur)) bk->refreshThumbnail();
+    if (auto* bk = backupToTakeLane(file, startPos, dur, fileOffset)) bk->refreshThumbnail();
 
     liveRecordingLaneIdx = -1;
     return clip;

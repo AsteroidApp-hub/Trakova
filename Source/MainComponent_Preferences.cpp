@@ -24,6 +24,9 @@ void MainComponent::showPreferences()
         juce::ToggleButton followSelBtn, retroBtn, rtzBtn, autoNormBtn, zoomMouseBtn, peakGuardBtn, zeroCrossBtn, stripMetaBtn;
         juce::ToggleButton showMidiExportBtn;   // 初期状態 / コールバックは showPreferences 側で設定 (アプリ全体設定)
         juce::ToggleButton showAdsBtn;          // 起動画面の広告表示 (アプリ全体設定。初期状態は showPreferences 側で設定)
+        juce::ToggleButton recCompBtn;          // 録音レイテンシ自動補正 (アプリ全体設定。初期状態は showPreferences 側)
+        juce::Label        recCompOffsetLabel;
+        juce::Slider       recCompOffsetSlider; // 追加の手動オフセット (ms)
         juce::Label        exportLabel, startupLabel;
         const bool         adsUi { AppPreferences::adsCompiledIn() };  // 広告がコンパイル時有効な時だけ UI を出す
         juce::TextButton closeBtn, resetBtn;
@@ -42,6 +45,8 @@ void MainComponent::showPreferences()
         std::function<void(bool)>  onStripMetaChanged;
         std::function<void(bool)>  onShowMidiExportChanged;
         std::function<void(bool)>  onShowAdsChanged;
+        std::function<void(bool)>  onRecCompChanged;
+        std::function<void(double)> onRecCompOffsetChanged;
         std::function<void()>      onResetDefaults;
 
         PrefsDlg(int curBits, bool curFollowSel, bool curRetro, bool curRtz,
@@ -148,6 +153,28 @@ void MainComponent::showPreferences()
                 if (onRetroChanged) onRetroChanged(retroBtn.getToggleState());
             };
             addAndMakeVisible(retroBtn);
+
+            // 録音レイテンシ補正 (アプリ全体設定。初期状態 / 文言は showPreferences 側で設定)
+            recCompBtn.setButtonText(
+                tr(u8"録音をデバイスのレイテンシ分だけ自動で手前にずらす"));
+            recCompBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
+            recCompBtn.onClick = [this] {
+                if (onRecCompChanged) onRecCompChanged(recCompBtn.getToggleState());
+            };
+            addAndMakeVisible(recCompBtn);
+
+            setupLabel(recCompOffsetLabel, tr(u8"追加の録音補正 (ms, +で手前へ)"),
+                       13.0f, juce::Colours::white);
+            recCompOffsetSlider.setSliderStyle(juce::Slider::LinearBar);
+            recCompOffsetSlider.setRange(-200.0, 300.0, 1.0);
+            recCompOffsetSlider.setTextValueSuffix(" ms");
+            recCompOffsetSlider.setColour(juce::Slider::trackColourId, juce::Colour(0xff3a5a3a));
+            recCompOffsetSlider.setColour(juce::Slider::backgroundColourId, juce::Colour(0xff3a3a3a));
+            recCompOffsetSlider.setColour(juce::Slider::textBoxTextColourId, juce::Colours::white);
+            recCompOffsetSlider.onValueChange = [this] {
+                if (onRecCompOffsetChanged) onRecCompOffsetChanged(recCompOffsetSlider.getValue());
+            };
+            addAndMakeVisible(recCompOffsetSlider);
 
             // 自動保存: 無効 + 5 分刻み (5/10/15/20/25/30)
             // ID = minutes + 1 (無効=1, 5分=6, ...)
@@ -314,7 +341,7 @@ void MainComponent::showPreferences()
             };
             addAndMakeVisible(resetBtn);
 
-            setSize(480, adsUi ? 942 : 884);
+            setSize(480, adsUi ? 998 : 940);
         }
         void resized() override
         {
@@ -330,7 +357,10 @@ void MainComponent::showPreferences()
             zoomMouseBtn.setBounds(14, y, getWidth() - 28, 24); y += 28;
             zeroCrossBtn.setBounds(14, y, getWidth() - 28, 24); y += 32;
             recLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
-            retroBtn.setBounds(14, y, getWidth() - 28, 24); y += 32;
+            retroBtn.setBounds(14, y, getWidth() - 28, 24); y += 28;
+            recCompBtn.setBounds(14, y, getWidth() - 28, 24); y += 26;
+            recCompOffsetLabel.setBounds(14, y, 250, 24);
+            recCompOffsetSlider.setBounds(270, y, getWidth() - 270 - 14, 24); y += 34;
             autoSaveLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
             autoSaveCombo.setBounds(14, y, getWidth() - 28, 26); y += 32;
             backupCountLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
@@ -509,6 +539,29 @@ void MainComponent::showPreferences()
             appPrefs.save();
         };
     }
+    // 録音レイテンシ補正 (アプリ全体設定。ハードウェア依存のためプロジェクト設定ではない)。
+    // 即時保存 + エンジンへ即反映 (次の録音開始から効く)
+    {
+        const double devMs = audioEngine.getDeviceRoundTripLatencySecs() * 1000.0;
+        dlg->recCompBtn.setButtonText(
+            tr(u8"録音をデバイスのレイテンシ分だけ自動で手前にずらす")
+            + juce::String::formatted(" (%.1f ms)", devMs));
+        dlg->recCompBtn.setToggleState(appPrefs.recLatencyAutoComp, juce::dontSendNotification);
+        dlg->recCompOffsetSlider.setValue(appPrefs.recLatencyManualMs,
+                                          juce::dontSendNotification);
+        dlg->onRecCompChanged = [this](bool v) {
+            appPrefs.recLatencyAutoComp = v;
+            appPrefs.save();
+            audioEngine.setRecordingLatencyComp(appPrefs.recLatencyAutoComp,
+                                                appPrefs.recLatencyManualMs);
+        };
+        dlg->onRecCompOffsetChanged = [this](double ms) {
+            appPrefs.recLatencyManualMs = ms;
+            appPrefs.save();
+            audioEngine.setRecordingLatencyComp(appPrefs.recLatencyAutoComp,
+                                                appPrefs.recLatencyManualMs);
+        };
+    }
     dlg->onResetDefaults = [this, dlg]
     {
         // AppSettings の各フィールドをデフォルト値 (構造体の初期化子) に揃える
@@ -534,15 +587,21 @@ void MainComponent::showPreferences()
         trackHeaderPanel.setLoudnessTargetLufs(appSettings.loudnessTargetLufs);
         restartAutoSaveTimer();
 
-        // アプリ全体設定 (MIDI 書き出しメニュー / 広告表示) も既定に戻す
+        // アプリ全体設定 (MIDI 書き出しメニュー / 広告表示 / 録音レイテンシ補正) も既定に戻す
         const AppPreferences defPrefs;
         appPrefs.showMidiExportMenu = defPrefs.showMidiExportMenu;
         appPrefs.showAds            = defPrefs.showAds;
+        appPrefs.recLatencyAutoComp = defPrefs.recLatencyAutoComp;
+        appPrefs.recLatencyManualMs = defPrefs.recLatencyManualMs;
         appPrefs.save();
         menuItemsChanged();
+        audioEngine.setRecordingLatencyComp(appPrefs.recLatencyAutoComp,
+                                            appPrefs.recLatencyManualMs);
         dlg->showMidiExportBtn.setToggleState(appPrefs.showMidiExportMenu, juce::dontSendNotification);
         if (AppPreferences::adsCompiledIn())
             dlg->showAdsBtn.setToggleState(appPrefs.showAds, juce::dontSendNotification);
+        dlg->recCompBtn.setToggleState(appPrefs.recLatencyAutoComp, juce::dontSendNotification);
+        dlg->recCompOffsetSlider.setValue(appPrefs.recLatencyManualMs, juce::dontSendNotification);
 
         // ダイアログの UI を新しい値に同期
         dlg->syncUiToValues(appSettings.resampleOutputBits,

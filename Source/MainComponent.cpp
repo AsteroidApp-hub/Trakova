@@ -843,6 +843,10 @@ MainComponent::MainComponent()
 
     audioEngine.initialise();
 
+    // 録音レイテンシ補正の設定 (アプリ全体設定) をエンジンへ反映
+    audioEngine.setRecordingLatencyComp(appPrefs.recLatencyAutoComp,
+                                        appPrefs.recLatencyManualMs);
+
     if (auto* dev = audioEngine.getDeviceManager().getCurrentAudioDevice())
     {
         int sr = (int)dev->getCurrentSampleRate();

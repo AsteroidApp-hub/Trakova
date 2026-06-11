@@ -240,6 +240,8 @@ static const char* const englishTranslations =
     "\"停止時に再生開始位置へ戻る (Return To Zero)\" = \"Return to start position on stop (RTZ)\"\n"
     "\"Cmd+スクロール拡大の起点をマウス位置にする (OFF: 再生バー中央)\" = \"Cmd+scroll zoom centers on mouse (OFF: playhead)\"\n"
     "\"再生中バックグラウンド録音 (遡及録音 Cmd+Shift+R で確定)\" = \"Background recording while playing (commit retrospective with Cmd+Shift+R)\"\n"
+    "\"録音をデバイスのレイテンシ分だけ自動で手前にずらす\" = \"Auto-compensate recording latency reported by the device\"\n"
+    "\"追加の録音補正 (ms, +で手前へ)\" = \"Extra recording offset (ms, + = earlier)\"\n"
     "\"インポート時にラウドネスを上記ターゲットへ自動調整\" = \"Auto-adjust loudness to the target above on import\"\n"
     "\"ピーク超過時に内部で減衰させて書き出す (クリッピング防止)\" = \"Attenuate on peak overshoot when exporting (prevents clipping)\"\n"
     "\"デフォルトに戻す\" = \"Restore Defaults\"\n"

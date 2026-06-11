@@ -2,6 +2,7 @@
 // Copyright (C) 2025-2026 Studio Asteroid
 
 #include "PluginManager.h"
+#include "PluginScannerProcess.h"
 
 // ─────────────────────────────────────────────────────────
 // PluginManager::ScanThread
@@ -84,12 +85,20 @@ void PluginManager::initialise()
     props = std::make_unique<juce::PropertiesFile>(getStoreFile(), propsOptions);
 
     load();
+
+    // スキャン中のプラグイン読み込みを別プロセスへ隔離する (クラッシュ耐性)。
+    // クラッシュ/ハングしたプラグインは KnownPluginList のブラックリストに入り
+    // plugin_list.xml に永続化される (以後のスキャンでスキップ)
+    auto scanner = std::make_unique<OutOfProcessPluginScanner>();
+    oopScanner = scanner.get();
+    knownList.setCustomScanner(std::move(scanner));
 }
 
 void PluginManager::startScan(std::function<void(double, juce::String)> progress,
                               std::function<void()> done)
 {
     cancelScan();
+    if (oopScanner) oopScanner->resetAbortFlag();
     scanThread = std::make_unique<ScanThread>(*this, std::move(progress), std::move(done));
     scanThread->startThread();
 }
@@ -99,6 +108,9 @@ void PluginManager::cancelScan()
     if (scanThread)
     {
         scanThread->signalThreadShouldExit();
+        // 別プロセススキャナの応答待ちブロックを起こす (50ms 以内に空結果で抜ける)。
+        // これをしないと子プロセスのスキャンが終わるまで stopThread が待たされる
+        if (oopScanner) oopScanner->abortScan();
         scanThread->stopThread(5000);
         scanThread.reset();
     }

@@ -8,6 +8,7 @@
 #include "Project/WindowState.h"
 #include "Project/AppPreferences.h"
 #include "Project/CrashReporter.h"
+#include "VST/PluginScannerProcess.h"
 
 class UtawaveApplication : public juce::JUCEApplication
 {
@@ -22,10 +23,27 @@ public:
         return JUCE_APPLICATION_VERSION_STRING;
     }
 
-    bool moreThanOneInstanceAllowed() override { return false; }
-
-    void initialise(const juce::String&) override
+    bool moreThanOneInstanceAllowed() override
     {
+        // プラグインスキャナ子プロセスは同一バイナリの 2 個目のインスタンスとして
+        // 起動されるため許可する (通常起動は従来どおり単一インスタンス)
+        return getCommandLineParameters().contains(PluginScannerProcess::processUID());
+    }
+
+    void initialise(const juce::String& commandLine) override
+    {
+        // プラグインスキャナ子プロセスとして起動された場合は、通常の起動 (ウィンドウ /
+        // クラッシュレポータ / 言語) を一切行わない。スキャン中のクラッシュは子プロセス内に
+        // 隔離され、ここで CrashReporter を入れない (プラグイン由来のログで本体起動時に
+        // 誤った送信確認を出さないため)
+        if (commandLine.contains(PluginScannerProcess::processUID()))
+        {
+            scannerWorker = PluginScannerProcess::createWorkerIfInvoked(commandLine);
+            if (scannerWorker == nullptr)
+                quit();   // 親へ接続できない (親が既に終了等) → GUI を開かず終了
+            return;
+        }
+
         CrashReporter::install();   // クラッシュ時にスタックトレースをローカルへ保存
         Localisation::install(Localisation::getSavedLanguage());
         mainWindow.reset(new MainWindow(getApplicationName()));
@@ -38,6 +56,7 @@ public:
     void shutdown() override
     {
         mainWindow = nullptr;
+        scannerWorker = nullptr;
     }
 
     void systemRequestedQuit() override
@@ -145,6 +164,8 @@ public:
 
 private:
     std::unique_ptr<MainWindow> mainWindow;
+    // プラグインスキャナ子プロセスモード時のみ非 null (詳細は PluginScannerProcess.h)
+    std::unique_ptr<juce::ChildProcessWorker> scannerWorker;
 };
 
 START_JUCE_APPLICATION(UtawaveApplication)

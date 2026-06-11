@@ -4,9 +4,13 @@
 #pragma once
 #include <JuceHeader.h>
 
+class OutOfProcessPluginScanner;
+
 /**
     VST3 プラグインのスキャンとリスト管理を担当するクラス。
     KnownPluginList をユーザデータ領域に永続化する。
+    実際のプラグイン読み込みは別プロセス (OutOfProcessPluginScanner) で行い、
+    クラッシュするプラグインがあっても本体を巻き込まない。
 */
 class PluginManager
 {
@@ -55,6 +59,9 @@ private:
     // バックグラウンドスキャン用
     class ScanThread;
     std::unique_ptr<ScanThread> scanThread;
+
+    // 別プロセススキャナ (所有は knownList の CustomScanner。abort 連携用の生ポインタ)
+    OutOfProcessPluginScanner* oopScanner { nullptr };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PluginManager)
 };

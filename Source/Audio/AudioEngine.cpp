@@ -1020,6 +1020,12 @@ void AudioEngine::audioDeviceAboutToStart(juce::AudioIODevice* device)
     currentBufferSize = device->getCurrentBufferSizeSamples();
     // SR / buffer size が変わったら VU 係数を必ず再計算させる
     vuCoefForSamples = -1;
+
+    // 録音レイテンシ補正用: デバイス報告の入出力レイテンシ合計を公開する
+    if (currentSampleRate > 0.0)
+        deviceRoundTripSecs.store((device->getInputLatencyInSamples()
+                                   + device->getOutputLatencyInSamples())
+                                  / currentSampleRate);
     mixer.prepareToPlay(currentBufferSize, currentSampleRate);
     workBuffer.setSize(2, currentBufferSize);
     // 停止中シンセプレビュー用に十分なサイズで先に確保 (audio thread での realloc を回避)

@@ -27,6 +27,9 @@ AppPreferences AppPreferences::load()
     {
         p.showMidiExportMenu = xml->getBoolAttribute("showMidiExportMenu", p.showMidiExportMenu);
         p.showAds            = xml->getBoolAttribute("showAds", p.showAds);
+        p.recLatencyAutoComp = xml->getBoolAttribute("recLatencyAutoComp", p.recLatencyAutoComp);
+        p.recLatencyManualMs = juce::jlimit(-500.0, 500.0,
+            xml->getDoubleAttribute("recLatencyManualMs", p.recLatencyManualMs));
     }
     return p;
 }
@@ -36,6 +39,8 @@ bool AppPreferences::save() const
     juce::XmlElement xml("Preferences");
     xml.setAttribute("showMidiExportMenu", showMidiExportMenu);
     xml.setAttribute("showAds", showAds);
+    xml.setAttribute("recLatencyAutoComp", recLatencyAutoComp);
+    xml.setAttribute("recLatencyManualMs", recLatencyManualMs);
     const bool ok = xml.writeTo(getStoreFile());
     if (!ok)
         DBG("AppPreferences::save failed (disk full / permission?): "

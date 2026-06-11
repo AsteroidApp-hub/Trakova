@@ -165,8 +165,11 @@ public:
     void setInsertSlotsVisible(bool v) { insertSlotsVisible = v; }
 
     // ライブ録音レーン管理 (常に Lane 0 へ書き込む方式)
+    // fileOffset: 録音ファイル先頭の読み飛ばし秒 (録音レイテンシ補正でタイムライン 0 に
+    // クランプされた分。lane0 クリップとテイク退避の両方に同値が入り dedup 3 つ組も揃う)
     void       startLiveRecording(double startPosSecs);
-    AudioClip* finishLiveRecording(const juce::File& file, double startPos, double dur);
+    AudioClip* finishLiveRecording(const juce::File& file, double startPos, double dur,
+                                   double fileOffset = 0.0);
     void       cancelLiveRecording();
     // 指定範囲を Take レーンへバックアップ (重ならない既存レーンを探し、無ければ新規作成)
     AudioClip* backupToTakeLane(const juce::File& file, double startPos, double dur,

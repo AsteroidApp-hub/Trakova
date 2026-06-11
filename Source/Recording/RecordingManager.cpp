@@ -26,6 +26,21 @@ juce::File RecordingManager::getRecordingsFolder() const
                .getChildFile("Utawave").getChildFile("Recordings");
 }
 
+RecordingManager::ClipPlacement RecordingManager::compensateLatency(
+    double start, double dur, double fileOffset, double compSecs)
+{
+    ClipPlacement p { start - compSecs, dur, fileOffset };
+    if (p.start < 0.0)
+    {
+        // タイムライン 0 より前には置けない分はファイル先頭を読み飛ばして整合させる
+        const double residual = -p.start;
+        p.start = 0.0;
+        p.fileOffset += residual;
+        p.dur = juce::jmax(0.0, p.dur - residual);
+    }
+    return p;
+}
+
 juce::File RecordingManager::createRecordingFile(const juce::String& trackName) const
 {
     auto folder = getRecordingsFolder();
@@ -42,6 +57,9 @@ bool RecordingManager::startRecording(double recStartSec, double playFromSec,
 {
     if (recording) return false;
     lastStartFailures.clear();
+
+    // 録音開始時点の補正量を確定 (停止時のクリップ配置で使う)
+    activeLatencyComp = audioEngine.getRecordingLatencyCompSecs();
 
     // 遡及録音アクティブ + アーム中トラックがそれと同じなら、Punch From Retro モードへ
     // 既存の retro writer をそのまま使い続け、stop 時に1つのクリップ（offset付き）として配置
@@ -165,25 +183,30 @@ void RecordingManager::stopRecording(double endPositionSeconds)
             const double dur = stopPos - recStart;
             if (dur > 0.05)
             {
-                const double fileOffset = juce::jmax(0.0, recStart - fileStart);
+                // レイテンシ補正: retro ファイル基準の fileOffset を保ったまま手前へ
+                const auto p = compensateLatency(recStart, dur,
+                                                 juce::jmax(0.0, recStart - fileStart),
+                                                 retroLatencyComp);
                 auto* lane = retroTrack->getLane(0);
-                if (lane)
+                if (lane && p.dur > 0.01)
                 {
-                    auto* clip = lane->addClip(retroFile, recStart, dur,
+                    auto* clip = lane->addClip(retroFile, p.start, p.dur,
                                                 retroTrack->getFormatManager(),
                                                 retroTrack->getThumbnailCache());
                     if (clip)
                     {
-                        clip->setFileOffset(fileOffset);
+                        clip->setFileOffset(p.fileOffset);
                         // 録音直後のファイルはキャッシュが古い/未完なので必ず再読込
                         clip->refreshThumbnail();
                         // パンチイン境界に最小クロスフェード作成
-                        retroTrack->trimAndCrossfadeOnLane0(clip, recStart, dur);
+                        retroTrack->trimAndCrossfadeOnLane0(clip, p.start, p.dur);
                     }
                 }
                 // Take レーンにもバックアップ (録音履歴を残す)
-                if (auto* bk = retroTrack->backupToTakeLane(retroFile, recStart, dur, fileOffset))
-                    bk->refreshThumbnail();
+                if (p.dur > 0.01)
+                    if (auto* bk = retroTrack->backupToTakeLane(retroFile, p.start, p.dur,
+                                                                p.fileOffset))
+                        bk->refreshThumbnail();
             }
         }
 
@@ -224,8 +247,9 @@ void RecordingManager::stopRecording(double endPositionSeconds)
 
         if (!ar.loopRec)
         {
-            if (dur > 0.01 && ar.file.existsAsFile())
-                ar.track->finishLiveRecording(ar.file, ar.startPosition, dur);
+            const auto p = compensateLatency(ar.startPosition, dur, 0.0, activeLatencyComp);
+            if (p.dur > 0.01 && ar.file.existsAsFile())
+                ar.track->finishLiveRecording(ar.file, p.start, p.dur, p.fileOffset);
             else
                 ar.track->cancelLiveRecording();
             continue;
@@ -251,14 +275,16 @@ void RecordingManager::stopRecording(double endPositionSeconds)
             if (alreadyAdded == 0 && preLoopDur >= 0.05)
             {
                 auto* lane = ar.track->ensureLane(ar.takeStartLaneIdx);
-                if (lane)
+                const auto p = compensateLatency(ar.startPosition, preLoopDur, 0.0,
+                                                 activeLatencyComp);
+                if (lane && p.dur > 0.01)
                 {
-                    auto* clip = lane->addClip(ar.file, ar.startPosition, preLoopDur,
+                    auto* clip = lane->addClip(ar.file, p.start, p.dur,
                                                 ar.track->getFormatManager(),
                                                 ar.track->getThumbnailCache());
                     if (clip)
                     {
-                        clip->setFileOffset(0.0);
+                        clip->setFileOffset(p.fileOffset);
                         clip->refreshThumbnail();
                     }
                 }
@@ -272,14 +298,16 @@ void RecordingManager::stopRecording(double endPositionSeconds)
             const double firstSlice = juce::jmin(loopDur, afterPreDur);
             const double take1Dur = preLoopDur + firstSlice;
             auto* lane = ar.track->ensureLane(ar.takeStartLaneIdx);
-            if (lane)
+            const auto p = compensateLatency(ar.startPosition, take1Dur, 0.0,
+                                             activeLatencyComp);
+            if (lane && p.dur > 0.01)
             {
-                auto* clip = lane->addClip(ar.file, ar.startPosition, take1Dur,
+                auto* clip = lane->addClip(ar.file, p.start, p.dur,
                                             ar.track->getFormatManager(),
                                             ar.track->getThumbnailCache());
                 if (clip)
                 {
-                    clip->setFileOffset(0.0);
+                    clip->setFileOffset(p.fileOffset);
                     clip->refreshThumbnail();
                 }
             }
@@ -295,12 +323,15 @@ void RecordingManager::stopRecording(double endPositionSeconds)
 
             auto* lane = ar.track->ensureLane(ar.takeStartLaneIdx + it);
             if (!lane) continue;
-            auto* clip = lane->addClip(ar.file, ar.loopStart, slice,
+            const auto p = compensateLatency(ar.loopStart, slice,
+                                             preLoopDur + inLoopOffset, activeLatencyComp);
+            if (p.dur < 0.01) continue;
+            auto* clip = lane->addClip(ar.file, p.start, p.dur,
                                        ar.track->getFormatManager(),
                                        ar.track->getThumbnailCache());
             if (clip)
             {
-                clip->setFileOffset(preLoopDur + inLoopOffset);
+                clip->setFileOffset(p.fileOffset);
                 clip->refreshThumbnail();
             }
         }
@@ -341,13 +372,17 @@ void RecordingManager::onLoopWrap()
         int laneIdx = ar.takeStartLaneIdx + it;
         auto* lane  = ar.track->ensureLane(laneIdx);
         if (!lane) continue;
-        auto* clip = lane->addClip(ar.file, pos, takeDur,
-                                   ar.track->getFormatManager(),
-                                   ar.track->getThumbnailCache());
-        if (clip)
+        const auto p = compensateLatency(pos, takeDur, offset, activeLatencyComp);
+        if (p.dur > 0.01)
         {
-            clip->setFileOffset(offset);
-            ar.realtimeClips.push_back(clip);
+            auto* clip = lane->addClip(ar.file, p.start, p.dur,
+                                       ar.track->getFormatManager(),
+                                       ar.track->getThumbnailCache());
+            if (clip)
+            {
+                clip->setFileOffset(p.fileOffset);
+                ar.realtimeClips.push_back(clip);
+            }
         }
 
         ++ar.takesAddedRealtime;
@@ -389,12 +424,13 @@ bool RecordingManager::startRetrospective(Track* targetTrack, double playStartSe
                                        targetTrack->getInputChannel(),
                                        targetTrack->isStereo());
 
-    retroTrack     = targetTrack;
-    retroFile      = file;
-    retroPlayStart = playStartSec;
-    retroStereo    = targetTrack->isStereo();
-    retroWriter    = std::move(tw);
-    retroActive    = true;
+    retroTrack       = targetTrack;
+    retroFile        = file;
+    retroPlayStart   = playStartSec;
+    retroStereo      = targetTrack->isStereo();
+    retroLatencyComp = audioEngine.getRecordingLatencyCompSecs();
+    retroWriter      = std::move(tw);
+    retroActive      = true;
     return true;
 }
 
@@ -411,16 +447,21 @@ void RecordingManager::stopRetrospective(bool commit, double playEndSec)
     if (commit && retroTrack && retroFile.existsAsFile())
     {
         const double dur = playEndSec - retroPlayStart;
-        if (dur > 0.05)
+        const auto p = compensateLatency(retroPlayStart, dur, 0.0, retroLatencyComp);
+        if (dur > 0.05 && p.dur > 0.01)
         {
             auto* lane = retroTrack->getLane(0);
             if (lane)
             {
-                auto* clip = lane->addClip(retroFile, retroPlayStart, dur,
+                auto* clip = lane->addClip(retroFile, p.start, p.dur,
                               retroTrack->getFormatManager(),
                               retroTrack->getThumbnailCache());
                 // 録音直後のファイルはキャッシュが古い/未完なので必ず再読込
-                if (clip) clip->refreshThumbnail();
+                if (clip)
+                {
+                    clip->setFileOffset(p.fileOffset);
+                    clip->refreshThumbnail();
+                }
             }
         }
     }

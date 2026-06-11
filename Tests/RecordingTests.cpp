@@ -21,6 +21,7 @@
 #include "../Source/Tracks/Track.h"
 #include "../Source/Tracks/AudioClip.h"
 #include "../Source/Recording/LiveRecordingBuffer.h"
+#include "../Source/Recording/RecordingManager.h"
 
 namespace
 {
@@ -45,6 +46,8 @@ public:
         testFinishLiveRecordingBackupPreservesOffset();
         testFinishLiveRecordingThumbnailsMatch();
         testFinishLiveRecordingDedup();
+        testFinishLiveRecordingWithFileOffset();
+        testLatencyCompensation();
         testLiveRecordingBuffer();
     }
 
@@ -403,6 +406,84 @@ public:
         expect(after == before, "duplicate 3-tuple backup is skipped (not duplicated)");
 
         dir.deleteRecursively();
+    }
+
+    // ── finishLiveRecording: fileOffset 指定 (録音レイテンシ補正でタイムライン 0 に
+    //    クランプされた分の読み飛ばし) が lane0 クリップとテイク退避の両方へ入る ──
+    void testFinishLiveRecordingWithFileOffset()
+    {
+        beginTest("finishLiveRecording: explicit fileOffset applied to lane0 clip and take backup");
+        juce::AudioFormatManager fmt; fmt.registerBasicFormats();
+        TrackManager tm(fmt);
+        auto* t = tm.addTrack();
+        auto dir = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                       .getChildFile("UtawaveRecTests4");
+        dir.createDirectory();
+        auto wavNew = writeWav(dir, "new.wav", 48000.0, 2.0);
+
+        t->startLiveRecording(0.0);
+        auto* rec = t->finishLiveRecording(wavNew, 0.0, 1.95, /*fileOffset=*/0.05);
+
+        expect(rec != nullptr, "finishLiveRecording returns the new clip");
+        if (rec)
+            expect(approxEq(rec->getFileOffset(), 0.05, 1e-6),
+                   "lane0 clip skips the clamped head via fileOffset");
+        expect(countBackups(t, wavNew, 0.05, 1.95) >= 1,
+               "take backup carries the same (file, fileOffset, duration) tuple");
+
+        dir.deleteRecursively();
+    }
+
+    // ── 録音レイテンシ補正の配置計算 (RecordingManager::compensateLatency, 純関数) ──
+    void testLatencyCompensation()
+    {
+        beginTest("compensateLatency: shift earlier / clamp at zero / negative comp");
+
+        // 補正 0 は恒等
+        {
+            const auto p = RecordingManager::compensateLatency(2.0, 4.0, 0.5, 0.0);
+            expect(approxEq(p.start, 2.0, 1e-9) && approxEq(p.dur, 4.0, 1e-9)
+                   && approxEq(p.fileOffset, 0.5, 1e-9), "comp 0 is identity");
+        }
+        // 通常: 開始だけ手前へ (尺・fileOffset 不変)
+        {
+            const auto p = RecordingManager::compensateLatency(2.0, 4.0, 0.0, 0.020);
+            expect(approxEq(p.start, 1.98, 1e-9), "start shifted earlier by comp");
+            expect(approxEq(p.dur, 4.0, 1e-9), "duration unchanged");
+            expect(approxEq(p.fileOffset, 0.0, 1e-9), "fileOffset unchanged");
+        }
+        // タイムライン 0 から録音: 0 にクランプし、不足分は fileOffset 読み飛ばし + 尺短縮
+        {
+            const auto p = RecordingManager::compensateLatency(0.0, 4.0, 0.0, 0.050);
+            expect(approxEq(p.start, 0.0, 1e-9), "start clamped at timeline zero");
+            expect(approxEq(p.fileOffset, 0.050, 1e-9), "clamped amount skipped via fileOffset");
+            expect(approxEq(p.dur, 3.95, 1e-9), "duration reduced by the clamped amount");
+        }
+        // 部分クランプ: start < comp の分だけ fileOffset へ
+        {
+            const auto p = RecordingManager::compensateLatency(0.03, 4.0, 0.0, 0.050);
+            expect(approxEq(p.start, 0.0, 1e-9), "start clamped");
+            expect(approxEq(p.fileOffset, 0.020, 1e-9), "residual only goes to fileOffset");
+            expect(approxEq(p.dur, 3.98, 1e-9), "duration reduced by residual only");
+        }
+        // 既存 fileOffset (遡及録音のパンチ) に加算される
+        {
+            const auto p = RecordingManager::compensateLatency(0.01, 2.0, 1.5, 0.030);
+            expect(approxEq(p.fileOffset, 1.52, 1e-9), "residual added on top of base fileOffset");
+            expect(approxEq(p.dur, 1.98, 1e-9), "duration reduced by residual");
+        }
+        // 負の補正 (手動オフセットで遅らせる) は単純に後ろへ
+        {
+            const auto p = RecordingManager::compensateLatency(1.0, 2.0, 0.0, -0.010);
+            expect(approxEq(p.start, 1.01, 1e-9), "negative comp shifts later");
+            expect(approxEq(p.dur, 2.0, 1e-9) && approxEq(p.fileOffset, 0.0, 1e-9),
+                   "duration and fileOffset unchanged for negative comp");
+        }
+        // 補正がクリップ全長を超える病的ケースでも dur は負にならない
+        {
+            const auto p = RecordingManager::compensateLatency(0.0, 0.02, 0.0, 0.050);
+            expect(p.dur >= 0.0, "duration never goes negative");
+        }
     }
 
     // ── LiveRecordingBuffer ──
