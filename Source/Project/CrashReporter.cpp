@@ -46,6 +46,8 @@ namespace
 
 void CrashReporter::install()
 {
+    // 先にフォルダを作っておく (クラッシュハンドラ内の仕事を減らす + 手動確認しやすくする)
+    crashLogDirectory().createDirectory();
     juce::SystemStats::setApplicationCrashHandler(onCrash);
 }
 

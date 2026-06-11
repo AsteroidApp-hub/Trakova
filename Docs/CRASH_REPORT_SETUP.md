@@ -7,7 +7,7 @@
 
 1. アプリ起動時に `CrashReporter::install()` がクラッシュハンドラを登録
 2. クラッシュ時、スタックトレース + アプリ版 + OS を
-   `~/Library/Application Support/Utawave/CrashLogs/crash-YYYYMMDD_HHMMSS.log` に保存（送信はしない）
+   `~/Library/Utawave/CrashLogs/crash-YYYYMMDD_HHMMSS.log` に保存（送信はしない）
 3. **次回起動時**に未処理ログを検出すると同意ダイアログを表示
    - 「送信する」→ JSON を POST（成功・失敗ともログはローカルに残る）
    - 「送信しない」→ 送信せず `.handled` にリネーム（再プロンプトしない）
@@ -44,6 +44,6 @@ cmake -DUTAWAVE_CRASH_REPORT_URL="https://utawave.com/crash/report" ...
 
 ## 動作確認
 
-1. `CrashLogs/` に手動で `crash-20990101_000000.log` を置いて起動 → ダイアログが出る
+1. `~/Library/Utawave/CrashLogs/` に手動で `crash-20990101_000000.log` を置いて起動 → ダイアログが出る
 2. 「送信する」→ サーバーに JSON が届く / 2xx でダイアログが静かに閉じる
 3. 失敗時（サーバー停止）→「送信できませんでした」が出て、ログが `.handled` で残る
