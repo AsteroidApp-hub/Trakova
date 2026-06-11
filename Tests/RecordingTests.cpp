@@ -48,7 +48,10 @@ public:
         testFinishLiveRecordingDedup();
         testFinishLiveRecordingWithFileOffset();
         testLatencyCompensation();
+        testLatencyCompensationFloor();
         testLiveRecordingBuffer();
+        testLoopTakeSlice();
+        testLiveRecordingLead();
     }
 
     // lane0 に直接クリップを足す (overlaps チェック無しでそのまま lane0 に入る)
@@ -486,6 +489,40 @@ public:
         }
     }
 
+    // ── レイテンシ補正のアンカークランプ (floorStart) ──
+    // 録音の配置はアンカー (R 押下位置 / ループ頭) を floorStart に渡し、クリップ左端が
+    // 補正量ぶんアンカーより前へ飛び出さないようにする (見た目が再生バーに揃う)。
+    // 補正分は fileOffset へ乗るので内容の時間整合は保たれ、左端を伸ばせば復元できる
+    void testLatencyCompensationFloor()
+    {
+        beginTest("compensateLatency floorStart: clip head clamps to the musical anchor");
+
+        // アンカー = start (録音の全配置経路と同じ渡し方): 開始はアンカーに留まり、
+        // 補正分は fileOffset 読み飛ばし + 尺短縮になる
+        {
+            const auto p = RecordingManager::compensateLatency(10.0, 4.0, 0.5, 0.030, 10.0);
+            expect(approxEq(p.start, 10.0, 1e-9), "start stays at the anchor");
+            expect(approxEq(p.fileOffset, 0.53, 1e-9), "comp goes into fileOffset");
+            expect(approxEq(p.dur, 3.97, 1e-9), "duration reduced by comp");
+        }
+        // 負の補正 (手動で遅らせる) はアンカーより後ろなのでクランプしない
+        {
+            const auto p = RecordingManager::compensateLatency(10.0, 4.0, 0.0, -0.020, 10.0);
+            expect(approxEq(p.start, 10.02, 1e-9) && approxEq(p.fileOffset, 0.0, 1e-9)
+                   && approxEq(p.dur, 4.0, 1e-9), "negative comp is not clamped");
+        }
+        // floorStart 省略 (= 0) は従来挙動: 手前へずらしたまま
+        {
+            const auto p = RecordingManager::compensateLatency(10.0, 4.0, 0.0, 0.030);
+            expect(approxEq(p.start, 9.97, 1e-9), "default floor keeps the shifted position");
+        }
+        // 負の floorStart はタイムライン 0 にクランプ
+        {
+            const auto p = RecordingManager::compensateLatency(0.01, 4.0, 0.0, 0.050, -5.0);
+            expect(approxEq(p.start, 0.0, 1e-9), "floor never goes below timeline zero");
+        }
+    }
+
     // ── LiveRecordingBuffer ──
     void testLiveRecordingBuffer()
     {
@@ -521,6 +558,77 @@ public:
         // reset でクリア
         buf.reset();
         expect(buf.getPeakCount() == 0, "reset clears peaks");
+    }
+
+    // ── ループ録音のテイクスライス (RecordingManager::loopTakeSlice 純関数) ──
+    // onLoopWrap / 停止時スライスの共通式。ループ内途中スタートとカウントイン遡及録音の
+    // fileOffset 回帰テスト (ずれると「途中から録音されたような波形」になる)
+    void testLoopTakeSlice()
+    {
+        beginTest("loopTakeSlice: mid-loop start / pre-loop start / count-in lead offsets");
+        using RM = RecordingManager;
+
+        // ループ内の途中 (8s) から開始、ループ [5, 10]、カウントイン無し
+        // 1 周目 = [8, 10] (2s)、ファイル先頭から
+        {
+            auto s0 = RM::loopTakeSlice(0, 8.0, 8.0, 5.0, 10.0);
+            expect(approxEq(s0.pos, 8.0, 1e-9) && approxEq(s0.dur, 2.0, 1e-9)
+                   && approxEq(s0.fileOffset, 0.0, 1e-9), "take1 = [start, loopEnd], offset 0");
+            // 2 周目以降はループ頭フル尺。offset は 1 周目の実録音長 (2s) 基準で累積
+            auto s1 = RM::loopTakeSlice(1, 8.0, 8.0, 5.0, 10.0);
+            expect(approxEq(s1.pos, 5.0, 1e-9) && approxEq(s1.dur, 5.0, 1e-9)
+                   && approxEq(s1.fileOffset, 2.0, 1e-9), "take2 at loop head, offset = firstPass");
+            auto s2 = RM::loopTakeSlice(2, 8.0, 8.0, 5.0, 10.0);
+            expect(approxEq(s2.fileOffset, 7.0, 1e-9), "take3 offset += loopDur");
+        }
+
+        // ループ開始前 (3s) から開始 (pre-loop warm-up): 1 周目 = [3, 10] (7s) 統合テイク
+        {
+            auto s0 = RM::loopTakeSlice(0, 3.0, 3.0, 5.0, 10.0);
+            expect(approxEq(s0.pos, 3.0, 1e-9) && approxEq(s0.dur, 7.0, 1e-9)
+                   && approxEq(s0.fileOffset, 0.0, 1e-9), "pre-loop start: take1 includes warm-up");
+            auto s1 = RM::loopTakeSlice(1, 3.0, 3.0, 5.0, 10.0);
+            expect(approxEq(s1.fileOffset, 7.0, 1e-9), "take2 offset = preLoop + loopDur");
+        }
+
+        // カウントイン遡及録音: 再生開始 6s (= fileStartPos)、R 押下 8s。先行録音 2s が
+        // fileOffset に乗る (クリップ左端を伸ばすとブレスを復元できる量)
+        {
+            auto s0 = RM::loopTakeSlice(0, 8.0, 6.0, 5.0, 10.0);
+            expect(approxEq(s0.pos, 8.0, 1e-9) && approxEq(s0.dur, 2.0, 1e-9)
+                   && approxEq(s0.fileOffset, 2.0, 1e-9), "count-in lead lands in take1 fileOffset");
+            auto s1 = RM::loopTakeSlice(1, 8.0, 6.0, 5.0, 10.0);
+            expect(approxEq(s1.fileOffset, 4.0, 1e-9), "take2 offset = lead + firstPass");
+            auto s2 = RM::loopTakeSlice(2, 8.0, 6.0, 5.0, 10.0);
+            expect(approxEq(s2.fileOffset, 9.0, 1e-9), "take3 offset = lead + firstPass + loopDur");
+        }
+    }
+
+    // ── ライブ波形オーバーレイのリード (カウントイン/プリロールの非表示先行録音分) ──
+    void testLiveRecordingLead()
+    {
+        beginTest("startLiveRecording: display start + hidden buffer lead");
+        juce::AudioFormatManager fmt;
+        fmt.registerBasicFormats();
+        TrackManager tm(fmt);
+        auto* t = tm.addTrack({}, false);
+
+        // カウントイン 2s: 表示開始は R 位置 (8s)、バッファ先頭 2s は非表示リード
+        t->startLiveRecording(8.0, 2.0);
+        expect(approxEq(t->getRecordingStartPos(), 8.0, 1e-9), "display start = R position");
+        expect(approxEq(t->getLiveBufferLeadSecs(), 2.0, 1e-9), "lead = count-in duration");
+
+        // ループラップ後相当: 表示をループ頭へ、リードは 0 へ (2 周目以降はリード無し)
+        t->setRecordingStartPos(5.0);
+        t->setLiveBufferLeadSecs(0.0);
+        expect(approxEq(t->getRecordingStartPos(), 5.0, 1e-9), "display start moves to loop head");
+        expect(approxEq(t->getLiveBufferLeadSecs(), 0.0, 1e-9), "lead cleared after wrap");
+
+        // 負のリードは 0 にクランプ / リード無し開始は 0
+        t->setLiveBufferLeadSecs(-1.0);
+        expect(approxEq(t->getLiveBufferLeadSecs(), 0.0, 1e-9), "negative lead clamps to 0");
+        t->startLiveRecording(3.0);
+        expect(approxEq(t->getLiveBufferLeadSecs(), 0.0, 1e-9), "default start has no lead");
     }
 };
 

@@ -167,7 +167,10 @@ public:
     // ライブ録音レーン管理 (常に Lane 0 へ書き込む方式)
     // fileOffset: 録音ファイル先頭の読み飛ばし秒 (録音レイテンシ補正でタイムライン 0 に
     // クランプされた分。lane0 クリップとテイク退避の両方に同値が入り dedup 3 つ組も揃う)
-    void       startLiveRecording(double startPosSecs);
+    // bufferLeadSecs: liveBuffer 先頭の「表示しない先行録音分」(カウントイン/プリロールの
+    // 遡及録音区間)。オーバーレイは startPosSecs (R 押下位置) から、バッファの
+    // bufferLeadSecs 以降だけを描く (録音はその手前から行われているが表には出さない)
+    void       startLiveRecording(double startPosSecs, double bufferLeadSecs = 0.0);
     AudioClip* finishLiveRecording(const juce::File& file, double startPos, double dur,
                                    double fileOffset = 0.0);
     void       cancelLiveRecording();
@@ -180,6 +183,12 @@ public:
     int        getLiveRecordingLaneIndex() const { return liveRecordingLaneIdx; }
     LiveRecordingBuffer& getLiveBuffer()         { return liveBuffer; }
     double getRecordingStartPos()          const { return recordingStartPos; }
+    // ループ録音のラップ後、ライブ波形オーバーレイの表示開始をループ頭へ進める (表示専用。
+    // liveBuffer 自体は AudioEngine がラップ時に reset 済み)
+    void   setRecordingStartPos(double s)        { recordingStartPos = s; }
+    // liveBuffer 先頭の非表示先行録音分 (カウントイン/プリロール)。ラップ後は 0 に戻す
+    double getLiveBufferLeadSecs()         const { return liveBufferLeadSecs; }
+    void   setLiveBufferLeadSecs(double s)       { liveBufferLeadSecs = juce::jmax(0.0, s); }
 
     // 分割などの編集操作から参照するためにfriend宣言
     juce::AudioFormatManager&  getFormatManager()  { return formatManager; }
@@ -223,6 +232,7 @@ private:
     std::atomic<int>  octaveShift       { 0 };
     std::atomic<int>  semitoneTranspose { 0 };
     double recordingStartPos    { 0.0 };
+    double liveBufferLeadSecs   { 0.0 };
     int    liveRecordingLaneIdx { -1 };
     bool   lanesCollapsed       { true };  // デフォルト非表示（TList OFF）
     bool   insertSlotsVisible   { false }; // デフォルト非表示

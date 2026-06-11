@@ -73,10 +73,15 @@ public:
     void copyRealtimeCaptureTo(juce::AudioBuffer<float>& dst) const;
 
     // パンチイン録音中: 録音開始位置以降の古いクリップをミュート
-    void setRecordingActive(bool active, double startSecs = 0.0)
+    // startSecs     = パンチイン位置 (既存 Lane 0 クリップをミュートし始める位置)
+    // writeFromSecs = ファイルへの書き込み開始位置。カウントイン/プリロール区間を遡及的に
+    //                 録っておくため startSecs より手前を渡せる (負値 = startSecs と同じ)。
+    //                 ブレスが切れた時にクリップ左端を伸ばして復元できるようにする
+    void setRecordingActive(bool active, double startSecs = 0.0, double writeFromSecs = -1.0)
     {
         isRecordingActive.store(active);
         recordingStartSecs.store(startSecs);
+        recordingWriteFromSecs.store(writeFromSecs >= 0.0 ? writeFromSecs : startSecs);
         if (active) recordedSamples.store(0);
     }
 
@@ -361,6 +366,9 @@ private:
     // パンチイン状態（録音中は録音開始位置以降の古いクリップをミュート）
     std::atomic<bool>   isRecordingActive { false };
     std::atomic<double> recordingStartSecs { 0.0 };
+    // 書き込み開始位置 (ゲート)。カウントイン/プリロールの遡及録音のため
+    // recordingStartSecs (ミュート位置) より手前になり得る
+    std::atomic<double> recordingWriteFromSecs { 0.0 };
 
     // ループ範囲
     std::atomic<bool>   loopActive    { false };

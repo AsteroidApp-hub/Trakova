@@ -1968,12 +1968,13 @@ void AudioEngine::audioDeviceIOCallbackWithContext(
 
     // recording from input (録音設定はブロック先頭で取得した recCfg を使う)
     {
-        // 通常録音: posStart >= recordingStartSecs に達してから書き込む
-        // （カウントイン/プレロール中は書かない）
+        // 通常録音: posStart >= recordingWriteFromSecs に達してから書き込む。
+        // カウントイン/プリロール時は writeFrom が再生開始位置になっており、その区間も
+        // 遡及的に録っておく (クリップは fileOffset 付きで配置され、左端を伸ばすと復元できる)
         if (!recCfg->targets.empty() && playing.load()
             && numInputChannels > 0
             && inputChannelData != nullptr
-            && posStart >= recordingStartSecs.load() - 1e-6)
+            && posStart >= recordingWriteFromSecs.load() - 1e-6)
         {
             // 各ターゲットに自分の input ch から書き込む (複数マイク同時録音対応)
             for (auto& tgt : recCfg->targets)
@@ -2063,6 +2064,18 @@ void AudioEngine::audioDeviceIOCallbackWithContext(
             for (auto& tgt : recCfg->targets)
                 if (tgt.liveBuffer != nullptr)
                     tgt.liveBuffer->reset();
+            // ループ内の途中から録音開始した場合、2 周目以降はループ頭から録る。
+            // 書き込みゲート (posStart >= recordingWriteFromSecs) を開始位置のままにすると、
+            // ラップ後に開始位置へ再到達するまで書き込みが止まり、2 周目以降のファイル
+            // 内容が毎周欠けてテイクのスライスが累積的にずれる + ライブ波形 (録音バー)
+            // が再生バーに追従しなくなる。パンチインミュート位置 (recordingStartSecs) も
+            // ループ頭へ進め、歌い直す周回では既存クリップをループ全体でミュートする
+            // (いずれも atomic store のみ・確保なし)
+            if (isRecordingActive.load())
+            {
+                if (recordingStartSecs.load() > ls)     recordingStartSecs.store(ls);
+                if (recordingWriteFromSecs.load() > ls) recordingWriteFromSecs.store(ls);
+            }
             loopWrapCount.fetch_add(1);
         }
     }

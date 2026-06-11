@@ -77,6 +77,20 @@ bool writeMonoConstWav(const juce::File& f, int numSamples, float value)
     return w != nullptr && w->writeFromAudioSampleBuffer(b, 0, numSamples);
 }
 
+// numBlocks 分、const 値のモノ入力つきでコールバックを駆動する (録音ゲートテスト用)
+void runBlocksWithInput(AudioEngine& engine, int numBlocks, float inputValue)
+{
+    juce::AudioBuffer<float> out(2, kBlock), in(1, kBlock);
+    juce::FloatVectorOperations::fill(in.getWritePointer(0), inputValue, kBlock);
+    const float* ins[1] = { in.getReadPointer(0) };
+    for (int i = 0; i < numBlocks; ++i)
+    {
+        out.clear();
+        float* chans[2] = { out.getWritePointer(0), out.getWritePointer(1) };
+        engine.audioDeviceIOCallbackWithContext(ins, 1, chans, 2, kBlock, {});
+    }
+}
+
 // numBlocks 分コールバックを駆動し、全ブロックの L/R 絶対値ピークを返す
 juce::Range<float> runBlocks(AudioEngine& engine, int numBlocks,
                              float* outPeakL = nullptr, float* outPeakR = nullptr)
@@ -117,6 +131,7 @@ struct AudioEngineRealtimeTests : public juce::UnitTest
         testClearPlaybackBarrier();
         testDeferredDestructionRebuild();
         testRecordingLatencyComp();
+        testRecordingWriteGate();
 
         tempDir.deleteRecursively();
     }
@@ -353,6 +368,77 @@ struct AudioEngineRealtimeTests : public juce::UnitTest
         expectWithinAbsoluteError(engine.getRecordingLatencyCompSecs(), -0.010, 1e-9);
 
         engine.audioDeviceStopped();
+    }
+
+    // ── 録音書き込みゲート: カウントイン遡及録音 + ループラップ後の継続 ──
+    // recordingWriteFromSecs (書き込み開始) と recordingStartSecs (パンチインミュート位置) の
+    // 分離、およびラップ時にゲートがループ頭へ移動することを実コールバック駆動で検証する。
+    // ゲートが動かないと 2 周目以降「ループ頭〜録音開始位置」が録られず、テイクのスライスが
+    // 累積的にずれる (本番で起きた回帰)
+    void testRecordingWriteGate()
+    {
+        beginTest("recording write gate: count-in retro capture + keeps writing across loop wrap");
+        const double blockSecs = (double)kBlock / kSR;
+
+        Scene s;
+        s.start();   // トラック/クリップ無しで再生だけ回す (録音ブランチは入力から書く)
+
+        // 実 ThreadedWriter (録音ターゲット登録には非 null writer が必要)
+        juce::TimeSliceThread bg("RecGateTestThread");
+        bg.startThread();
+        auto wav = tempDir.getChildFile("gate.wav");
+        std::unique_ptr<juce::AudioFormatWriter::ThreadedWriter> tw;
+        {
+            juce::WavAudioFormat waf;
+            using SF = juce::AudioFormatWriterOptions::SampleFormat;
+            auto wopts = juce::AudioFormatWriterOptions{}
+                             .withSampleRate(kSR).withNumChannels(1)
+                             .withBitsPerSample(32).withSampleFormat(SF::floatingPoint);
+            wav.deleteFile();
+            auto fos = std::make_unique<juce::FileOutputStream>(wav);
+            expect(fos->openedOk(), "writer stream open");
+            std::unique_ptr<juce::OutputStream> os = std::move(fos);
+            std::unique_ptr<juce::AudioFormatWriter> w(waf.createWriterFor(os, wopts));
+            expect(w != nullptr, "writer create");
+            tw = std::make_unique<juce::AudioFormatWriter::ThreadedWriter>(w.release(), bg, 65536);
+        }
+        s.engine.setRecordingTarget(tw.get(), nullptr, 0, false);
+
+        // ── A: カウントイン遡及録音 (writeFrom 0.2 < recStart 0.5) ──
+        // 再生 0.0 から開始し、書き込みは 0.2 から (R 位置 0.5 を待たない)
+        s.engine.setRecordingActive(true, 0.5, 0.2);
+        s.engine.setPosition(0.0);
+        s.engine.play();
+        const int blocksA = 94;   // ~1.0s
+        runBlocksWithInput(s.engine, blocksA, 0.25f);
+        const double elapsedA  = blocksA * blockSecs;
+        const double recordedA = (double)s.engine.getRecordedSampleCount() / kSR;
+        expectWithinAbsoluteError(recordedA, elapsedA - 0.2, 2.0 * blockSecs);
+        s.engine.stop();
+        s.engine.setRecordingActive(false);
+
+        // ── B: ループ内の途中から録音 → ラップ後も書き続ける (ゲートがループ頭へ移動) ──
+        // loop [0.3, 0.8] / recStart = writeFrom = 0.5 / 再生は 0.45 から
+        s.engine.setLoopRange(0.3, 0.8, true);
+        s.engine.setRecordingActive(true, 0.5, 0.5);
+        s.engine.setPosition(0.45);
+        s.engine.play();
+        const int blocksB = 60;   // ~0.64s (途中で 0.8 → 0.3 へ 1 回ラップ)
+        runBlocksWithInput(s.engine, blocksB, 0.25f);
+        const double elapsedB  = blocksB * blockSecs;
+        const double recordedB = (double)s.engine.getRecordedSampleCount() / kSR;
+        // 期待値 = 全駆動時間 − ゲート前 (0.45 → 0.5 の 0.05s)。ラップ後 (0.3 → ...) も
+        // 全て録音される。ゲートが移動しない旧バグでは 0.3 → 0.5 が毎周欠けて大きく下回る
+        expectWithinAbsoluteError(recordedB, elapsedB - 0.05, 3.0 * blockSecs);
+        s.engine.stop();
+        s.engine.setRecordingActive(false);
+        s.engine.setLoopRange(0.0, 0.0, false);
+
+        // 後始末 (teardown バリアは audio thread 不在のため即時)
+        s.engine.setRecordingTarget(nullptr, nullptr);
+        tw.reset();
+        bg.stopThread(2000);
+        expect(wav.existsAsFile() && wav.getSize() > 0, "recorded file has data");
     }
 };
 

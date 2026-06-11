@@ -1171,12 +1171,16 @@ void TimelineView::drawTrackRows(juce::Graphics& g, juce::Rectangle<int> area)
             if (isLiveLane)
             {
                 // ── ライブ録音中の波形をオーバーレイ ──
+                // バッファ先頭の lead (カウントイン/プリロールの遡及録音分) は表に出さず、
+                // R 押下位置 (recordingStartPos) から lead 以降の内容だけを描く
                 auto& lb = track->getLiveBuffer();
 
+                const double lead = track->getLiveBufferLeadSecs();
                 double startSecs = track->getRecordingStartPos();
-                double durSecs   = lb.getPeakCount() > 0
-                                   ? lb.getDurationSeconds(sampleRate)
-                                   : 0.0;
+                const double bufSecs = lb.getPeakCount() > 0
+                                       ? lb.getDurationSeconds(sampleRate)
+                                       : 0.0;
+                const double durSecs = juce::jmax(0.0, bufSecs - lead);
                 int liveX = (int)positionToX(startSecs);
                 int liveW = durSecs > 0.0
                             ? juce::jmax(2, (int)(durSecs * (bpm / 60.0) * pixelsPerBeat))
@@ -1194,11 +1198,11 @@ void TimelineView::drawTrackRows(juce::Graphics& g, juce::Rectangle<int> area)
                 g.setColour(track->getColour().withAlpha(0.25f));
                 g.fillRoundedRectangle(liveRect.toFloat(), 2.0f);
 
-                // リアルタイム波形
-                if (lb.getPeakCount() > 0)
+                // リアルタイム波形 (lead 以降のみ)
+                if (lb.getPeakCount() > 0 && durSecs > 0.0)
                     lb.draw(g, liveRect.reduced(2, 4),
                             track->getColour().brighter(0.9f),
-                            0.0, durSecs, sampleRate);
+                            lead, durSecs, sampleRate);
 
                 // 録音中を示す赤枠
                 g.setColour(AppColours::recRed.withAlpha(0.9f));

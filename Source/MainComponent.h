@@ -370,16 +370,26 @@ private:
     bool   playheadSmoothActive { false };
     double smoothedPlayhead     { 0.0 };
     double lastPlayheadWallSec  { 0.0 };
+    // ループラップの実検出 (onVBlank): レイテンシ補正の「ループ末尾へ巻き戻し表示」は
+    // 実際にラップした直後のレイテンシ窓でだけ行う。位置だけで判定すると、ループ範囲へ
+    // 線形に入った直後 (視覚位置がまだ loopStart 手前) も誤ってループ末尾に表示される
+    double lastRawPlayheadPos   { 0.0 };
+    double lastLoopWrapWallSec  { -1.0e9 };
     juce::VBlankAttachment vblankAttachment;
     void   onVBlank (double timestampSec);  // ディスプレイ垂直同期に合わせた再生バー更新
 
-    // 録音前の Lane 0 スナップショット (Undo で録音クリップを除去するため)
+    // 録音前の Lane 0 + テイクレーン スナップショット (Undo で録音クリップを除去するため)
     struct PreRecSnapshot
     {
         Track* track { nullptr };
         std::vector<EditActions::LaneSnapshotAction::ClipSnap> lane0Snap;
+        // テイクレーン (lane 1..) の録音前状態。[i] = lane i+1。録音で増えた/変わった
+        // レーンを特定し、ループ録音のテイクを Undo で 1 つずつ戻すために使う
+        std::vector<std::vector<EditActions::LaneSnapshotAction::ClipSnap>> takeLaneSnaps;
     };
     std::vector<PreRecSnapshot> preRecSnaps;
+    // 直近の録音がループ録音だったか (停止時の Undo トランザクション分割方式の選択に使う)
+    bool lastRecordingWasLoop { false };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

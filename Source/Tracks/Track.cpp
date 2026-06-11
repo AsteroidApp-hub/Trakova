@@ -57,9 +57,10 @@ Track::~Track() = default;
 // ── ライブ録音レーン管理 ──────────────────────────────────────────
 // 録音は常に Lane 0。録音停止時、Lane 0 内で重なるクリップを sub-lane へ退避。
 
-void Track::startLiveRecording(double startPosSecs)
+void Track::startLiveRecording(double startPosSecs, double bufferLeadSecs)
 {
-    recordingStartPos = startPosSecs;
+    recordingStartPos  = startPosSecs;
+    liveBufferLeadSecs = juce::jmax(0.0, bufferLeadSecs);
     liveBuffer.reset();
 
     if (lanes.empty())

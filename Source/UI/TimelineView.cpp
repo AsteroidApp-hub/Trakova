@@ -941,7 +941,8 @@ void TimelineView::repaintRecordingArea()
         const int trackTop = area.getY() + trackManager.getTrackY(ti) - scrollY;
         const int trackH   = tr->getTotalHeight();
         const double startSecs = tr->getRecordingStartPos();
-        const double durSecs   = tr->getLiveBuffer().getDurationSeconds(sampleRate);
+        const double durSecs   = juce::jmax(0.0,
+            tr->getLiveBuffer().getDurationSeconds(sampleRate) - tr->getLiveBufferLeadSecs());
         int x1 = (int)(startSecs * bps * pixelsPerBeat - scrollX) - 2;
         int x2 = (int)((startSecs + durSecs) * bps * pixelsPerBeat - scrollX) + 6;
         x1 = juce::jmax(area.getX(), x1);

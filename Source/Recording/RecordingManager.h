@@ -49,11 +49,50 @@ public:
     int  getBitDepth() const { return recordingBitDepth; }
 
     // 録音レイテンシ補正: クリップ配置 (start, dur, fileOffset) を compSecs だけ手前へ
-    // ずらす純関数。開始がタイムライン 0 を割る場合は 0 にクランプし、不足分はファイル
-    // 先頭を fileOffset で読み飛ばして内容の整合を保つ (尺はその分縮む)。
+    // ずらす純関数。開始が floorStart (既定 0 = タイムライン先頭) を割る場合はそこへ
+    // クランプし、不足分はファイル先頭を fileOffset で読み飛ばして内容の整合を保つ
+    // (尺はその分縮む)。録音の配置では floorStart に「音楽的なアンカー」(R 押下位置 /
+    // ループ頭) を渡し、クリップ左端が補正量ぶんアンカーより前へ飛び出すのを防ぐ
+    // (トリム分はファイルに残っているので左端を伸ばせば復元できる)。
+    // ヘッダインライン定義 (RecordingTests がリンク無しで検証できるように)
     struct ClipPlacement { double start; double dur; double fileOffset; };
     static ClipPlacement compensateLatency(double start, double dur,
-                                           double fileOffset, double compSecs);
+                                           double fileOffset, double compSecs,
+                                           double floorStart = 0.0)
+    {
+        ClipPlacement p { start - compSecs, dur, fileOffset };
+        const double floorPos = juce::jmax(0.0, floorStart);
+        if (p.start < floorPos)
+        {
+            // アンカーより前には置けない分はファイル先頭を読み飛ばして整合させる
+            const double residual = floorPos - p.start;
+            p.start = floorPos;
+            p.fileOffset += residual;
+            p.dur = juce::jmax(0.0, p.dur - residual);
+        }
+        return p;
+    }
+
+    // ループ録音のテイクスライス計算 (純関数・ユニットテスト対象)。
+    // it 番目 (0-based) のテイクのタイムライン位置 / フル尺 / fileOffset を返す
+    // (停止時に録り切れていない分の尺クランプは呼び出し側で行う)。
+    //  - startPosition: R 押下位置 (Take 1 の開始。ループ内の途中でも前でも良い)
+    //  - fileStartPos : ファイルのサンプル 0 のタイムライン位置 (カウントイン/プリロールの
+    //                   遡及録音で startPosition より手前になる。先行分 = fileOffset に乗る)
+    //  - it == 0: [startPosition, loopEnd]。it >= 1: ループ頭にフル尺、fileOffset は
+    //    1 周目の実録音長 (loopEnd - startPosition) を基準に loopDur ずつ累積
+    struct TakeSlice { double pos; double dur; double fileOffset; };
+    static TakeSlice loopTakeSlice(int it, double startPosition, double fileStartPos,
+                                   double loopStart, double loopEnd)
+    {
+        const double loopDur      = loopEnd - loopStart;
+        const double firstPassDur = juce::jmax(0.0, loopEnd - startPosition);
+        const double preRecDur    = juce::jmax(0.0, startPosition - fileStartPos);
+        if (it <= 0)
+            return { startPosition, firstPassDur, preRecDur };
+        return { loopStart, loopDur,
+                 preRecDur + firstPassDur + (double)(it - 1) * loopDur };
+    }
 
 private:
     juce::File createRecordingFile(const juce::String& trackName) const;
@@ -68,7 +107,10 @@ private:
     {
         Track* track { nullptr };
         juce::File file;
-        double startPosition { 0.0 };  // recStart (count-in/preroll を含まない実書き出し開始)
+        double startPosition { 0.0 };  // recStart (パンチイン位置 = クリップを置く位置)
+        // ファイルのサンプル 0 に対応するタイムライン位置。カウントイン/プリロール時は
+        // その開始位置 (= 再生開始位置) から遡及的に録るため startPosition より手前になる
+        double fileStartPos  { 0.0 };
         std::unique_ptr<juce::AudioFormatWriter::ThreadedWriter> writer;
         // ループ録音
         bool loopRec { false };

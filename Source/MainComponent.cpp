@@ -1014,9 +1014,20 @@ void MainComponent::onVBlank (double timestampSec)
     {
         smoothedPlayhead     = rawPos;
         playheadSmoothActive = true;
+        lastRawPlayheadPos   = rawPos;
+        lastLoopWrapWallSec  = -1.0e9;  // 再生開始直後はラップ補正しない
     }
     else
     {
+        // ループラップの実検出: ループ末尾付近 → ループ頭付近への後退ジャンプのみを
+        // ラップとみなす (単なる後方シークでは誤発火させない)
+        if (loopActive && loopEndSecs > loopStartSecs + 0.001
+            && rawPos < lastRawPlayheadPos - 0.05
+            && lastRawPlayheadPos > loopEndSecs - 0.5
+            && rawPos < loopStartSecs + 0.5)
+            lastLoopWrapWallSec = timestampSec;
+        lastRawPlayheadPos = rawPos;
+
         // dt はフレーム落ち/バックグラウンド復帰に備えてクランプ
         const double dt = juce::jlimit(0.0, 0.1, timestampSec - lastPlayheadWallSec);
         smoothedPlayhead += dt;                  // 再生速度 1.0 で前進
@@ -1040,9 +1051,12 @@ void MainComponent::onVBlank (double timestampSec)
                                        + dev->getCurrentBufferSizeSamples();
             const double latencySec = latencySamples / sr;
             visualPlayhead = juce::jmax(0.0, smoothedPlayhead - latencySec);
-            // ループ範囲内ならラップを考慮
+            // ループ範囲内ならラップを考慮。ただし「実際にラップした直後のレイテンシ窓」
+            // に限定する。位置条件だけだと、ループ範囲へ線形に入った直後 (視覚位置がまだ
+            // loopStart 手前) も満たしてしまい、一瞬ループ末尾に表示されてから頭に戻る
             if (loopActive && loopEndSecs > loopStartSecs + 0.001
-                && smoothedPlayhead >= loopStartSecs && visualPlayhead < loopStartSecs)
+                && smoothedPlayhead >= loopStartSecs && visualPlayhead < loopStartSecs
+                && (timestampSec - lastLoopWrapWallSec) <= latencySec + 0.25)
             {
                 visualPlayhead = loopEndSecs - (loopStartSecs - visualPlayhead);
                 if (visualPlayhead < loopStartSecs)
@@ -1239,7 +1253,9 @@ void MainComponent::startRecording()
 
     if (fromStop)
     {
-        playStartPos = playFrom;
+        // RTZ の戻り先は R 押下位置 (recStart)。カウントイン/プリロールの頭 (playFrom) に
+        // すると、停止のたびに再生バーがカウントイン分だけ手前へ戻ってしまう
+        playStartPos = recStart;
         audioEngine.setPosition(playFrom);
         isPlaying = true;
         audioEngine.preparePlayback(trackManager);
@@ -1264,12 +1280,22 @@ void MainComponent::startRecording()
         ps.track = t;
         for (auto& c : lane->clips)
             ps.lane0Snap.push_back(EditActions::LaneSnapshotAction::ClipSnap::capture(c.get()));
+        // テイクレーン (lane 1..) も控える: 録音で増えた/変わったレーンを停止時に特定する
+        for (int li = 1; li < t->getLaneCount(); ++li)
+        {
+            std::vector<EditActions::LaneSnapshotAction::ClipSnap> laneSnap;
+            if (auto* l = t->getLane(li))
+                for (auto& c : l->clips)
+                    laneSnap.push_back(EditActions::LaneSnapshotAction::ClipSnap::capture(c.get()));
+            ps.takeLaneSnaps.push_back(std::move(laneSnap));
+        }
         preRecSnaps.push_back(std::move(ps));
     }
 
     isRecording = recordingMgr.startRecording(recStart, playFrom,
                                               useLoopRec,
                                               loopStartSecs, loopEndSecs);
+    lastRecordingWasLoop = isRecording && useLoopRec;
     toolbar.setRecording(isRecording);
 
     // 録音ファイルを作れなかったトラックがあれば通知する (silent failure 防止。
@@ -1310,56 +1336,100 @@ void MainComponent::stopRecording()
     timelineView.refresh();
     scheduleWaveformRefresh();
 
-    // Undo Action: 録音前後の Lane 0 を LaneSnapshotAction で 1 トランザクションに束ねる。
+    // Undo Action: 録音前後の Lane 0 とテイクレーンを LaneSnapshotAction で積む。
     // Undo すると録音前の状態に戻り、録音クリップは Lane から外れるが
     // WAV ファイル自体は Audio フォルダに残る (削除はしない)。
+    // ・通常録音: Lane 0 + テイク退避を 1 トランザクション (Undo 1 回で丸ごと戻る)
+    // ・ループ録音: 1 テイク = 1 トランザクション (Undo を押すたび新しいテイクから 1 つずつ
+    //   戻る。複数トラック同時録音は同じ周回のテイクを 1 つに束ねる)
     if (!preRecSnaps.empty())
     {
+        using ClipSnap = EditActions::LaneSnapshotAction::ClipSnap;
         undoManager.beginNewTransaction();
         auto onChange = [this]
         {
             markProjectDirty();
             trackHeaderPanel.refresh();
             timelineView.refresh();
-            // LaneSnapshotAction の perform()/undo() は Lane 0 クリップを作り直すため、
+            // LaneSnapshotAction の perform()/undo() は Lane クリップを作り直すため、
             // 作り直し後のクリップに対して波形の非同期ロードを仕掛け直す
             // (録音直後に波形が出ない / Undo で消える問題への対処)。
             scheduleWaveformRefresh();
             audioEngine.preparePlayback(trackManager);
         };
+        auto deferSink = [this](std::vector<std::unique_ptr<AudioClip>>&& clips)
+                         { audioEngine.deferClipDestruction(std::move(clips)); };
+        auto snapsDiffer = [](const std::vector<ClipSnap>& a, const std::vector<ClipSnap>& b)
+        {
+            if (a.size() != b.size()) return true;
+            for (size_t i = 0; i < a.size(); ++i)
+                if (a[i].file != b[i].file
+                 || std::abs(a[i].startPos   - b[i].startPos)   > 1e-6
+                 || std::abs(a[i].duration   - b[i].duration)   > 1e-6
+                 || std::abs(a[i].fileOffset - b[i].fileOffset) > 1e-6)
+                    return true;
+            return false;
+        };
+
+        // Lane 0 (パンチイン本体): 全トラックまとめて現在のトランザクションへ
         for (auto& ps : preRecSnaps)
         {
             if (!ps.track) continue;
             auto* lane = ps.track->getLane(0);
             if (!lane) continue;
 
-            std::vector<EditActions::LaneSnapshotAction::ClipSnap> afterSnap;
+            std::vector<ClipSnap> afterSnap;
             for (auto& c : lane->clips)
-                afterSnap.push_back(EditActions::LaneSnapshotAction::ClipSnap::capture(c.get()));
+                afterSnap.push_back(ClipSnap::capture(c.get()));
 
-            // 変化が無ければ Undo スタックに積まない
-            if (afterSnap.size() == ps.lane0Snap.size())
-            {
-                bool same = true;
-                for (size_t i = 0; i < afterSnap.size(); ++i)
-                {
-                    const auto& a = afterSnap[i];
-                    const auto& b = ps.lane0Snap[i];
-                    if (a.file != b.file
-                     || std::abs(a.startPos - b.startPos) > 1e-6
-                     || std::abs(a.duration - b.duration) > 1e-6
-                     || std::abs(a.fileOffset - b.fileOffset) > 1e-6)
-                    { same = false; break; }
-                }
-                if (same) continue;
-            }
+            if (!snapsDiffer(ps.lane0Snap, afterSnap)) continue;  // 変化なしは積まない
 
             undoManager.perform(new EditActions::LaneSnapshotAction(
                 lane, std::move(ps.lane0Snap), std::move(afterSnap),
                 trackManager.getFormatManager(), trackManager.getThumbnailCache(),
-                onChange,
-                [this](std::vector<std::unique_ptr<AudioClip>>&& clips)
-                { audioEngine.deferClipDestruction(std::move(clips)); }));
+                onChange, deferSink));
+        }
+
+        // テイクレーン (lane 1..): 録音で増えた/変わったレーンを収集 (レーン昇順 = テイクの
+        // 時系列順)。ループ録音はテイク順にトランザクションを切り、通常録音は上の Lane 0 と
+        // 同じトランザクションに含める
+        struct LaneDiff
+        {
+            Lane* lane { nullptr };
+            std::vector<ClipSnap> before, after;
+        };
+        std::vector<std::vector<LaneDiff>> perTrackDiffs;  // [トラック][テイク順]
+        size_t maxTakes = 0;
+        for (auto& ps : preRecSnaps)
+        {
+            if (!ps.track) continue;
+            std::vector<LaneDiff> diffs;
+            for (int li = 1; li < ps.track->getLaneCount(); ++li)
+            {
+                auto* lane = ps.track->getLane(li);
+                if (!lane) continue;
+                LaneDiff d;
+                d.lane = lane;
+                if ((size_t)(li - 1) < ps.takeLaneSnaps.size())
+                    d.before = std::move(ps.takeLaneSnaps[(size_t)(li - 1)]);
+                for (auto& c : lane->clips)
+                    d.after.push_back(ClipSnap::capture(c.get()));
+                if (snapsDiffer(d.before, d.after))
+                    diffs.push_back(std::move(d));
+            }
+            maxTakes = juce::jmax(maxTakes, diffs.size());
+            perTrackDiffs.push_back(std::move(diffs));
+        }
+        for (size_t t = 0; t < maxTakes; ++t)
+        {
+            if (lastRecordingWasLoop)
+                undoManager.beginNewTransaction();
+            for (auto& diffs : perTrackDiffs)
+                if (t < diffs.size())
+                    undoManager.perform(new EditActions::LaneSnapshotAction(
+                        diffs[t].lane, std::move(diffs[t].before), std::move(diffs[t].after),
+                        trackManager.getFormatManager(), trackManager.getThumbnailCache(),
+                        onChange, deferSink));
         }
         preRecSnaps.clear();
     }

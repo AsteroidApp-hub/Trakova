@@ -26,21 +26,6 @@ juce::File RecordingManager::getRecordingsFolder() const
                .getChildFile("Utawave").getChildFile("Recordings");
 }
 
-RecordingManager::ClipPlacement RecordingManager::compensateLatency(
-    double start, double dur, double fileOffset, double compSecs)
-{
-    ClipPlacement p { start - compSecs, dur, fileOffset };
-    if (p.start < 0.0)
-    {
-        // タイムライン 0 より前には置けない分はファイル先頭を読み飛ばして整合させる
-        const double residual = -p.start;
-        p.start = 0.0;
-        p.fileOffset += residual;
-        p.dur = juce::jmax(0.0, p.dur - residual);
-    }
-    return p;
-}
-
 juce::File RecordingManager::createRecordingFile(const juce::String& trackName) const
 {
     auto folder = getRecordingsFolder();
@@ -76,7 +61,9 @@ bool RecordingManager::startRecording(double recStartSec, double playFromSec,
         return true;
     }
 
-    juce::ignoreUnused(playFromSec);
+    // カウントイン/プリロール区間も遡及的に録る: 書き込みは再生開始位置 (playFromSec) から
+    // 始め、クリップは recStartSec に fileOffset 付きで置く (左端を伸ばすとブレスを復元できる)
+    const double writeFrom = juce::jmin(recStartSec, playFromSec);
 
     const double sampleRate = audioEngine.getSampleRate();
     juce::WavAudioFormat wavFormat;
@@ -117,7 +104,9 @@ bool RecordingManager::startRecording(double recStartSec, double playFromSec,
             continue;
         }
 
-        track->startLiveRecording(recStartSec);
+        // オーバーレイ表示は R 押下位置から。カウントイン/プリロールの先行録音分は
+        // リード (非表示) としてバッファ先頭を読み飛ばす
+        track->startLiveRecording(recStartSec, recStartSec - writeFrom);
 
         auto tw = std::make_unique<juce::AudioFormatWriter::ThreadedWriter>(
             writer.release(), backgroundThread, 65536);
@@ -141,21 +130,33 @@ bool RecordingManager::startRecording(double recStartSec, double playFromSec,
         ar.track         = track;
         ar.file          = file;
         ar.startPosition = recStartSec;
+        ar.fileStartPos  = writeFrom;
         ar.writer        = std::move(tw);
         ar.loopRec       = loopRecording;
         ar.loopStart     = loopStart;
         ar.loopEnd       = loopEnd;
         ar.wallStartMs   = juce::Time::currentTimeMillis()
                            + (juce::int64)((recStartSec - playFromSec) * 1000.0);
-        ar.takeStartLaneIdx = juce::jmax(1, track->getLaneCount());
+        // テイクの開始レーン = 「クリップを持つ最後のレーン」の次。末尾の空レーン
+        // (テイクを削除した跡など) は再利用し、録り直すたび下へ際限なく増えないようにする
+        {
+            int takeStart = 1;
+            for (int li = track->getLaneCount() - 1; li >= 1; --li)
+                if (auto* l = track->getLane(li); l != nullptr && !l->clips.empty())
+                {
+                    takeStart = li + 1;
+                    break;
+                }
+            ar.takeStartLaneIdx = takeStart;
+        }
         ar.takesAddedRealtime = 0;
         activeRecordings.push_back(std::move(ar));
         // 全 Rec アーム済みトラックを順に登録 (break なし)
     }
 
-    // パンチイン録音開始時刻を AudioEngine に通知
+    // パンチイン録音開始時刻 (ミュート位置) と書き込み開始位置を AudioEngine に通知
     if (!activeRecordings.empty())
-        audioEngine.setRecordingActive(true, recStartSec);
+        audioEngine.setRecordingActive(true, recStartSec, writeFrom);
 
     recording = !activeRecordings.empty();
     return recording;
@@ -186,7 +187,7 @@ void RecordingManager::stopRecording(double endPositionSeconds)
                 // レイテンシ補正: retro ファイル基準の fileOffset を保ったまま手前へ
                 const auto p = compensateLatency(recStart, dur,
                                                  juce::jmax(0.0, recStart - fileStart),
-                                                 retroLatencyComp);
+                                                 retroLatencyComp, recStart);
                 auto* lane = retroTrack->getLane(0);
                 if (lane && p.dur > 0.01)
                 {
@@ -245,9 +246,14 @@ void RecordingManager::stopRecording(double endPositionSeconds)
             dur = endPositionSeconds - ar.startPosition;
         }
 
+        // カウントイン/プリロールの先行録音分 (ファイル先頭の読み飛ばし量)。
+        // クリップ左端を伸ばすとこの区間 (ブレス等) を復元できる
+        const double preRecDur = juce::jmax(0.0, ar.startPosition - ar.fileStartPos);
+
         if (!ar.loopRec)
         {
-            const auto p = compensateLatency(ar.startPosition, dur, 0.0, activeLatencyComp);
+            const auto p = compensateLatency(ar.startPosition, dur, preRecDur,
+                                             activeLatencyComp, ar.startPosition);
             if (p.dur > 0.01 && ar.file.existsAsFile())
                 ar.track->finishLiveRecording(ar.file, p.start, p.dur, p.fileOffset);
             else
@@ -261,45 +267,25 @@ void RecordingManager::stopRecording(double endPositionSeconds)
         const double loopDur = ar.loopEnd - ar.loopStart;
         if (loopDur < 0.05 || dur < 0.05 || !ar.file.existsAsFile()) continue;
 
-        // recStart < loopStart の場合 pre-loop 部分（warm-up）と最初のループ周回を
-        // 1 つの Take 1 として統合配置。以降の周回は順次 Take 2, 3, ... へ
-        const double preLoopDur = juce::jmax(0.0, ar.loopStart - ar.startPosition);
-        const double afterPreDur = juce::jmax(0.0, dur - preLoopDur);
+        // テイクの位置/フル尺/fileOffset は純関数 loopTakeSlice (ヘッダ・onLoopWrap と共通) で
+        // 求め、ここでは「録り切れた分」への尺クランプだけを行う。
+        // dur (書き込みサンプル数) はカウントイン/プリロールの先行録音分 (preRecDur) を含む
+        const double firstPassDur  = juce::jmax(0.0, ar.loopEnd - ar.startPosition);
+        const double durFromStart  = juce::jmax(0.0, dur - preRecDur);
 
         // リアルタイム配置済みの take は再追加しない
         const int alreadyAdded = ar.takesAddedRealtime;
 
-        if (afterPreDur < 0.05)
-        {
-            // ループに入る前に停止 → pre-loop だけを Take 1 として配置
-            if (alreadyAdded == 0 && preLoopDur >= 0.05)
-            {
-                auto* lane = ar.track->ensureLane(ar.takeStartLaneIdx);
-                const auto p = compensateLatency(ar.startPosition, preLoopDur, 0.0,
-                                                 activeLatencyComp);
-                if (lane && p.dur > 0.01)
-                {
-                    auto* clip = lane->addClip(ar.file, p.start, p.dur,
-                                                ar.track->getFormatManager(),
-                                                ar.track->getThumbnailCache());
-                    if (clip)
-                    {
-                        clip->setFileOffset(p.fileOffset);
-                        clip->refreshThumbnail();
-                    }
-                }
-            }
-            continue;
-        }
-
-        // Take 1（まだ配置されていなければ）= pre-loop + 1周目 の連続クリップ
+        // Take 1（まだ配置されていなければ）= 録音開始位置から 1 周目末尾まで
+        // (1 周目の途中で停止した場合は録音できた所まで)
         if (alreadyAdded == 0)
         {
-            const double firstSlice = juce::jmin(loopDur, afterPreDur);
-            const double take1Dur = preLoopDur + firstSlice;
+            const auto s0 = loopTakeSlice(0, ar.startPosition, ar.fileStartPos,
+                                          ar.loopStart, ar.loopEnd);
+            const double take1Dur = juce::jmin(durFromStart, s0.dur);
             auto* lane = ar.track->ensureLane(ar.takeStartLaneIdx);
-            const auto p = compensateLatency(ar.startPosition, take1Dur, 0.0,
-                                             activeLatencyComp);
+            const auto p = compensateLatency(s0.pos, take1Dur, s0.fileOffset,
+                                             activeLatencyComp, s0.pos);
             if (lane && p.dur > 0.01)
             {
                 auto* clip = lane->addClip(ar.file, p.start, p.dur,
@@ -313,18 +299,22 @@ void RecordingManager::stopRecording(double endPositionSeconds)
             }
         }
 
-        // 2周目以降の周回（まだ配置されていないものだけ追加）
-        const int loopIterations = (int)std::ceil(afterPreDur / loopDur);
-        for (int it = juce::jmax(1, alreadyAdded); it < loopIterations; ++it)
+        // 2周目以降の周回（まだ配置されていないものだけ追加）。位置/fileOffset は
+        // loopTakeSlice、尺は録り切れた分 (rest) にクランプ
+        const double rest = juce::jmax(0.0, durFromStart - firstPassDur);
+        const int numRestPasses = (rest > 0.0) ? (int)std::ceil(rest / loopDur) : 0;
+        for (int it = juce::jmax(1, alreadyAdded); it <= numRestPasses; ++it)
         {
-            const double inLoopOffset = it * loopDur;
-            const double slice = juce::jmin(loopDur, afterPreDur - inLoopOffset);
-            if (slice < 0.05) continue;
+            const auto sit = loopTakeSlice(it, ar.startPosition, ar.fileStartPos,
+                                           ar.loopStart, ar.loopEnd);
+            const double inRestOffset = (double)(it - 1) * loopDur;
+            const double sliceDur = juce::jmin(sit.dur, rest - inRestOffset);
+            if (sliceDur < 0.05) continue;
 
             auto* lane = ar.track->ensureLane(ar.takeStartLaneIdx + it);
             if (!lane) continue;
-            const auto p = compensateLatency(ar.loopStart, slice,
-                                             preLoopDur + inLoopOffset, activeLatencyComp);
+            const auto p = compensateLatency(sit.pos, sliceDur, sit.fileOffset,
+                                             activeLatencyComp, sit.pos);
             if (p.dur < 0.01) continue;
             auto* clip = lane->addClip(ar.file, p.start, p.dur,
                                        ar.track->getFormatManager(),
@@ -351,28 +341,17 @@ void RecordingManager::onLoopWrap()
         const double loopDur = ar.loopEnd - ar.loopStart;
         if (loopDur < 0.05) continue;
 
-        const double preLoopDur = juce::jmax(0.0, ar.loopStart - ar.startPosition);
-
+        // テイクの位置/尺/fileOffset は純関数 loopTakeSlice (ヘッダ) に一本化。
+        // 停止時スライス (stopRecording) と RecordingTests も同じ式を使う
         const int it = ar.takesAddedRealtime;
-        double pos, takeDur, offset;
-        if (it == 0)
-        {
-            // Take 1 = pre-loop + iter 0 の連続クリップ
-            pos     = ar.startPosition;
-            takeDur = preLoopDur + loopDur;
-            offset  = 0.0;
-        }
-        else
-        {
-            pos     = ar.loopStart;
-            takeDur = loopDur;
-            offset  = preLoopDur + it * loopDur;
-        }
+        const auto slice = loopTakeSlice(it, ar.startPosition, ar.fileStartPos,
+                                         ar.loopStart, ar.loopEnd);
 
         int laneIdx = ar.takeStartLaneIdx + it;
         auto* lane  = ar.track->ensureLane(laneIdx);
         if (!lane) continue;
-        const auto p = compensateLatency(pos, takeDur, offset, activeLatencyComp);
+        const auto p = compensateLatency(slice.pos, slice.dur, slice.fileOffset,
+                                         activeLatencyComp, slice.pos);
         if (p.dur > 0.01)
         {
             auto* clip = lane->addClip(ar.file, p.start, p.dur,
@@ -386,6 +365,12 @@ void RecordingManager::onLoopWrap()
         }
 
         ++ar.takesAddedRealtime;
+
+        // 2 周目以降のライブ波形オーバーレイ (録音バー) はループ頭から表示する。
+        // liveBuffer は AudioEngine がラップ時に reset 済みなので、表示開始位置だけ進める。
+        // カウントインのリード (非表示先行録音分) は 1 周目だけのものなので 0 に戻す
+        ar.track->setRecordingStartPos(ar.loopStart);
+        ar.track->setLiveBufferLeadSecs(0.0);
     }
 }
 
@@ -447,7 +432,8 @@ void RecordingManager::stopRetrospective(bool commit, double playEndSec)
     if (commit && retroTrack && retroFile.existsAsFile())
     {
         const double dur = playEndSec - retroPlayStart;
-        const auto p = compensateLatency(retroPlayStart, dur, 0.0, retroLatencyComp);
+        const auto p = compensateLatency(retroPlayStart, dur, 0.0, retroLatencyComp,
+                                         retroPlayStart);
         if (dur > 0.05 && p.dur > 0.01)
         {
             auto* lane = retroTrack->getLane(0);
