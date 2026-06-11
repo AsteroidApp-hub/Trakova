@@ -25,6 +25,11 @@ public:
     void mouseDoubleClick(const juce::MouseEvent&) override;
 
     void refresh();
+    // ループ録音のラップ時用の軽量版: 録音アーム中のトラック (= テイクレーンが増えた
+    // トラック) のビューだけ refresh して再レイアウトする。他トラックの ComboBox 再構築や
+    // 全面 repaint を毎ラップ繰り返さない (多トラック時のラップ瞬間のヒッチ防止)。
+    // トラック集合が変わっていた場合は安全側で refresh() に委譲する。
+    void refreshRecArmedTracks();
     void setScrollY(int y);
     // VU メータの 0 VU 基準レベル (dBFS) を全トラックビューに反映
     void setVuReferenceLevel(float dB);

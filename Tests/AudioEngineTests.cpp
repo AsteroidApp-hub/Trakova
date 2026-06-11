@@ -109,6 +109,7 @@ struct AudioEngineRealtimeTests : public juce::UnitTest
         testPlaybackRendersClip();
         testNotPlayingIsSilent();
         testMuteAndSolo();
+        testMultiTrackClipIndexRouting();
         testClearPlaybackBarrier();
         testDeferredDestructionRebuild();
 
@@ -217,6 +218,58 @@ struct AudioEngineRealtimeTests : public juce::UnitTest
         tb->setSoloed(true);
         runBlocks(s.engine, 3, &pl, &pr);
         expect(std::abs(pl - 0.2f) < 0.01f, "solo silences the other track (~0.2)");
+    }
+
+    void testMultiTrackClipIndexRouting()
+    {
+        beginTest("multi-track / multi-clip routing via clipsByTrack index");
+        // PlaybackSnapshot のトラック別インデックス (clipsByTrack / clipTracks) 経路の検証:
+        // 複数トラック × 複数クリップで「正しいトラックの正しいクリップだけが鳴る」こと、
+        // Mute / Solo / 両方の組み合わせが clipTracks ベースの判定で効くことを確認する。
+        auto wavA1 = tempDir.getChildFile("idx_a1.wav");   // Track A クリップ1 = 0.1
+        auto wavA2 = tempDir.getChildFile("idx_a2.wav");   // Track A クリップ2 = 0.3
+        auto wavB  = tempDir.getChildFile("idx_b.wav");    // Track B = 0.2
+        auto wavC  = tempDir.getChildFile("idx_c.wav");    // Track C = 0.15 (常時 Mute)
+        expect(writeMonoConstWav(wavA1, (int)kSR, 0.1f),  "source A1 write");
+        expect(writeMonoConstWav(wavA2, (int)kSR, 0.3f),  "source A2 write");
+        expect(writeMonoConstWav(wavB,  (int)kSR, 0.2f),  "source B write");
+        expect(writeMonoConstWav(wavC,  (int)kSR, 0.15f), "source C write");
+
+        Scene s;
+        auto* ta = s.addConstTrack(wavA1, 0.5);            // クリップ1 [0, 0.5)
+        auto* a2 = ta->addClip(wavA2, 0.5, 0.5);           // クリップ2 [0.5, 1.0) 同一トラック
+        a2->setFadeInSecs(0.0); a2->setFadeOutSecs(0.0);
+        auto* tb = s.addConstTrack(wavB, 1.0);
+        auto* tc = s.addConstTrack(wavC, 1.0);
+        tc->setMuted(true);                                // 構築時から Mute (active 収集から除外)
+        s.start();
+        s.engine.play();
+
+        // t≈0: A クリップ1 + B (C は Mute) → 0.1 + 0.2 = 0.3
+        float pl = 0, pr = 0;
+        runBlocks(s.engine, 3, &pl, &pr);
+        expect(std::abs(pl - 0.3f) < 0.01f, "t~0: A clip1 + B mix to ~0.3");
+
+        // 後半へシーク: 同一トラックの 2 つ目のクリップに切り替わる → 0.3 + 0.2 = 0.5
+        s.engine.setPosition(0.6);
+        runBlocks(s.engine, 3, &pl, &pr);
+        expect(std::abs(pl - 0.5f) < 0.01f, "t~0.6: A clip2 + B mix to ~0.5");
+
+        // B を Solo → B のみ (~0.2)。clipTracks ベースの Solo 判定
+        tb->setSoloed(true);
+        runBlocks(s.engine, 3, &pl, &pr);
+        expect(std::abs(pl - 0.2f) < 0.01f, "solo B: only B audible (~0.2)");
+        tb->setSoloed(false);
+
+        // A を Solo → A クリップ2 のみ (~0.3)
+        ta->setSoloed(true);
+        runBlocks(s.engine, 3, &pl, &pr);
+        expect(std::abs(pl - 0.3f) < 0.01f, "solo A: only A clip2 audible (~0.3)");
+
+        // Solo 中の A を Mute → Mute が優先され無音 (B は非 Solo で除外)
+        ta->setMuted(true);
+        auto peaks = runBlocks(s.engine, 3);
+        expectEquals(peaks.getEnd(), 0.0f, "muted solo track yields silence");
     }
 
     void testClearPlaybackBarrier()

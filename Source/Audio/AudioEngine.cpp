@@ -579,6 +579,19 @@ void AudioEngine::preparePlayback(TrackManager& tm)
     auto snap = std::make_shared<PlaybackSnapshot>();
     snap->clips = std::move(newClips);
 
+    // トラック別インデックスを構築 (audio thread の毎ブロック全 clips 走査を排除)
+    snap->clipsByTrack.assign((size_t)tm.getTrackCount(), {});
+    for (int ci = 0; ci < (int)snap->clips.size(); ++ci)
+    {
+        const auto& pc = snap->clips[(size_t)ci];
+        if (pc.trackIdx < 0 || pc.trackIdx >= (int)snap->clipsByTrack.size()) continue;
+        if (pc.sourceTrack == nullptr || pc.sourceTrack->isClickTrack()) continue;
+        auto& lst = snap->clipsByTrack[(size_t)pc.trackIdx];
+        if (lst.empty())
+            snap->clipTracks.emplace_back(pc.trackIdx, pc.sourceTrack);
+        lst.push_back(ci);
+    }
+
     // 次回 preparePlayback で流用するため、実際に使った reader だけを pool に残す
     // (もう参照されないファイルのハンドルは解放される)。
     readerPool.clear();
@@ -1129,40 +1142,36 @@ void AudioEngine::renderOfflineRange(double startSec, double endSec,
             // 明示的にトラックを指定された場合は Solo/Mute を無視
             const bool explicitFilter = !includeTracks.empty();
 
-            // Solo 判定（明示フィルタ無しのときのみ、MIDI トラックも含める）
+            // Solo 判定（明示フィルタ無しのときのみ、MIDI トラックも含める）。
+            // clipTracks は dedup 済みトラック一覧 (Click 除外)
             bool anySolo = false;
             if (!explicitFilter)
             {
-                for (auto& pc : snap->clips)
-                    if (pc.sourceTrack && pc.sourceTrack->isSoloed()) { anySolo = true; break; }
+                for (auto& [ti, trk] : snap->clipTracks)
+                    if (trk && trk->isSoloed()) { anySolo = true; break; }
                 if (!anySolo)
                     for (auto& mp : snap->midi)
                         if (mp.track && mp.track->isSoloed()) { anySolo = true; break; }
             }
 
-            // アクティブトラック収集 (dedup は set で O(1)。クリップ数が多いプロジェクトの
-            // 書き出しで per-block の線形探索が O(クリップ数×トラック数) に膨らむのを防ぐ)
+            // アクティブトラック収集 (clipTracks ベースで O(トラック数)。全 clips 走査しない)
             const std::unordered_set<int> includeSet(includeTracks.begin(), includeTracks.end());
             std::vector<int>    activeIdx;
             std::vector<Track*> activeTracks;
-            std::unordered_set<int> seenIdx;
-            for (auto& pc : snap->clips)
+            for (auto& [ti, trk] : snap->clipTracks)
             {
-                if (pc.sourceTrack == nullptr || pc.sourceTrack->isClickTrack()) continue;
+                if (trk == nullptr) continue;
                 if (explicitFilter)
                 {
-                    if (includeSet.find(pc.trackIdx) == includeSet.end()) continue;
+                    if (includeSet.find(ti) == includeSet.end()) continue;
                 }
                 else
                 {
-                    if (pc.sourceTrack->isMuted()) continue;
-                    if (anySolo && !pc.sourceTrack->isSoloed()) continue;
+                    if (trk->isMuted()) continue;
+                    if (anySolo && !trk->isSoloed()) continue;
                 }
-                if (seenIdx.insert(pc.trackIdx).second)
-                {
-                    activeIdx.push_back(pc.trackIdx);
-                    activeTracks.push_back(pc.sourceTrack);
-                }
+                activeIdx.push_back(ti);
+                activeTracks.push_back(trk);
             }
 
             juce::AudioBuffer<float> trackBuf(2, n);
@@ -1170,12 +1179,9 @@ void AudioEngine::renderOfflineRange(double startSec, double endSec,
             {
                 trackBuf.clear();
                 const int tidx = activeIdx[ai];
-                for (auto& pc : snap->clips)
-                {
-                    if (pc.trackIdx != tidx) continue;
-                    if (pc.sourceTrack == nullptr || pc.sourceTrack->isClickTrack()) continue;
-                    renderClip(pc, trackBuf, posStart, n, /*preFader*/ true);
-                }
+                if (tidx < (int)snap->clipsByTrack.size())
+                    for (int ci : snap->clipsByTrack[(size_t)tidx])
+                        renderClip(snap->clips[(size_t)ci], trackBuf, posStart, n, /*preFader*/ true);
 
                 auto* track = activeTracks[ai];
                 if (track && track->getPluginChain().getNumPlugins() > 0)
@@ -1490,10 +1496,11 @@ void AudioEngine::audioDeviceIOCallbackWithContext(
     bool anyReverbSend = false;
 
     {
-        // ライブ Solo 判定（オーディオクリップだけでなく MIDI トラックも対象に含める）
+        // ライブ Solo 判定（オーディオクリップだけでなく MIDI トラックも対象に含める）。
+        // clipTracks は dedup 済みトラック一覧なので O(トラック数) で済む (全 clips 走査しない)。
         bool anySolo = false;
-        for (auto& pc : snap->clips)
-            if (pc.sourceTrack && pc.sourceTrack->isSoloed()) { anySolo = true; break; }
+        for (auto& [tidx, trk] : snap->clipTracks)
+            if (trk && trk->isSoloed()) { anySolo = true; break; }
         if (!anySolo)
             for (auto& mp : snap->midi)
                 if (mp.track && mp.track->isSoloed()) { anySolo = true; break; }
@@ -1504,19 +1511,13 @@ void AudioEngine::audioDeviceIOCallbackWithContext(
         auto& activeTracks   = activeTracksScratch;
         activeTrackIdx.clear();
         activeTracks.clear();
-        for (auto& pc : snap->clips)
+        for (auto& [tidx, trk] : snap->clipTracks)
         {
-            if (pc.sourceTrack == nullptr || pc.sourceTrack->isClickTrack()) continue;
-            if (pc.sourceTrack->isMuted()) continue;
-            if (anySolo && !pc.sourceTrack->isSoloed()) continue;
-
-            // dedup は意図的に線形探索 (audio thread はヒープ確保禁止のため set を使わない。
-            // 要素数 = アクティブトラック数なので実害なし)
-            if (std::find(activeTrackIdx.begin(), activeTrackIdx.end(), pc.trackIdx) == activeTrackIdx.end())
-            {
-                activeTrackIdx.push_back(pc.trackIdx);
-                activeTracks.push_back(pc.sourceTrack);
-            }
+            if (trk == nullptr) continue;          // clipTracks は Click 除外・dedup 済み
+            if (trk->isMuted()) continue;
+            if (anySolo && !trk->isSoloed()) continue;
+            activeTrackIdx.push_back(tidx);
+            activeTracks.push_back(trk);
         }
 
         // 簡易リバーブ送りバスの clear は遅延実行: send > 0 のトラックが現れた最初の時だけ。
@@ -1538,15 +1539,12 @@ void AudioEngine::audioDeviceIOCallbackWithContext(
                 trackBuf.setSize(2, numSamples, false, false, true);
                 trackBuf.clear();
 
-                // ドライ描画（Pre-Fader 相当: トラック Vol/Pan は後で適用）
-                for (auto& pc : snap->clips)
-                {
-                    if (pc.trackIdx != tidx) continue;
-                    if (pc.sourceTrack == nullptr || pc.sourceTrack->isClickTrack()) continue;
-                    if (pc.sourceTrack->isMuted()) continue;
-                    if (anySolo && !pc.sourceTrack->isSoloed()) continue;
-                    renderClip(pc, trackBuf, posStart, numSamples, /*preFader*/ true);
-                }
+                // ドライ描画（Pre-Fader 相当: トラック Vol/Pan は後で適用）。
+                // Mute/Solo/Click はトラック単位で判定済み (activeTrackIdx 構築時) なので
+                // クリップ毎の再判定は不要。clipsByTrack で自トラックのクリップだけを直接引く。
+                if (tidx < (int)snap->clipsByTrack.size())
+                    for (int ci : snap->clipsByTrack[(size_t)tidx])
+                        renderClip(snap->clips[(size_t)ci], trackBuf, posStart, numSamples, /*preFader*/ true);
 
                 // プラグインチェーン。ロックを取らずに処理対象有無を判定する。
                 auto* track = activeTracks[ai];

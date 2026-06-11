@@ -499,6 +499,12 @@ private:
     struct PlaybackSnapshot
     {
         std::vector<PlaybackClip>                   clips;
+        // トラック別インデックス (preparePlayback で構築・公開後不変)。毎ブロックの
+        // 「全 clips 走査 ×3 (Solo判定/アクティブ収集/トラック毎の描画)」を排除する。
+        //  - clipsByTrack[trackIdx] = その トラックに属する clips 内 index 一覧
+        //  - clipTracks = クリップを持つトラックの (trackIdx, Track*) 一覧 (dedup 済み・Click 除外)
+        std::vector<std::vector<int>>               clipsByTrack;
+        std::vector<std::pair<int, Track*>>         clipTracks;
         std::vector<MidiPlayback>                   midi;
         std::vector<juce::AudioBuffer<float>>       trackBuffers;
         std::vector<TrackDelay>                      trackDelays;

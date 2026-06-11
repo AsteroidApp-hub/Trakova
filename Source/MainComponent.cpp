@@ -967,7 +967,9 @@ void MainComponent::timerCallback()
                     recordingMgr.onLoopWrap();
                     ++lastLoopWrapCount;
                 }
-                trackHeaderPanel.refresh();
+                // ラップ毎に変化するのは録音アーム中トラック (テイクレーン追加) だけなので、
+                // 全トラックの refresh はせず軽量版で済ませる (多トラック時のヒッチ防止)
+                trackHeaderPanel.refreshRecArmedTracks();
                 timelineView.refresh();
             }
             else

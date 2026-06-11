@@ -476,6 +476,24 @@ void TrackHeaderPanel::refresh()
     resized();
 }
 
+void TrackHeaderPanel::refreshRecArmedTracks()
+{
+    const int n = trackManager.getTrackCount();
+    if ((int) headerViews.size() != n || (int) displayedTracks.size() != n)
+    {
+        refresh();
+        return;
+    }
+    for (int i = 0; i < n; ++i)
+    {
+        auto* t = trackManager.getTrack(i);
+        if (t != displayedTracks[(size_t) i]) { refresh(); return; }
+        if (t && t->isRecArmed())
+            headerViews[(size_t) i]->refresh();
+    }
+    resized();  // テイクレーン追加で高さが変わるため全体を再レイアウト
+}
+
 void TrackHeaderPanel::setVuReferenceLevel(float dB)
 {
     vuReferenceLevel = dB;
