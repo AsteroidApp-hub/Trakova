@@ -53,8 +53,15 @@ void CrashReporter::install()
 
 juce::File CrashReporter::crashLogDirectory()
 {
+    // 設定/最近使ったプロジェクト置き場 (~/Library/Utawave) を汚さないよう、ログは OS の
+    // 標準ログ置き場に分離する。macOS は ~/Library/Logs/Utawave (Console.app からも見える)
+   #if JUCE_MAC
+    return juce::File::getSpecialLocation(juce::File::userHomeDirectory)
+               .getChildFile("Library/Logs/Utawave");
+   #else
     return juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-               .getChildFile("Utawave").getChildFile("CrashLogs");
+               .getChildFile("Utawave").getChildFile("Logs");
+   #endif
 }
 
 juce::String CrashReporter::crashLogFileName(juce::Time when)

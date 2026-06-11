@@ -24,7 +24,8 @@ public:
     // プロセス全体のクラッシュハンドラを登録する (起動直後に 1 回)
     static void install();
 
-    // ログ置き場: ~/Library/Utawave/CrashLogs (macOS。userApplicationDataDirectory = ~/Library)
+    // ログ置き場: macOS = ~/Library/Logs/Utawave (OS 標準のログ置き場) /
+    // その他 = <userApplicationData>/Utawave/Logs。設定置き場 (~/Library/Utawave) とは分離する
     static juce::File crashLogDirectory();
 
     // 未処理 (*.log) のクラッシュログを新しい順に返す
