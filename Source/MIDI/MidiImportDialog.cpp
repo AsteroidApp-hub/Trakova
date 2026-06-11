@@ -2,28 +2,28 @@
 // Copyright (C) 2025-2026 Studio Asteroid
 
 #include "MidiImportDialog.h"
+#include "../Localisation.h"
 #include "../AppColours.h"
 
 MidiImportDialog::TrackRow::TrackRow(int idx,
-                                     const MidiImporter::ImportedTrack& tr,
+                                     const MidiImporter::ImportedTrack& trk,
                                      bool drumDefault)
 {
-    auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
 
     checkBtn.setToggleState(!drumDefault, juce::dontSendNotification);
     checkBtn.setColour(juce::ToggleButton::tickColourId, AppColours::accent);
     checkBtn.setColour(juce::ToggleButton::textColourId, AppColours::text);
     addAndMakeVisible(checkBtn);
 
-    nameLabel.setText(juce::String(idx + 1) + ". " + tr.name, juce::dontSendNotification);
+    nameLabel.setText(juce::String(idx + 1) + ". " + trk.name, juce::dontSendNotification);
     nameLabel.setColour(juce::Label::textColourId, AppColours::textBright);
     nameLabel.setFont(juce::FontOptions(12.0f));
     addAndMakeVisible(nameLabel);
 
     juce::String info;
-    info << J(u8"ch ") << juce::String(tr.primaryChannel + 1);
-    if (tr.isDrum) info << J(u8"  (Drum)");
-    info << J(u8"   ノート:") << juce::String(tr.numNoteOnEvents);
+    info << tr(u8"ch ") << juce::String(trk.primaryChannel + 1);
+    if (trk.isDrum) info << tr(u8"  (Drum)");
+    info << tr(u8"   ノート:") << juce::String(trk.numNoteOnEvents);
     infoLabel.setText(info, juce::dontSendNotification);
     infoLabel.setColour(juce::Label::textColourId, AppColours::textDim);
     infoLabel.setFont(juce::FontOptions(11.0f));
@@ -43,17 +43,16 @@ void MidiImportDialog::TrackRow::resized()
 MidiImportDialog::MidiImportDialog(const MidiImporter::ImportResult& imp)
     : imported(imp)
 {
-    auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
 
-    titleLabel.setText(J(u8"MIDI を読み込む"), juce::dontSendNotification);
+    titleLabel.setText(tr(u8"MIDI を読み込む"), juce::dontSendNotification);
     titleLabel.setFont(juce::FontOptions(14.0f).withStyle("Bold"));
     titleLabel.setColour(juce::Label::textColourId, AppColours::textBright);
     addAndMakeVisible(titleLabel);
 
     juce::String info;
-    info << J(u8"トラック数: ") << juce::String((int)imported.tracks.size())
-         << J(u8"    長さ: ") << juce::String(imported.endTimeSecs, 2) << J(u8" 秒")
-         << J(u8"    テンポ: ") << juce::String(imported.initialBpm, 1) << " BPM";
+    info << tr(u8"トラック数: ") << juce::String((int)imported.tracks.size())
+         << tr(u8"    長さ: ") << juce::String(imported.endTimeSecs, 2) << tr(u8" 秒")
+         << tr(u8"    テンポ: ") << juce::String(imported.initialBpm, 1) << " BPM";
     infoLabel.setText(info, juce::dontSendNotification);
     infoLabel.setFont(juce::FontOptions(11.0f));
     infoLabel.setColour(juce::Label::textColourId, AppColours::textDim);

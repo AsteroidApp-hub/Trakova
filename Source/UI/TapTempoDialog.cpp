@@ -2,13 +2,13 @@
 // Copyright (C) 2025-2026 Studio Asteroid
 
 #include "TapTempoDialog.h"
+#include "../Localisation.h"
 
 TapTempoDialog::TapTempoDialog(double initialBpm)
 {
     currentEstimate = initialBpm;
     setWantsKeyboardFocus(true);
 
-    auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
     auto styleLbl = [this](juce::Label& l, juce::String txt, float sz,
                             juce::Colour col, juce::Justification just)
     {
@@ -19,10 +19,10 @@ TapTempoDialog::TapTempoDialog(double initialBpm)
         addAndMakeVisible(l);
     };
     styleLbl(hintLbl,
-             J(u8"TAP ボタンを拍に合わせて連打\n（やり直す場合は Reset）"),
+             tr(u8"TAP ボタンを拍に合わせて連打\n（やり直す場合は Reset）"),
              12.0f, juce::Colour(0xffaaaaaa), juce::Justification::centredTop);
     styleLbl(bpmLbl,   "--- BPM", 38.0f, juce::Colours::white, juce::Justification::centred);
-    styleLbl(countLbl, J(u8"タップ: 0"), 11.0f,
+    styleLbl(countLbl, tr(u8"タップ: 0"), 11.0f,
              juce::Colour(0xff888888), juce::Justification::centred);
 
     tapBtn.setColour(juce::TextButton::buttonColourId,   juce::Colour(0xff5a3a1a));
@@ -62,8 +62,7 @@ void TapTempoDialog::registerTap()
 
 void TapTempoDialog::updateDisplay()
 {
-    auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
-    countLbl.setText(J(u8"タップ: ") + juce::String((int) taps.size()),
+    countLbl.setText(tr(u8"タップ: ") + juce::String((int) taps.size()),
                      juce::dontSendNotification);
     if (taps.size() < 2)
     {

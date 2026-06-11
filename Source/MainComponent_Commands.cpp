@@ -100,31 +100,30 @@ void MainComponent::getAllCommands(juce::Array<juce::CommandID>& commands)
 
 void MainComponent::getCommandInfo(juce::CommandID commandID, juce::ApplicationCommandInfo& info)
 {
-    auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
     switch (commandID)
     {
         case cmdPlayPause:
-            info.setInfo(J(u8"再生/停止"), J(u8"トランスポートの再生切替"), "Transport", 0);
+            info.setInfo(tr(u8"再生/停止"), tr(u8"トランスポートの再生切替"), "Transport", 0);
             info.addDefaultKeypress(juce::KeyPress::spaceKey, 0);
             break;
         case cmdStop:
-            info.setInfo(J(u8"停止"), J(u8"停止"), "Transport", 0);
+            info.setInfo(tr(u8"停止"), tr(u8"停止"), "Transport", 0);
             info.addDefaultKeypress('s', 0);
             break;
         case cmdRecord:
-            info.setInfo(J(u8"録音"), J(u8"録音切替"), "Transport", 0);
+            info.setInfo(tr(u8"録音"), tr(u8"録音切替"), "Transport", 0);
             info.addDefaultKeypress('r', 0);
             break;
         case cmdExport:
-            info.setInfo(J(u8"書き出し..."), J(u8"書き出し"), "File", 0);
+            info.setInfo(tr(u8"書き出し..."), tr(u8"書き出し"), "File", 0);
             info.addDefaultKeypress('e', juce::ModifierKeys::commandModifier);
             break;
         case cmdSave:
-            info.setInfo(J(u8"保存"), J(u8"プロジェクト保存"), "File", 0);
+            info.setInfo(tr(u8"保存"), tr(u8"プロジェクト保存"), "File", 0);
             info.addDefaultKeypress('s', juce::ModifierKeys::commandModifier);
             break;
         case cmdOpen:
-            info.setInfo(J(u8"開く..."), J(u8"プロジェクトを開く"), "File", 0);
+            info.setInfo(tr(u8"開く..."), tr(u8"プロジェクトを開く"), "File", 0);
             info.addDefaultKeypress('o', juce::ModifierKeys::commandModifier);
             break;
         default: break;

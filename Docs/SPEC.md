@@ -27,7 +27,7 @@
 | バージョン管理 | Git / GitHub (https://github.com/AsteroidApp-hub/Utawave) |
 | 内蔵 MP3 エンコーダ | LAME (静的リンク) |
 | リサンプラー | r8brain-free-src (MIT) |
-| ピッチシフト | Rubber Band Library R3 (GPL v2+) |
+| ピッチシフト | 自社製 PitchCore (フェーズボコーダ + r8brain, Source/Audio/pitchcore/) |
 
 ---
 
@@ -72,7 +72,7 @@
 | 自動リサンプリング | 異なる SR の WAV を r8brain で変換 |
 | パンチイン境界クロスフェード | 自動 30ms フェード (クリック防止) |
 
-> ⚠ 同時録音は **1 トラックのみ** (最初に Rec アームしたトラックを使用)
+> 複数トラック同時録音に対応 (Rec アーム済みの全トラックを別 input channel から並行記録)
 
 ## 2. 編集
 

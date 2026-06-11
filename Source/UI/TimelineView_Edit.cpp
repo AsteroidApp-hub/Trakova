@@ -91,6 +91,20 @@ bool TimelineView::clipStillExists(AudioClip* target) const
     return false;
 }
 
+bool TimelineView::midiClipStillExists(MidiClip* target, Track* owner) const
+{
+    if (!target || !owner) return false;
+    for (int ti = 0; ti < trackManager.getTrackCount(); ++ti)
+    {
+        auto* track = trackManager.getTrack(ti);
+        if (track != owner) continue;
+        for (int ci = 0; ci < track->getMidiClipCount(); ++ci)
+            if (track->getMidiClip(ci) == target) return true;
+        return false;  // track は生存しているがクリップは破棄済み
+    }
+    return false;
+}
+
 void TimelineView::deleteSelectedCrossfade()
 {
     if (!selectedCrossfade.valid()) return;

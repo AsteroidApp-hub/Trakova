@@ -2,6 +2,7 @@
 // Copyright (C) 2025-2026 Studio Asteroid
 
 #include "TrackHeaderPanel.h"
+#include "../Localisation.h"
 #include "../AppColours.h"
 
 TrackHeaderPanel::TrackHeaderPanel(TrackManager& tm) : trackManager(tm)
@@ -48,13 +49,12 @@ void TrackHeaderPanel::RulerHeader::paint(juce::Graphics& g)
 
 void TrackHeaderPanel::showAddTrackMenu()
 {
-    auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
     juce::PopupMenu m;
-    m.addItem(1, J(u8"モノラルトラックを追加"));
-    m.addItem(2, J(u8"ステレオトラックを追加"));
-    m.addItem(4, J(u8"MIDI トラックを追加"));
+    m.addItem(1, tr(u8"モノラルトラックを追加"));
+    m.addItem(2, tr(u8"ステレオトラックを追加"));
+    m.addItem(4, tr(u8"MIDI トラックを追加"));
     m.addSeparator();
-    m.addItem(3, J(u8"クリックトラックを追加"),
+    m.addItem(3, tr(u8"クリックトラックを追加"),
               !trackManager.hasClickTrack());
     m.showMenuAsync(juce::PopupMenu::Options(),
         [this](int result) {
@@ -121,7 +121,6 @@ void TrackHeaderPanel::mouseDown(const juce::MouseEvent& e)
          || (e.eventComponent == this && e.y < rulerH))
         && e.mods.isRightButtonDown())
     {
-        auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
 
         // 全トラックの INS 表示状態を集計（全 ON / 全 OFF / 混在）
         const int n = trackManager.getTrackCount();
@@ -132,8 +131,8 @@ void TrackHeaderPanel::mouseDown(const juce::MouseEvent& e)
         const bool allOn  = (n > 0 && onCount == n);
 
         juce::PopupMenu m;
-        m.addItem(1, J(u8"INS スロットを表示"), /*enabled*/ n > 0, /*ticked*/ allOn);
-        m.addItem(2, J(u8"INS スロットを非表示"), /*enabled*/ n > 0, /*ticked*/ onCount == 0);
+        m.addItem(1, tr(u8"INS スロットを表示"), /*enabled*/ n > 0, /*ticked*/ allOn);
+        m.addItem(2, tr(u8"INS スロットを非表示"), /*enabled*/ n > 0, /*ticked*/ onCount == 0);
         // マウスカーソル位置に表示
         const auto screenPt = e.getScreenPosition();
         const juce::Rectangle<int> targetArea(screenPt.x, screenPt.y, 1, 1);

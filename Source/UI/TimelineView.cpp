@@ -133,7 +133,6 @@ int TimelineRuler::hitTestMarker(int x, int y) const
 void TimelineRuler::showMarkerContextMenu(int idx)
 {
     if (idx < 0 || idx >= (int)markers.size()) return;
-    auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
     juce::PopupMenu m;
     juce::PopupMenu colourMenu;
     static const std::array<std::pair<const char*, juce::Colour>, 8> palette = {{
@@ -154,12 +153,12 @@ void TimelineRuler::showMarkerContextMenu(int idx)
         item.colour = palette[i].second;
         colourMenu.addItem(item);
     }
-    m.addSubMenu(J(u8"色"), colourMenu);
-    m.addItem(200, J(u8"名前を変更"));
+    m.addSubMenu(tr(u8"色"), colourMenu);
+    m.addItem(200, tr(u8"名前を変更"));
     m.addSeparator();
-    m.addItem(40, J(u8"マーカーに色を表示"), true, useMarkerColors);
+    m.addItem(40, tr(u8"マーカーに色を表示"), true, useMarkerColors);
     m.addSeparator();
-    m.addItem(300, J(u8"このマーカーを削除"));
+    m.addItem(300, tr(u8"このマーカーを削除"));
 
     m.showMenuAsync(juce::PopupMenu::Options(),
         [this, idx](int result) {
@@ -199,9 +198,8 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& e)
         const int hitBpmR = hitTestBpmMarker(e.x, e.y);
         if (hitBpmR >= 0)
         {
-            auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
             juce::PopupMenu m;
-            m.addItem(1, J(u8"このテンポ変更を削除"));
+            m.addItem(1, tr(u8"このテンポ変更を削除"));
             m.showMenuAsync(juce::PopupMenu::Options(),
                 [this, hitBpmR](int result) {
                     if (result == 1 && hitBpmR < (int)bpmChanges.size())
@@ -219,9 +217,8 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& e)
         const int hitMeterR = hitTestMeterMarker(e.x, e.y);
         if (hitMeterR >= 0)
         {
-            auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
             juce::PopupMenu m;
-            m.addItem(1, J(u8"この拍子変更を削除"));
+            m.addItem(1, tr(u8"この拍子変更を削除"));
             m.showMenuAsync(juce::PopupMenu::Options(),
                 [this, hitMeterR](int result) {
                     if (result == 1 && hitMeterR < (int)meterChanges.size())
@@ -237,18 +234,17 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& e)
         }
         // それ以外（Tempo / Meter / Bars / Time / Marker 空きエリア）→ 共通メニュー
         const double t = xToSeconds(e.x);
-        auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
         juce::PopupMenu m;
-        m.addItem(1, J(u8"ここにマーカーを追加"));
+        m.addItem(1, tr(u8"ここにマーカーを追加"));
         m.addSeparator();
-        m.addItem(22, J(u8"ループ範囲をクリア"));
-        m.addItem(30, J(u8"全マーカーをクリア"));
+        m.addItem(22, tr(u8"ループ範囲をクリア"));
+        m.addItem(30, tr(u8"全マーカーをクリア"));
         m.addSeparator();
-        m.addItem(50, J(u8"小節を表示"),   /*enabled*/ true, /*ticked*/ barsRowVisible);
-        m.addItem(51, J(u8"小節を非表示"), /*enabled*/ true, /*ticked*/ !barsRowVisible);
+        m.addItem(50, tr(u8"小節を表示"),   /*enabled*/ true, /*ticked*/ barsRowVisible);
+        m.addItem(51, tr(u8"小節を非表示"), /*enabled*/ true, /*ticked*/ !barsRowVisible);
         m.addSeparator();
-        m.addItem(40, J(u8"時刻を表示"),   /*enabled*/ true, /*ticked*/ timeRowVisible);
-        m.addItem(41, J(u8"時刻を非表示"), /*enabled*/ true, /*ticked*/ !timeRowVisible);
+        m.addItem(40, tr(u8"時刻を表示"),   /*enabled*/ true, /*ticked*/ timeRowVisible);
+        m.addItem(41, tr(u8"時刻を非表示"), /*enabled*/ true, /*ticked*/ !timeRowVisible);
         m.showMenuAsync(juce::PopupMenu::Options(),
             [this, t](int result) {
                 if (result == 1 && onAddMarker)     onAddMarker(t);

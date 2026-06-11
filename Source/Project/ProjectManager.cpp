@@ -19,11 +19,17 @@ juce::File resolveFile(const juce::File& projectDir, const juce::String& path)
 {
     if (juce::File::isAbsolutePath(path))
     {
-        juce::File abs(path);
-        if (abs.exists()) return abs;
+        // 存在しない絶対パスを getChildFile に渡すと不正なパスに化けるため、
+        // 絶対パスはそのまま返す (欠損していれば missingFiles 警告に元のパスが出る)
+        return juce::File(path);
     }
     return projectDir.getChildFile(path);
 }
+
+// 破損/手編集されたプロジェクトの不正値でテンポ計算 (60/bpm 等) が壊れないよう
+// ロード時に音楽的に意味のある範囲へクランプする
+double sanitiseBpm(double bpm)   { return (bpm > 0.0 && bpm < 1000.0) ? bpm : 120.0; }
+int    sanitiseMeter(int v)      { return juce::jlimit(1, 64, v); }
 
 juce::String colorToHex(juce::Colour c)
 {
@@ -296,6 +302,8 @@ bool ProjectManager::save(const juce::File& projectFile, const State& s)
     tmpFile.deleteFile();
     if (!root->writeTo(tmpFile))
     {
+        DBG("ProjectManager::save: writeTo failed (disk full / permission?): "
+            << tmpFile.getFullPathName());
         tmpFile.deleteFile();
         return false;
     }
@@ -338,8 +346,8 @@ bool ProjectManager::load(const juce::File& projectFile, State& s)
     // Transport
     if (auto* transport = xml->getChildByName("Transport"))
     {
-        if (s.bpm) *s.bpm = transport->getDoubleAttribute("bpm", 120.0);
-        s.appSettings->initialBpm = transport->getDoubleAttribute("initialBpm", 120.0);
+        if (s.bpm) *s.bpm = sanitiseBpm(transport->getDoubleAttribute("bpm", 120.0));
+        s.appSettings->initialBpm = sanitiseBpm(transport->getDoubleAttribute("initialBpm", 120.0));
         if (s.playheadSecs) *s.playheadSecs = transport->getDoubleAttribute("playheadSecs", 0.0);
         s.appSettings->bpmChanges.clear();
         if (auto* bpmCh = transport->getChildByName("BpmChanges"))
@@ -348,7 +356,7 @@ bool ProjectManager::load(const juce::File& projectFile, State& s)
             {
                 BpmChange bc;
                 bc.timeSec = e->getDoubleAttribute("timeSec", 0.0);
-                bc.bpm     = e->getDoubleAttribute("bpm",     120.0);
+                bc.bpm     = sanitiseBpm(e->getDoubleAttribute("bpm", 120.0));
                 s.appSettings->bpmChanges.push_back(bc);
             }
         }
@@ -366,8 +374,8 @@ bool ProjectManager::load(const juce::File& projectFile, State& s)
     // Meter
     if (auto* meter = xml->getChildByName("Meter"))
     {
-        s.appSettings->meterNumerator   = meter->getIntAttribute("numerator",   4);
-        s.appSettings->meterDenominator = meter->getIntAttribute("denominator", 4);
+        s.appSettings->meterNumerator   = sanitiseMeter(meter->getIntAttribute("numerator",   4));
+        s.appSettings->meterDenominator = sanitiseMeter(meter->getIntAttribute("denominator", 4));
         s.appSettings->meterChanges.clear();
         if (auto* mch = meter->getChildByName("MeterChanges"))
         {
@@ -375,8 +383,8 @@ bool ProjectManager::load(const juce::File& projectFile, State& s)
             {
                 MeterChange mc;
                 mc.barIndex    = e->getIntAttribute("barIndex",    0);
-                mc.numerator   = e->getIntAttribute("numerator",   4);
-                mc.denominator = e->getIntAttribute("denominator", 4);
+                mc.numerator   = sanitiseMeter(e->getIntAttribute("numerator",   4));
+                mc.denominator = sanitiseMeter(e->getIntAttribute("denominator", 4));
                 s.appSettings->meterChanges.push_back(mc);
             }
         }
@@ -510,6 +518,12 @@ bool ProjectManager::load(const juce::File& projectFile, State& s)
                                 juce::MidiMessage msg((const juce::uint8*)mb.getData(),
                                                        (int)mb.getSize(), t);
                                 seq.addEvent(msg);
+                            }
+                            else if (b64.isNotEmpty())
+                            {
+                                // 破損データの黙殺はデバッグ困難なので痕跡を残す
+                                DBG("ProjectManager::load: corrupt MIDI event data skipped (t="
+                                    << t << ")");
                             }
                         }
                         seq.updateMatchedPairs();

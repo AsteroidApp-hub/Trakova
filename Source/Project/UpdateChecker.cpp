@@ -17,7 +17,23 @@ namespace
                               .withExtraHeaders("User-Agent: Utawave\r\n"
                                                 "Accept: application/json");
         if (auto in = u.createInputStream(opts))
-            return in->readEntireStreamAsString();
+        {
+            // 接続後の read がハングするサーバー対策: 時間とサイズの上限付きで読む
+            // (InputStreamOptions のタイムアウトは接続段階のみで read には効かない)
+            constexpr int    kReadTimeoutMs = 10000;
+            constexpr size_t kMaxBytes      = 64 * 1024;   // version JSON は数百バイト想定
+            const auto deadline = juce::Time::getMillisecondCounterHiRes() + kReadTimeoutMs;
+            juce::MemoryBlock mb;
+            char buf[4096];
+            while (mb.getSize() < kMaxBytes
+                   && juce::Time::getMillisecondCounterHiRes() < deadline)
+            {
+                const int n = in->read(buf, (int)sizeof(buf));
+                if (n <= 0) break;   // EOF / エラー
+                mb.append(buf, (size_t)n);
+            }
+            return mb.toString();
+        }
         return {};
     }
 

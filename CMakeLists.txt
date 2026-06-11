@@ -87,6 +87,7 @@ target_sources(Utawave PRIVATE
     Source/UI/TimelineView.cpp
     Source/UI/TimelineView_Drawing.cpp
     Source/UI/TimelineView_Mouse.cpp
+    Source/UI/TimelineView_ContextMenu.cpp
     Source/UI/TimelineView_MidiEdit.cpp
     Source/UI/TimelineView_Edit.cpp
     Source/UI/TimelineView_EditOps.cpp
@@ -261,6 +262,7 @@ if(UTAWAVE_BUILD_TESTS)
 
     target_sources(UtawaveTests PRIVATE
         Tests/ExportEngineTests.cpp
+        Tests/AudioEngineTests.cpp
         Tests/MidiIoTests.cpp
         Tests/BackupManagerTests.cpp
         Tests/AudioClipTests.cpp

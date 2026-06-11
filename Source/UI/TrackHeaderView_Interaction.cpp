@@ -7,6 +7,7 @@
 // TrackHeaderView.cpp が肥大化したため分割。
 
 #include "TrackHeaderView.h"
+#include "../Localisation.h"
 #include "../AppColours.h"
 #include "../VST/PluginChain.h"
 #include "../Audio/LufsMeter.h"
@@ -53,17 +54,16 @@ void TrackHeaderView::mouseDown(const juce::MouseEvent& e)
             // 既存プラグインのチップ上で右クリック → 操作メニュー
             if (e.eventComponent == fxChips[i] && track.getPluginChain().getPlugin(i) != nullptr)
             {
-                auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
                 juce::PopupMenu m;
                 const bool bypassed = track.getPluginChain().isBypassed(i);
                 const int  maxSlot  = Track::insertSlotCount - 1;
-                m.addItem(1, J(u8"エディタを開く"));
-                m.addItem(2, bypassed ? J(u8"バイパスを解除") : J(u8"バイパス"));
+                m.addItem(1, tr(u8"エディタを開く"));
+                m.addItem(2, bypassed ? tr(u8"バイパスを解除") : tr(u8"バイパス"));
                 m.addSeparator();
-                m.addItem(4, J(u8"上のスロットへ移動"), /*enabled*/ i > 0);
-                m.addItem(5, J(u8"下のスロットへ移動"), /*enabled*/ i < maxSlot);
+                m.addItem(4, tr(u8"上のスロットへ移動"), /*enabled*/ i > 0);
+                m.addItem(5, tr(u8"下のスロットへ移動"), /*enabled*/ i < maxSlot);
                 m.addSeparator();
-                m.addItem(3, J(u8"削除"));
+                m.addItem(3, tr(u8"削除"));
                 const int slotIdx = i;
                 m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(fxChips[i]),
                     [this, slotIdx](int result)
@@ -92,7 +92,6 @@ void TrackHeaderView::mouseDown(const juce::MouseEvent& e)
     if (e.mods.isRightButtonDown())
     {
         if (onSelected) onSelected();
-        auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
         juce::PopupMenu m;
         juce::PopupMenu colourMenu;
         static const std::array<std::pair<const char*, juce::Colour>, 8> palette = {{
@@ -113,7 +112,7 @@ void TrackHeaderView::mouseDown(const juce::MouseEvent& e)
             item.colour = palette[i].second;
             colourMenu.addItem(item);
         }
-        m.addSubMenu(J(u8"トラックカラー"), colourMenu);
+        m.addSubMenu(tr(u8"トラックカラー"), colourMenu);
         m.addSeparator();
 
         // ── プラグイン管理 (追加は INS スロットから行う) ──
@@ -126,27 +125,27 @@ void TrackHeaderView::mouseDown(const juce::MouseEvent& e)
                 if (auto* p = track.getPluginChain().getPlugin(i))
                 {
                     juce::PopupMenu single;
-                    single.addItem(400 + i, J(u8"エディタを開く"));
-                    single.addItem(500 + i, J(u8"削除"));
+                    single.addItem(400 + i, tr(u8"エディタを開く"));
+                    single.addItem(500 + i, tr(u8"削除"));
                     fxList.addSubMenu(p->getName(), single);
                 }
             }
-            m.addSubMenu(J(u8"インサート FX"), fxList);
+            m.addSubMenu(tr(u8"インサート FX"), fxList);
         }
         const bool canMeasureLoudness = !track.isClickTrack() && !track.isMidiTrack();
         if (canMeasureLoudness)
         {
             m.addSeparator();
-            m.addItem(600, J(u8"ラウドネスを ") + juce::String(loudnessTargetLufs, 1)
-                              + J(u8" LUFS に合わせる"));
+            m.addItem(600, tr(u8"ラウドネスを ") + juce::String(loudnessTargetLufs, 1)
+                              + tr(u8" LUFS に合わせる"));
         }
         m.addSeparator();
-        m.addItem(201, J(u8"トラックを複製"));
+        m.addItem(201, tr(u8"トラックを複製"));
         // 複数選択中はまとめて削除できることを示す (選択中の N 本)
         const int delCount = getDeleteCount ? getDeleteCount() : 1;
         m.addItem(200, delCount > 1
-                          ? (J(u8"選択中のトラックを削除") + " (" + juce::String(delCount) + ")")
-                          : J(u8"トラックを削除"));
+                          ? (tr(u8"選択中のトラックを削除") + " (" + juce::String(delCount) + ")")
+                          : tr(u8"トラックを削除"));
         // マウス位置でポップアップ (デフォルトの withTargetComponent はコンポーネント基準で
         // 右クリックすると枠下に出てしまうため、現在のマウススクリーン座標を指定する)
         const auto mouseScr = juce::Desktop::getMousePosition();
@@ -179,14 +178,13 @@ void TrackHeaderView::mouseDown(const juce::MouseEvent& e)
                 }
                 else if (result == 600) {
                     // ラウドネスを -18 LUFS に合わせる: lane 0 の全クリップを連結して測定
-                    auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
                     auto* lane = track.getLane(0);
                     if (lane == nullptr || lane->clips.empty())
                     {
                         juce::AlertWindow::showAsync(juce::MessageBoxOptions()
                             .withIconType(juce::MessageBoxIconType::WarningIcon)
-                            .withTitle(J(u8"ラウドネス測定"))
-                            .withMessage(J(u8"このトラックには測定可能なクリップがありません。"))
+                            .withTitle(tr(u8"ラウドネス測定"))
+                            .withMessage(tr(u8"このトラックには測定可能なクリップがありません。"))
                             .withButton("OK"), nullptr);
                         return;
                     }
@@ -206,8 +204,8 @@ void TrackHeaderView::mouseDown(const juce::MouseEvent& e)
                     {
                         juce::AlertWindow::showAsync(juce::MessageBoxOptions()
                             .withIconType(juce::MessageBoxIconType::WarningIcon)
-                            .withTitle(J(u8"ラウドネス測定"))
-                            .withMessage(J(u8"クリップを読み込めませんでした。"))
+                            .withTitle(tr(u8"ラウドネス測定"))
+                            .withMessage(tr(u8"クリップを読み込めませんでした。"))
                             .withButton("OK"), nullptr);
                         return;
                     }
@@ -253,8 +251,8 @@ void TrackHeaderView::mouseDown(const juce::MouseEvent& e)
                     {
                         juce::AlertWindow::showAsync(juce::MessageBoxOptions()
                             .withIconType(juce::MessageBoxIconType::WarningIcon)
-                            .withTitle(J(u8"ラウドネス測定"))
-                            .withMessage(J(u8"ラウドネスを測定できませんでした。\nクリップが短すぎるか、無音が多すぎます。"))
+                            .withTitle(tr(u8"ラウドネス測定"))
+                            .withMessage(tr(u8"ラウドネスを測定できませんでした。\nクリップが短すぎるか、無音が多すぎます。"))
                             .withButton("OK"), nullptr);
                         return;
                     }
@@ -271,22 +269,22 @@ void TrackHeaderView::mouseDown(const juce::MouseEvent& e)
                         return (v >= 0.0 ? juce::String("+") : juce::String())
                                + juce::String(v, 1);
                     };
-                    juce::String msg = J(u8"現在のラウドネス: ")
+                    juce::String msg = tr(u8"現在のラウドネス: ")
                         + juce::String(effectiveLufs, 1) + " LUFS\n"
-                        + J(u8"ターゲット: ") + juce::String(targetLufs, 1) + " LUFS\n"
-                        + J(u8"トラック Vol: ") + fmt2(currentVolDb) + " dB → "
+                        + tr(u8"ターゲット: ") + juce::String(targetLufs, 1) + " LUFS\n"
+                        + tr(u8"トラック Vol: ") + fmt2(currentVolDb) + " dB → "
                         + fmt2(newVolDb) + " dB (" + fmt2(adjustmentDb) + " dB)";
                     if (std::abs(newVolUnclamped - newVolDb) > 0.05)
-                        msg += J(u8"\n※ Vol の上限/下限により制限されました");
-                    msg += J(u8"\n\n適用しますか?");
+                        msg += tr(u8"\n※ Vol の上限/下限により制限されました");
+                    msg += tr(u8"\n\n適用しますか?");
 
                     juce::Component::SafePointer<TrackHeaderView> safe(this);
                     juce::AlertWindow::showAsync(juce::MessageBoxOptions()
                         .withIconType(juce::MessageBoxIconType::QuestionIcon)
-                        .withTitle(J(u8"ラウドネス調整"))
+                        .withTitle(tr(u8"ラウドネス調整"))
                         .withMessage(msg)
-                        .withButton(J(u8"適用"))
-                        .withButton(J(u8"キャンセル")),
+                        .withButton(tr(u8"適用"))
+                        .withButton(tr(u8"キャンセル")),
                         [safe, newVolDb](int r)
                         {
                             if (r != 1) return;

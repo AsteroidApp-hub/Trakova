@@ -17,11 +17,13 @@ public:
         @param bitrateKbps  目標ビットレート (32〜320)
         @param outFile      出力先 (.mp3)
         @param errorOut     失敗時のエラーメッセージ
+        @param shouldCancel true を返すとエンコードを中断し false を返す (errorOut は空のまま)
         @returns 成功なら true
     */
     static bool encodeBuffer(const juce::AudioBuffer<float>& buffer,
                              double sampleRate,
                              int bitrateKbps,
                              const juce::File& outFile,
-                             juce::String* errorOut = nullptr);
+                             juce::String* errorOut = nullptr,
+                             std::function<bool()> shouldCancel = {});
 };

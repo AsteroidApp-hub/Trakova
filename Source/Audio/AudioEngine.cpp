@@ -9,6 +9,7 @@
 #include "AudioDeviceSettings.h"
 #include <cmath>
 #include <unordered_map>
+#include <unordered_set>
 
 // 簡易リバーブのプレート風キャラクタ。再生用バスとモニター返し用バスで同一設定にして、
 // モニターで聞こえる残響と書き出し時の残響を一致させる。
@@ -81,8 +82,21 @@ void AudioEngine::publishRecConfig(std::shared_ptr<const RecordingConfig> next, 
     // teardown (writer 破棄を伴う) のときだけ、audio thread が旧 config を手放すまで待つ。
     // これにより呼び出し側が直後に ThreadedWriter を破棄しても UAF にならない (旧 recLock のバリア相当)。
     if (drain && old != nullptr)
-        for (int guard = 0; guard < 1000000 && old.use_count() > 1; ++guard)
+    {
+        // 通常は 1 ブロックで解消。500ms 超は audio thread 停止等の異常なので打ち切る
+        // (UI ハング防止。打ち切り時も retiredRecConfigs が参照を保持する)
+        const auto deadline = juce::Time::getMillisecondCounterHiRes() + 500.0;
+        while (old.use_count() > 1)
+        {
+            if (juce::Time::getMillisecondCounterHiRes() > deadline)
+            {
+                DBG("AudioEngine: recording config drain timed out (audio thread stalled?)");
+                jassertfalse;
+                break;
+            }
             juce::Thread::yield();
+        }
+    }
     {
         const juce::ScopedLock r(reclaimLock);
         if (old) retiredRecConfigs.push_back(std::move(old));
@@ -736,8 +750,20 @@ void AudioEngine::sweepRetiredSnapshots()
 void AudioEngine::drainOldSnapshot(const std::shared_ptr<PlaybackSnapshot>& old)
 {
     if (old == nullptr) return;
-    for (int guard = 0; guard < 1000000 && old.use_count() > 1; ++guard)
+    // 通常は 1 オーディオブロック (数ミリ秒) で解消する。500ms 待っても手放されない場合は
+    // audio thread の停止等の異常なので、UI を巻き込んでハングしないよう打ち切る
+    // (打ち切り時の旧スナップショットは retiredSnapshots が保持し続けるので即 UAF にはならない)。
+    const auto deadline = juce::Time::getMillisecondCounterHiRes() + 500.0;
+    while (old.use_count() > 1)
+    {
+        if (juce::Time::getMillisecondCounterHiRes() > deadline)
+        {
+            DBG("AudioEngine::drainOldSnapshot timed out (audio thread stalled?)");
+            jassertfalse;
+            break;
+        }
         juce::Thread::yield();
+    }
 }
 
 void AudioEngine::applyTrackDelay(std::vector<TrackDelay>& delays, int trackIdx,
@@ -866,8 +892,10 @@ void AudioEngine::renderClip(PlaybackClip& pc, juce::AudioBuffer<float>& output,
     nRead = juce::jmin(nRead, (int)std::ceil(clipRemain * currentSampleRate));
     if (nRead <= 0) return;
 
-    // 一時バッファに読み取り
-    clipBuffer.setSize((int)pc.reader->numChannels, nRead, false, false, true);
+    // 一時バッファに読み取り。チャンネル数は 2 にクランプする (read の useLeft/useRight
+    // 経路は L/R しか使わない)。事前確保 (audioDeviceAboutToStart) は 2ch × バッファ長なので、
+    // クランプしないと多チャンネル WAV で audio thread 上の再確保が起きる
+    clipBuffer.setSize(juce::jmin(2, (int)pc.reader->numChannels), nRead, false, false, true);
     clipBuffer.clear();
     pc.reader->read(&clipBuffer, 0, nRead, fileSample, true, true);
 
@@ -956,7 +984,7 @@ void AudioEngine::renderClip(PlaybackClip& pc, juce::AudioBuffer<float>& output,
         const int numOutCh = output.getNumChannels();
         for (int ch = 0; ch < numOutCh; ++ch)
         {
-            int srcCh = juce::jmin(ch, (int)pc.reader->numChannels - 1);
+            int srcCh = juce::jmin(ch, clipBuffer.getNumChannels() - 1);
             float chPan = (numOutCh >= 2) ? (ch == 0 ? panL : panR) : 1.0f;
             output.addFrom(ch, bufOffset, clipBuffer, srcCh, 0, nRead, chPan);
         }
@@ -966,7 +994,7 @@ void AudioEngine::renderClip(PlaybackClip& pc, juce::AudioBuffer<float>& output,
         const int numOutCh = output.getNumChannels();
         for (int ch = 0; ch < numOutCh; ++ch)
         {
-            int srcCh = juce::jmin(ch, (int)pc.reader->numChannels - 1);
+            int srcCh = juce::jmin(ch, clipBuffer.getNumChannels() - 1);
             float chPan = (numOutCh >= 2) ? (ch == 0 ? panL : panR) : 1.0f;
             output.addFrom(ch, bufOffset, clipBuffer, srcCh, 0, nRead, baseGain * chPan);
         }
@@ -1112,23 +1140,25 @@ void AudioEngine::renderOfflineRange(double startSec, double endSec,
                         if (mp.track && mp.track->isSoloed()) { anySolo = true; break; }
             }
 
-            // アクティブトラック収集
+            // アクティブトラック収集 (dedup は set で O(1)。クリップ数が多いプロジェクトの
+            // 書き出しで per-block の線形探索が O(クリップ数×トラック数) に膨らむのを防ぐ)
+            const std::unordered_set<int> includeSet(includeTracks.begin(), includeTracks.end());
             std::vector<int>    activeIdx;
             std::vector<Track*> activeTracks;
+            std::unordered_set<int> seenIdx;
             for (auto& pc : snap->clips)
             {
                 if (pc.sourceTrack == nullptr || pc.sourceTrack->isClickTrack()) continue;
                 if (explicitFilter)
                 {
-                    if (std::find(includeTracks.begin(), includeTracks.end(), pc.trackIdx)
-                        == includeTracks.end()) continue;
+                    if (includeSet.find(pc.trackIdx) == includeSet.end()) continue;
                 }
                 else
                 {
                     if (pc.sourceTrack->isMuted()) continue;
                     if (anySolo && !pc.sourceTrack->isSoloed()) continue;
                 }
-                if (std::find(activeIdx.begin(), activeIdx.end(), pc.trackIdx) == activeIdx.end())
+                if (seenIdx.insert(pc.trackIdx).second)
                 {
                     activeIdx.push_back(pc.trackIdx);
                     activeTracks.push_back(pc.sourceTrack);
@@ -1480,6 +1510,8 @@ void AudioEngine::audioDeviceIOCallbackWithContext(
             if (pc.sourceTrack->isMuted()) continue;
             if (anySolo && !pc.sourceTrack->isSoloed()) continue;
 
+            // dedup は意図的に線形探索 (audio thread はヒープ確保禁止のため set を使わない。
+            // 要素数 = アクティブトラック数なので実害なし)
             if (std::find(activeTrackIdx.begin(), activeTrackIdx.end(), pc.trackIdx) == activeTrackIdx.end())
             {
                 activeTrackIdx.push_back(pc.trackIdx);

@@ -94,14 +94,13 @@ void MainComponent::offerAutoSaveRecoveryIfNeeded(const juce::File& projectFile)
         return;   // 本体が新しい / バックアップ無し = 提案しない。世代は履歴として残す（消さない）
     auto newest = BackupManager::newest(dir, backupBaseName());
 
-    auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
     juce::AlertWindow::showAsync(
         juce::MessageBoxOptions()
             .withIconType(juce::MessageBoxIconType::QuestionIcon)
-            .withTitle(J(u8"自動保存から復旧"))
-            .withMessage(J(u8"前回終了時に未保存の変更が見つかりました。\n自動保存ファイルから復旧しますか?"))
-            .withButton(J(u8"復旧"))
-            .withButton(J(u8"破棄")),
+            .withTitle(tr(u8"自動保存から復旧"))
+            .withMessage(tr(u8"前回終了時に未保存の変更が見つかりました。\n自動保存ファイルから復旧しますか?"))
+            .withButton(tr(u8"復旧"))
+            .withButton(tr(u8"破棄")),
         [this, projectFile, newest](int result)
         {
             if (result == 1)
@@ -352,17 +351,16 @@ bool MainComponent::loadProjectFrom(const juce::File& f, bool isRecovery)
     // 欠損ファイルがあれば警告ダイアログ (最大 10 件まで列挙)
     if (!missingFiles.empty())
     {
-        auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
         juce::String list;
         const int maxShow = juce::jmin((int) missingFiles.size(), 10);
         for (int i = 0; i < maxShow; ++i)
             list << "  • " << missingFiles[(size_t) i] << "\n";
         if ((int) missingFiles.size() > maxShow)
-            list << J(u8"  ... ほか ") << juce::String((int) missingFiles.size() - maxShow) << J(u8" 件\n");
+            list << tr(u8"  ... ほか ") << juce::String((int) missingFiles.size() - maxShow) << tr(u8" 件\n");
         juce::AlertWindow::showAsync(juce::MessageBoxOptions()
             .withIconType(juce::MessageBoxIconType::WarningIcon)
-            .withTitle(J(u8"欠損ファイル"))
-            .withMessage(J(u8"以下の音声ファイルが見つかりませんでした。\n"
+            .withTitle(tr(u8"欠損ファイル"))
+            .withMessage(tr(u8"以下の音声ファイルが見つかりませんでした。\n"
                             u8"クリップは表示されますが音は出ません。\n"
                             u8"ファイルを <プロジェクト>/Audio/ に戻すと自動的に復活します。\n\n")
                          + list)
@@ -449,15 +447,14 @@ void MainComponent::confirmCloseIfDirty(std::function<void()> onProceed)
 {
     if (!projectDirty) { if (onProceed) onProceed(); return; }
 
-    auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
     juce::AlertWindow::showAsync(
         juce::MessageBoxOptions()
             .withIconType(juce::MessageBoxIconType::QuestionIcon)
-            .withTitle(J(u8"変更を保存しますか?"))
-            .withMessage(J(u8"このプロジェクトには未保存の変更があります。\n保存しますか?"))
-            .withButton(J(u8"保存"))
-            .withButton(J(u8"保存しない"))
-            .withButton(J(u8"キャンセル")),
+            .withTitle(tr(u8"変更を保存しますか?"))
+            .withMessage(tr(u8"このプロジェクトには未保存の変更があります。\n保存しますか?"))
+            .withButton(tr(u8"保存"))
+            .withButton(tr(u8"保存しない"))
+            .withButton(tr(u8"キャンセル")),
         [this, onProceed](int result)
         {
             // result: 1=Save, 2=Don't Save, 3=Cancel

@@ -27,5 +27,5 @@ public:
 
     static juce::File getStoreFile();
     static AppPreferences load();
-    void save() const;
+    bool save() const;  // 書き込み失敗 (ディスク満杯等) は false。呼び出し側は無視してもよい
 };

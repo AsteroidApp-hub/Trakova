@@ -43,8 +43,8 @@ TimelineView::DragMode TimelineView::getDragMode(const ClipRef& ref, int mouseX,
         int fiChipX = cx + fiPx;
         int foChipX = cx + cw - foPx;
 
-        if (std::abs(mouseX - fiChipX) <= 6) return DragMode::FadeIn;
-        if (std::abs(mouseX - foChipX) <= 6) return DragMode::FadeOut;
+        if (std::abs(mouseX - fiChipX) <= kHandleHitPx) return DragMode::FadeIn;
+        if (std::abs(mouseX - foChipX) <= kHandleHitPx) return DragMode::FadeOut;
     }
 
     // クロスフェード境界ハンドル（XFADE ON 時、全高さで有効）
@@ -62,7 +62,7 @@ TimelineView::DragMode TimelineView::getDragMode(const ClipRef& ref, int mouseX,
 
                 int boundary = (int)((ref.clip->getStartPosition() + ref.clip->getFadeInSecs())
                                      * bps * pixelsPerBeat - scrollX);
-                if (std::abs(mouseX - boundary) <= 6) return DragMode::FadeIn;
+                if (std::abs(mouseX - boundary) <= kHandleHitPx) return DragMode::FadeIn;
             }
             // 右隣クリップ（異ファイル）が接触 → このクリップの FadeOut 境界
             for (auto& cPtr : lane->clips)
@@ -73,7 +73,7 @@ TimelineView::DragMode TimelineView::getDragMode(const ClipRef& ref, int mouseX,
 
                 int boundary = (int)((ref.clip->getEndPosition() - ref.clip->getFadeOutSecs())
                                      * bps * pixelsPerBeat - scrollX);
-                if (std::abs(mouseX - boundary) <= 6) return DragMode::FadeOut;
+                if (std::abs(mouseX - boundary) <= kHandleHitPx) return DragMode::FadeOut;
             }
         }
     }
@@ -112,7 +112,7 @@ TimelineView::DragMode TimelineView::getDragMode(const ClipRef& ref, int mouseX,
         {
             int px = cx + (int)(pts[i].time * bps * pixelsPerBeat);
             int py = clipMidY - (int)(dbToNorm(pts[i].dB) * halfH);
-            if (std::abs(mouseX - px) <= 6 && std::abs(mouseY - py) <= 6)
+            if (std::abs(mouseX - px) <= kHandleHitPx && std::abs(mouseY - py) <= kHandleHitPx)
                 return DragMode::GainPoint;
         }
 
@@ -827,7 +827,7 @@ void TimelineView::drawCrossfadeOverlay(juce::Graphics& g, Lane* lane,
         // 描かれてしまう。Lane0 オーバーレイ (path #2) と同じく終端を min(aEnd,bEnd) に揃える。
         const double ovEnd   = juce::jmin(aEnd, clipB->getEndPosition());
         const double overlap = ovEnd - bStart;
-        if (overlap < 0.001) continue;
+        if (overlap < kOverlapEpsilonSecs) continue;
         // 同一連続音声でも、重なり (overlap>1ms) と ≥30ms フェードがあればクロスフェードとして描く。
         // テイクを同位置に差し込んだ際の透過クロスフェード (線形カーブ) もここで X 表示する。
         // Alt+Click 分割は overlap=0 のため直前の overlap<0.001 で既に除外済み。
@@ -1256,12 +1256,10 @@ void TimelineView::drawTrackRows(juce::Graphics& g, juce::Rectangle<int> area)
 
                     // 実際に重なっている場合のみ（overlap > 1ms）
                     double overlapSecs = a->getEndPosition() - b->getStartPosition();
-                    if (overlapSecs < 0.001) continue;
+                    if (overlapSecs < kOverlapEpsilonSecs) continue;
                     // autoCrossfade OFF の「単なる重なり」(両フェードが小) には X を描かない。
-                    // 実フェードのあるクロスフェードのみ表示 (cursor の xfadeDrawn と同条件)。
-                    if (!appSettings.autoCrossfade
-                        && a->getFadeOutSecs() < kCrossfadeFadeMinSecs
-                        && b->getFadeInSecs()  < kCrossfadeFadeMinSecs) continue;
+                    // 実フェードのあるクロスフェードのみ表示 (cursor / mouseDown と同条件)。
+                    if (!isCrossfadeInteractive(a, b)) continue;
 
                     // 重なり領域 [bxL, axR] が X の範囲
                     // ただし両クリップの実際の波形境界内にクランプする

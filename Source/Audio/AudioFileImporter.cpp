@@ -70,7 +70,7 @@ AudioFileImporter::importFile(const juce::File& src, double projectSampleRate, i
     {
         r.errorMessage = err;
         r.cancelled    = (err == "cancelled");
-        if (r.cancelled) dst.deleteFile();   // 中断時の部分ファイルを片付ける
+        dst.deleteFile();   // 中断/失敗時の部分ファイルを片付ける (破損キャッシュを残さない)
         return r;
     }
 
@@ -207,7 +207,11 @@ bool AudioFileImporter::resampleToFile(const juce::File& src, const juce::File& 
             }
         }
 
-        writer->writeFromAudioSampleBuffer(outBuf, 0, writeCount);
+        if (!writer->writeFromAudioSampleBuffer(outBuf, 0, writeCount))
+        {
+            errorOut = "Failed to write samples (disk full?)";
+            return false;
+        }
         writtenOut += writeCount;
 
         if (flushing && writeCount == 0) break;
@@ -286,6 +290,8 @@ bool AudioFileImporter::copyStrippingMetadata(const juce::File& src, const juce:
 
     if (!writer->writeFromAudioReader(*reader, 0, reader->lengthInSamples))
     {
+        writer.reset();    // ストリームを閉じてから
+        dst.deleteFile();  // 部分書き込みの破損ファイルを残さない
         errorOut = "Failed to copy samples";
         return false;
     }

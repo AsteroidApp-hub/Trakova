@@ -31,10 +31,14 @@ AppPreferences AppPreferences::load()
     return p;
 }
 
-void AppPreferences::save() const
+bool AppPreferences::save() const
 {
     juce::XmlElement xml("Preferences");
     xml.setAttribute("showMidiExportMenu", showMidiExportMenu);
     xml.setAttribute("showAds", showAds);
-    xml.writeTo(getStoreFile());
+    const bool ok = xml.writeTo(getStoreFile());
+    if (!ok)
+        DBG("AppPreferences::save failed (disk full / permission?): "
+            << getStoreFile().getFullPathName());
+    return ok;
 }

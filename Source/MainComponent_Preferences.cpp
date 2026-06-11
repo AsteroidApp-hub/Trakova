@@ -49,14 +49,13 @@ void MainComponent::showPreferences()
                  bool curAutoNorm, bool curZoomMouse, bool curPeakGuard, bool curZeroCross,
                  bool curStripMeta)
         {
-            auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
             auto setupLabel = [this](juce::Label& l, juce::String txt, float fontSize, juce::Colour col) {
                 l.setText(txt, juce::dontSendNotification);
                 l.setColour(juce::Label::textColourId, col);
                 l.setFont(juce::FontOptions(fontSize));
                 addAndMakeVisible(l);
             };
-            setupLabel(languageLabel, J(u8"言語 (Language)  ※再起動で反映"), 13.0f, juce::Colours::white);
+            setupLabel(languageLabel, tr(u8"言語 (Language)  ※再起動で反映"), 13.0f, juce::Colours::white);
             // 言語名は各言語の表記のまま (翻訳しない)
             languageCombo.addItem(tr(u8"日本語"), 1);
             languageCombo.addItem("English", 2);
@@ -72,16 +71,16 @@ void MainComponent::showPreferences()
             };
             addAndMakeVisible(languageCombo);
 
-            setupLabel(bitsLabel, J(u8"インポート時のリサンプル出力"), 13.0f, juce::Colours::white);
-            setupLabel(behaviorLabel, J(u8"編集動作"), 13.0f, juce::Colours::white);
-            setupLabel(recLabel,      J(u8"録音フロー"), 13.0f, juce::Colours::white);
-            setupLabel(autoSaveLabel, J(u8"自動保存"), 13.0f, juce::Colours::white);
-            setupLabel(backupCountLabel, J(u8"バックアップを残す数 (古い世代から自動削除)"), 13.0f, juce::Colours::white);
-            setupLabel(vuRefLabel,    J(u8"VU メータ基準レベル (0 VU)"), 13.0f, juce::Colours::white);
-            setupLabel(loudnessLabel, J(u8"ラウドネス自動調整ターゲット"), 13.0f, juce::Colours::white);
-            setupLabel(exportLabel,   J(u8"書き出し"), 13.0f, juce::Colours::white);
+            setupLabel(bitsLabel, tr(u8"インポート時のリサンプル出力"), 13.0f, juce::Colours::white);
+            setupLabel(behaviorLabel, tr(u8"編集動作"), 13.0f, juce::Colours::white);
+            setupLabel(recLabel,      tr(u8"録音フロー"), 13.0f, juce::Colours::white);
+            setupLabel(autoSaveLabel, tr(u8"自動保存"), 13.0f, juce::Colours::white);
+            setupLabel(backupCountLabel, tr(u8"バックアップを残す数 (古い世代から自動削除)"), 13.0f, juce::Colours::white);
+            setupLabel(vuRefLabel,    tr(u8"VU メータ基準レベル (0 VU)"), 13.0f, juce::Colours::white);
+            setupLabel(loudnessLabel, tr(u8"ラウドネス自動調整ターゲット"), 13.0f, juce::Colours::white);
+            setupLabel(exportLabel,   tr(u8"書き出し"), 13.0f, juce::Colours::white);
             if (adsUi)
-                setupLabel(startupLabel,  J(u8"起動画面"), 13.0f, juce::Colours::white);
+                setupLabel(startupLabel,  tr(u8"起動画面"), 13.0f, juce::Colours::white);
 
             bitsCombo.addItem("32-bit float", 32);
             bitsCombo.addItem("24-bit", 24);
@@ -97,7 +96,7 @@ void MainComponent::showPreferences()
 
             // インポート時の不要メタデータ除去 (他 DAW のテンポ/ループ情報の流入防止)。既定 ON。
             stripMetaBtn.setButtonText(
-                J(u8"インポート時に不要なタグを削除する (テンポ等の埋め込み情報)"));
+                tr(u8"インポート時に不要なタグを削除する (テンポ等の埋め込み情報)"));
             stripMetaBtn.setToggleState(curStripMeta, juce::dontSendNotification);
             stripMetaBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
             stripMetaBtn.onClick = [this] {
@@ -106,7 +105,7 @@ void MainComponent::showPreferences()
             addAndMakeVisible(stripMetaBtn);
 
             followSelBtn.setButtonText(
-                J(u8"再生バーを選択先頭に追従させる (Insertion Follows Selection)"));
+                tr(u8"再生バーを選択先頭に追従させる (Insertion Follows Selection)"));
             followSelBtn.setToggleState(curFollowSel, juce::dontSendNotification);
             followSelBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
             followSelBtn.onClick = [this] {
@@ -115,7 +114,7 @@ void MainComponent::showPreferences()
             addAndMakeVisible(followSelBtn);
 
             rtzBtn.setButtonText(
-                J(u8"停止時に再生開始位置へ戻る (Return To Zero)"));
+                tr(u8"停止時に再生開始位置へ戻る (Return To Zero)"));
             rtzBtn.setToggleState(curRtz, juce::dontSendNotification);
             rtzBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
             rtzBtn.onClick = [this] {
@@ -124,7 +123,7 @@ void MainComponent::showPreferences()
             addAndMakeVisible(rtzBtn);
 
             zoomMouseBtn.setButtonText(
-                J(u8"Cmd+スクロール拡大の起点をマウス位置にする (OFF: 再生バー中央)"));
+                tr(u8"Cmd+スクロール拡大の起点をマウス位置にする (OFF: 再生バー中央)"));
             zoomMouseBtn.setToggleState(curZoomMouse, juce::dontSendNotification);
             zoomMouseBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
             zoomMouseBtn.onClick = [this] {
@@ -133,7 +132,7 @@ void MainComponent::showPreferences()
             addAndMakeVisible(zoomMouseBtn);
 
             zeroCrossBtn.setButtonText(
-                J(u8"クロスフェードをゼロクロス点でつなぐ (プチッ音を防ぐ)"));
+                tr(u8"クロスフェードをゼロクロス点でつなぐ (プチッ音を防ぐ)"));
             zeroCrossBtn.setToggleState(curZeroCross, juce::dontSendNotification);
             zeroCrossBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
             zeroCrossBtn.onClick = [this] {
@@ -142,7 +141,7 @@ void MainComponent::showPreferences()
             addAndMakeVisible(zeroCrossBtn);
 
             // 録音フロー
-            retroBtn.setButtonText(J(u8"再生中バックグラウンド録音 (遡及録音 Cmd+Shift+R で確定)"));
+            retroBtn.setButtonText(tr(u8"再生中バックグラウンド録音 (遡及録音 Cmd+Shift+R で確定)"));
             retroBtn.setToggleState(curRetro, juce::dontSendNotification);
             retroBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
             retroBtn.onClick = [this] {
@@ -152,13 +151,13 @@ void MainComponent::showPreferences()
 
             // 自動保存: 無効 + 5 分刻み (5/10/15/20/25/30)
             // ID = minutes + 1 (無効=1, 5分=6, ...)
-            autoSaveCombo.addItem(J(u8"無効"),  1);
-            autoSaveCombo.addItem(J(u8"5 分"),  6);
-            autoSaveCombo.addItem(J(u8"10 分"), 11);
-            autoSaveCombo.addItem(J(u8"15 分"), 16);
-            autoSaveCombo.addItem(J(u8"20 分"), 21);
-            autoSaveCombo.addItem(J(u8"25 分"), 26);
-            autoSaveCombo.addItem(J(u8"30 分"), 31);
+            autoSaveCombo.addItem(tr(u8"無効"),  1);
+            autoSaveCombo.addItem(tr(u8"5 分"),  6);
+            autoSaveCombo.addItem(tr(u8"10 分"), 11);
+            autoSaveCombo.addItem(tr(u8"15 分"), 16);
+            autoSaveCombo.addItem(tr(u8"20 分"), 21);
+            autoSaveCombo.addItem(tr(u8"25 分"), 26);
+            autoSaveCombo.addItem(tr(u8"30 分"), 31);
             auto minutesToId = [](int m) -> int {
                 if (m <= 0)  return 1;
                 int snapped = ((m + 2) / 5) * 5;  // 直近の 5 分刻みに丸め
@@ -178,12 +177,12 @@ void MainComponent::showPreferences()
             addAndMakeVisible(autoSaveCombo);
 
             // バックアップ世代数: 5/10/20/30/50/100 個。ID = 個数そのもの。既定 20
-            backupCountCombo.addItem(J(u8"5 個"),   5);
-            backupCountCombo.addItem(J(u8"10 個"),  10);
-            backupCountCombo.addItem(J(u8"20 個"),  20);
-            backupCountCombo.addItem(J(u8"30 個"),  30);
-            backupCountCombo.addItem(J(u8"50 個"),  50);
-            backupCountCombo.addItem(J(u8"100 個"), 100);
+            backupCountCombo.addItem(tr(u8"5 個"),   5);
+            backupCountCombo.addItem(tr(u8"10 個"),  10);
+            backupCountCombo.addItem(tr(u8"20 個"),  20);
+            backupCountCombo.addItem(tr(u8"30 個"),  30);
+            backupCountCombo.addItem(tr(u8"50 個"),  50);
+            backupCountCombo.addItem(tr(u8"100 個"), 100);
             auto snapBackups = [](int n) -> int {
                 const int opts[] = { 5, 10, 20, 30, 50, 100 };
                 int best = 20, bestDiff = 1 << 30;
@@ -203,10 +202,10 @@ void MainComponent::showPreferences()
 
             // VU メータ基準レベル: -14 / -18 / -20 / -24 dBFS
             // ID = abs(dB) (14, 18, 20, 24)
-            vuRefCombo.addItem(J(u8"-14 dBFS (配信向け)"),         14);
-            vuRefCombo.addItem(J(u8"-18 dBFS (EBU R68 / 放送)"),   18);
-            vuRefCombo.addItem(J(u8"-20 dBFS (SMPTE / ポスプロ)"), 20);
-            vuRefCombo.addItem(J(u8"-24 dBFS (映画向け)"),         24);
+            vuRefCombo.addItem(tr(u8"-14 dBFS (配信向け)"),         14);
+            vuRefCombo.addItem(tr(u8"-18 dBFS (EBU R68 / 放送)"),   18);
+            vuRefCombo.addItem(tr(u8"-20 dBFS (SMPTE / ポスプロ)"), 20);
+            vuRefCombo.addItem(tr(u8"-24 dBFS (映画向け)"),         24);
             auto vuRefToId = [](float dB) -> int {
                 const int abs = (int) std::round(-dB);
                 if (abs <= 16) return 14;
@@ -226,11 +225,11 @@ void MainComponent::showPreferences()
 
             // ラウドネス自動調整ターゲット: -14 / -16 / -18 / -23 / -24 LUFS
             // ID = abs(LUFS) (14, 16, 18, 23, 24)
-            loudnessCombo.addItem(J(u8"-14 LUFS (Spotify / 配信)"),     14);
-            loudnessCombo.addItem(J(u8"-16 LUFS (Apple Music)"),        16);
-            loudnessCombo.addItem(J(u8"-18 LUFS (動画 / Web)"),         18);
-            loudnessCombo.addItem(J(u8"-23 LUFS (EBU R128 放送)"),      23);
-            loudnessCombo.addItem(J(u8"-24 LUFS (ATSC A/85)"),          24);
+            loudnessCombo.addItem(tr(u8"-14 LUFS (Spotify / 配信)"),     14);
+            loudnessCombo.addItem(tr(u8"-16 LUFS (Apple Music)"),        16);
+            loudnessCombo.addItem(tr(u8"-18 LUFS (動画 / Web)"),         18);
+            loudnessCombo.addItem(tr(u8"-23 LUFS (EBU R128 放送)"),      23);
+            loudnessCombo.addItem(tr(u8"-24 LUFS (ATSC A/85)"),          24);
             auto loudnessToId = [](float lufs) -> int {
                 const int abs = (int) std::round(-lufs);
                 if (abs <= 15) return 14;
@@ -251,7 +250,7 @@ void MainComponent::showPreferences()
             addAndMakeVisible(loudnessCombo);
 
             autoNormBtn.setButtonText(
-                J(u8"インポート時にラウドネスを上記ターゲットへ自動調整"));
+                tr(u8"インポート時にラウドネスを上記ターゲットへ自動調整"));
             autoNormBtn.setToggleState(curAutoNorm, juce::dontSendNotification);
             autoNormBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
             autoNormBtn.onClick = [this] {
@@ -260,7 +259,7 @@ void MainComponent::showPreferences()
             addAndMakeVisible(autoNormBtn);
 
             peakGuardBtn.setButtonText(
-                J(u8"ピーク超過時に内部で減衰させて書き出す (クリッピング防止)"));
+                tr(u8"ピーク超過時に内部で減衰させて書き出す (クリッピング防止)"));
             peakGuardBtn.setToggleState(curPeakGuard, juce::dontSendNotification);
             peakGuardBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
             peakGuardBtn.onClick = [this] {
@@ -270,7 +269,7 @@ void MainComponent::showPreferences()
 
             // MIDI 書き出しメニューの表示切替 (アプリ全体設定)。初期状態は showPreferences 側で設定する
             showMidiExportBtn.setButtonText(
-                J(u8"「MIDI を書き出す」をファイルメニューに表示"));
+                tr(u8"「MIDI を書き出す」をファイルメニューに表示"));
             showMidiExportBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
             showMidiExportBtn.onClick = [this] {
                 if (onShowMidiExportChanged) onShowMidiExportChanged(showMidiExportBtn.getToggleState());
@@ -281,7 +280,7 @@ void MainComponent::showPreferences()
             if (adsUi)
             {
                 showAdsBtn.setButtonText(
-                    J(u8"起動画面に広告を表示する (OFF で通信しません。次回起動で反映)"));
+                    tr(u8"起動画面に広告を表示する (OFF で通信しません。次回起動で反映)"));
                 showAdsBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
                 showAdsBtn.onClick = [this] {
                     if (onShowAdsChanged) onShowAdsChanged(showAdsBtn.getToggleState());
@@ -289,25 +288,24 @@ void MainComponent::showPreferences()
                 addAndMakeVisible(showAdsBtn);
             }
 
-            closeBtn.setButtonText(J(u8"閉じる"));
+            closeBtn.setButtonText(tr(u8"閉じる"));
             closeBtn.onClick = [this] {
                 if (auto* dw = findParentComponentOfClass<juce::DialogWindow>())
                     dw->exitModalState(0);
             };
             addAndMakeVisible(closeBtn);
 
-            resetBtn.setButtonText(J(u8"デフォルトに戻す"));
+            resetBtn.setButtonText(tr(u8"デフォルトに戻す"));
             resetBtn.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff5a3a3a));
             resetBtn.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
             resetBtn.onClick = [this]
             {
-                auto JJ = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
                 juce::AlertWindow::showAsync(juce::MessageBoxOptions()
                     .withIconType(juce::MessageBoxIconType::QuestionIcon)
-                    .withTitle(JJ(u8"設定リセット"))
-                    .withMessage(JJ(u8"全ての環境設定をデフォルト値に戻します。よろしいですか？"))
-                    .withButton(JJ(u8"リセット"))
-                    .withButton(JJ(u8"キャンセル")),
+                    .withTitle(tr(u8"設定リセット"))
+                    .withMessage(tr(u8"全ての環境設定をデフォルト値に戻します。よろしいですか？"))
+                    .withButton(tr(u8"リセット"))
+                    .withButton(tr(u8"キャンセル")),
                     [this](int r)
                     {
                         if (r != 1) return;
@@ -427,11 +425,10 @@ void MainComponent::showPreferences()
         const auto lang = (id == 2) ? Localisation::Language::English
                                     : Localisation::Language::Japanese;
         Localisation::saveLanguage(lang);  // アプリ全体設定 (プロジェクトではない)
-        auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
         juce::AlertWindow::showAsync(juce::MessageBoxOptions()
             .withIconType(juce::MessageBoxIconType::InfoIcon)
-            .withTitle(J(u8"言語設定"))
-            .withMessage(J(u8"言語の変更は次回起動時に反映されます。"))
+            .withTitle(tr(u8"言語設定"))
+            .withMessage(tr(u8"言語の変更は次回起動時に反映されます。"))
             .withButton("OK"), nullptr);
     };
     dlg->onBitsChanged = [this](int bits) {

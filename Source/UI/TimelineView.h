@@ -374,6 +374,22 @@ private:
     // クリック防止フェード (5〜10ms) と確実に区別できる 20ms を閾値にする (描画/カーソル共通)。
     static constexpr double kCrossfadeFadeMinSecs { 0.020 };
 
+    // ヒット判定の許容値 (カーソル判定 mouseMove / 掴み判定 mouseDown / 描画で共通)
+    static constexpr int    kXfadeHandleHitPx    { 8 };      // クロスフェード両端ハンドル半径
+    static constexpr int    kHandleHitPx         { 6 };      // フェードチップ / GainPoint 半径
+    static constexpr double kOverlapEpsilonSecs  { 0.001 };  // 「重なりあり」とみなす下限 (1ms)
+
+    // クロスフェードを「視覚化・操作対象」として扱うかの単一の真実源 (#L3)。
+    // autoCrossfade ON、または ≥kCrossfadeFadeMinSecs のフェードを持つ実クロスフェードのみ。
+    // カーソル判定 (mouseMove) / ヒット判定 (mouseDown) / Lane0 オーバーレイ描画で共用する。
+    // 条件を変える時はここだけ直す (旧実装は 3 箇所に同じ式が複製されズレるバグの温床だった)。
+    bool isCrossfadeInteractive(const AudioClip* a, const AudioClip* b) const
+    {
+        return appSettings.autoCrossfade
+            || a->getFadeOutSecs() >= kCrossfadeFadeMinSecs
+            || b->getFadeInSecs()  >= kCrossfadeFadeMinSecs;
+    }
+
     void timerCallback() override;
     void drawTrackRows(juce::Graphics& g, juce::Rectangle<int> area);
     void drawClip(juce::Graphics& g, AudioClip& clip,
@@ -389,7 +405,7 @@ private:
                           double fileStart, double durationSecs, float verticalZoom,
                           juce::Colour colour);
     // 重なり領域に X 字のクロスフェードカーブを上書き描画
-    void drawCrossfadeOverlay(juce::Graphics& g, class Lane* lane,
+    void drawCrossfadeOverlay(juce::Graphics& g, struct Lane* lane,
                                juce::Rectangle<int> laneBounds);
     // MIDI クリップ描画（ノートピアノロール風プレビュー）
     void drawMidiClip(juce::Graphics& g, class MidiClip& clip,
@@ -495,6 +511,9 @@ private:
     juce::Point<int> rubberBandEnd;
     bool isClipInSelection(const AudioClip* clip) const;
     bool clipStillExists(AudioClip* clip) const;  // 全レーンを走査して生存確認 (UAF 防止)
+    // 波形クリップの右クリックメニュー (構築 + 結果ハンドラ。mouseDown から抽出)
+    void showAudioClipContextMenu(const ClipRef& rcRef, const juce::MouseEvent& e);
+    bool midiClipStillExists(MidiClip* clip, Track* owner) const;  // track と clip の両方を生存確認
     void clearAllSelections();
     // 選択変化を owner へ通知 (callback only。各サイトの repaint() は据え置き)
     void notifySelectionChanged() { if (onSelectionChanged) onSelectionChanged(); }

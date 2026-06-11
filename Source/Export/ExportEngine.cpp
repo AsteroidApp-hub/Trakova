@@ -258,8 +258,11 @@ bool ExportEngine::render(AudioEngine& engine, const Options& opts,
     {
         // 内蔵 libmp3lame でエンコード（外部バイナリ不要・全プラットフォーム共通）
         juce::String e;
-        if (!Mp3EncoderWriter::encodeBuffer(buffer, dstSr, opts.mp3BitrateKbps, outFile, &e))
+        if (!Mp3EncoderWriter::encodeBuffer(buffer, dstSr, opts.mp3BitrateKbps, outFile, &e,
+                                            shouldCancel))
         {
+            outFile.deleteFile();  // 部分書き込みの破損 MP3 を残さない
+            if (shouldCancel && shouldCancel()) return false;  // キャンセルはエラー扱いしない
             setErr(tr(u8"MP3 書き出しに失敗しました: ") + e);
             return false;
         }
@@ -298,6 +301,8 @@ bool ExportEngine::render(AudioEngine& engine, const Options& opts,
 
     if (!writer->writeFromAudioSampleBuffer(buffer, 0, buffer.getNumSamples()))
     {
+        writer.reset();        // ストリームを閉じてから
+        outFile.deleteFile();  // 部分書き込みの破損ファイルを残さない
         setErr(tr(u8"書き出しに失敗しました"));
         return false;
     }

@@ -496,10 +496,9 @@ void MasterPanel::mouseDown(const juce::MouseEvent& e)
         && (e.eventComponent == this || e.eventComponent == &masterLabel)
         && e.getPosition().y < 28)
     {
-        auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
         juce::PopupMenu m;
-        m.addItem(1, J(u8"INS スロットを表示"),   /*enabled*/ true, /*ticked*/ insertSlotsVisible);
-        m.addItem(2, J(u8"INS スロットを非表示"), /*enabled*/ true, /*ticked*/ !insertSlotsVisible);
+        m.addItem(1, tr(u8"INS スロットを表示"),   /*enabled*/ true, /*ticked*/ insertSlotsVisible);
+        m.addItem(2, tr(u8"INS スロットを非表示"), /*enabled*/ true, /*ticked*/ !insertSlotsVisible);
         const auto screenPt = e.getScreenPosition();
         const juce::Rectangle<int> targetArea(screenPt.x, screenPt.y, 1, 1);
         m.showMenuAsync(juce::PopupMenu::Options().withTargetScreenArea(targetArea),
@@ -518,17 +517,16 @@ void MasterPanel::mouseDown(const juce::MouseEvent& e)
         {
             if (e.eventComponent == fxChips[i] && pluginChain->getPlugin(i) != nullptr)
             {
-                auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
                 juce::PopupMenu m;
                 const bool bypassed = pluginChain->isBypassed(i);
                 const int  maxSlot  = insertSlotCount - 1;
-                m.addItem(1, J(u8"エディタを開く"));
-                m.addItem(2, bypassed ? J(u8"バイパスを解除") : J(u8"バイパス"));
+                m.addItem(1, tr(u8"エディタを開く"));
+                m.addItem(2, bypassed ? tr(u8"バイパスを解除") : tr(u8"バイパス"));
                 m.addSeparator();
-                m.addItem(4, J(u8"上のスロットへ移動"), /*enabled*/ i > 0);
-                m.addItem(5, J(u8"下のスロットへ移動"), /*enabled*/ i < maxSlot);
+                m.addItem(4, tr(u8"上のスロットへ移動"), /*enabled*/ i > 0);
+                m.addItem(5, tr(u8"下のスロットへ移動"), /*enabled*/ i < maxSlot);
                 m.addSeparator();
-                m.addItem(3, J(u8"削除"));
+                m.addItem(3, tr(u8"削除"));
                 const int slotIdx = i;
                 m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(fxChips[i]),
                     [this, slotIdx](int result)

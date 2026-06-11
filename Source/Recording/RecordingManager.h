@@ -24,6 +24,10 @@ public:
     void stopRecording(double endPositionSeconds);
     bool isRecording() const { return recording; }
 
+    // 直前の startRecording でファイル/writer 作成に失敗したトラック名
+    // (空でなければ呼び出し側がユーザーへ通知する。silent failure 防止)
+    const juce::StringArray& getLastStartFailures() const { return lastStartFailures; }
+
     // ループラップ通知（録音中に呼ぶ。完了したループ周回をリアルタイムで Take レーンへ配置）
     void onLoopWrap();
 
@@ -73,6 +77,7 @@ private:
     };
 
     std::vector<ActiveRecording> activeRecordings;
+    juce::StringArray lastStartFailures;
     bool recording { false };
     int  recordingBitDepth { 24 };
 

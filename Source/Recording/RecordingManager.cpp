@@ -41,6 +41,7 @@ bool RecordingManager::startRecording(double recStartSec, double playFromSec,
                                        double loopStart, double loopEnd)
 {
     if (recording) return false;
+    lastStartFailures.clear();
 
     // 遡及録音アクティブ + アーム中トラックがそれと同じなら、Punch From Retro モードへ
     // 既存の retro writer をそのまま使い続け、stop 時に1つのクリップ（offset付き）として配置
@@ -73,7 +74,14 @@ bool RecordingManager::startRecording(double recStartSec, double playFromSec,
 
         auto file   = createRecordingFile(track->getName());
         auto stream = std::make_unique<juce::FileOutputStream>(file);
-        if (!stream->openedOk()) continue;
+        if (!stream->openedOk())
+        {
+            // ディスク満杯/権限などで開けない → 黙ってスキップせず呼び出し側へ報告
+            stream.reset();
+            file.deleteFile();
+            lastStartFailures.add(track->getName());
+            continue;
+        }
 
         const int numCh = track->isStereo() ? 2 : 1;
         auto opts = juce::AudioFormatWriterOptions{}
@@ -83,7 +91,13 @@ bool RecordingManager::startRecording(double recStartSec, double playFromSec,
                         .withSampleFormat(sampleFormat);
         std::unique_ptr<juce::OutputStream> outStream = std::move(stream);
         auto writer = wavFormat.createWriterFor(outStream, opts);
-        if (writer == nullptr) continue;
+        if (writer == nullptr)
+        {
+            outStream.reset();
+            file.deleteFile();
+            lastStartFailures.add(track->getName());
+            continue;
+        }
 
         track->startLiveRecording(recStartSec);
 

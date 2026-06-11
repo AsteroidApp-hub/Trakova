@@ -104,7 +104,7 @@ void TimelineView::mouseMove(const juce::MouseEvent& e)
                 const double nS = nb->getStartPosition();
                 const double nE = nb->getEndPosition();
                 const double overlap = juce::jmin(rE, nE) - juce::jmax(rS, nS);
-                if (overlap <= 0.001) continue;
+                if (overlap <= kOverlapEpsilonSecs) continue;
 
                 AudioClip* clipA = (rS <= nS) ? ref.clip : nb;
                 AudioClip* clipB = (rS <= nS) ? nb       : ref.clip;
@@ -113,19 +113,16 @@ void TimelineView::mouseMove(const juce::MouseEvent& e)
                 // 出ないため、選択/移動カーソルも許可する (描画が X を出すのに掴めない不整合を防ぐ)。
                 // 描画と同じ条件でのみクロスフェードとして扱う (#L3)。X が見えない
                 // (autoCrossfade OFF かつ両フェードが小の単なる重なり) ときはカーソルを変えない。
-                const bool xfadeDrawn = appSettings.autoCrossfade
-                                        || clipA->getFadeOutSecs() >= kCrossfadeFadeMinSecs
-                                        || clipB->getFadeInSecs()  >= kCrossfadeFadeMinSecs;
-                if (!xfadeDrawn) continue;
+                if (!isCrossfadeInteractive(clipA, clipB)) continue;
                 const int xL = (int)(clipB->getStartPosition() * bps_ * pixelsPerBeat - scrollX);
                 const int xR = (int)(clipA->getEndPosition()   * bps_ * pixelsPerBeat - scrollX);
 
-                if (std::abs(e.x - xL) <= 8 || std::abs(e.x - xR) <= 8)
+                if (std::abs(e.x - xL) <= kXfadeHandleHitPx || std::abs(e.x - xR) <= kXfadeHandleHitPx)
                 {
                     setMouseCursor(juce::MouseCursor::LeftRightResizeCursor);
                     return;
                 }
-                if (e.x > xL + 8 && e.x < xR - 8)
+                if (e.x > xL + kXfadeHandleHitPx && e.x < xR - kXfadeHandleHitPx)
                 {
                     setMouseCursor(juce::MouseCursor::DraggingHandCursor);
                     return;
@@ -247,24 +244,28 @@ void TimelineView::mouseDown(const juce::MouseEvent& e)
             selectedMidiTrack = mh.track;
             repaint();
 
-            auto JM = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
             juce::PopupMenu m;
-            m.addItem(1, JM(u8"ピアノロールを開く"));
+            m.addItem(1, tr(u8"ピアノロールを開く"));
             m.addSeparator();
-            m.addItem(2, JM(u8"削除"));
+            m.addItem(2, tr(u8"削除"));
+            // メニュー表示中にプロジェクトを閉じる / クリップが消えることがあるため、
+            // this は SafePointer・clip/track は実行時に生存確認してから触る (UAF 防止)
             m.showMenuAsync(juce::PopupMenu::Options(),
-                [this, clip = mh.clip, track = mh.track](int result)
+                [safe = juce::Component::SafePointer<TimelineView>(this),
+                 clip = mh.clip, track = mh.track](int result)
                 {
+                    auto* tv = safe.getComponent();
+                    if (tv == nullptr || !tv->midiClipStillExists(clip, track)) return;
                     if (result == 1)
                     {
-                        if (onMidiClipDoubleClicked) onMidiClipDoubleClicked(clip, track);
+                        if (tv->onMidiClipDoubleClicked) tv->onMidiClipDoubleClicked(clip, track);
                     }
                     else if (result == 2)
                     {
                         // 念のため選択を当該クリップに合わせてから削除
-                        selectedMidiClip  = clip;
-                        selectedMidiTrack = track;
-                        deleteSelectedMidiClip();
+                        tv->selectedMidiClip  = clip;
+                        tv->selectedMidiTrack = track;
+                        tv->deleteSelectedMidiClip();
                     }
                 });
             return;
@@ -277,467 +278,7 @@ void TimelineView::mouseDown(const juce::MouseEvent& e)
         auto rcRef = getClipAt(e.x, e.y);
         if (rcRef.valid())
         {
-            grabKeyboardFocus();
-            // 右クリックしたクリップを選択
-            if (!isClipInSelection(rcRef.clip))
-            {
-                clearAllSelections();
-                selectedClip = rcRef;
-                repaint();
-                notifySelectionChanged();  // 右クリック選択確定 → 採用ボタン活性を更新
-            }
-
-            juce::PopupMenu m;
-            // J ラムダはこの関数の後段で定義されているため、ここでローカルに用意する
-            auto JJ = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
-
-            // Take レーン (laneIdx > 0) のクリップ → 最上段に「このテイクを使う」
-            const bool isTakeLane = (rcRef.laneIdx > 0);
-            if (isTakeLane)
-            {
-                // 注意: 320 は「クロスフェードを描く」で使用済み。混同すると採用ではなく
-                // クロスフェードが走ってしまうため、別 ID (321) を使う。
-                m.addItem(321, JJ(u8"このテイクを使う"));
-                m.addSeparator();
-            }
-
-            // 色変更サブメニュー
-            juce::PopupMenu colourMenu;
-            const std::array<std::pair<const char*, juce::Colour>, 8> palette = {{
-                {"Blue",   juce::Colour(0xff3a6ea5)},
-                {"Green",  juce::Colour(0xff5aa55a)},
-                {"Red",    juce::Colour(0xffa55a5a)},
-                {"Orange", juce::Colour(0xffa5925a)},
-                {"Purple", juce::Colour(0xff7a5aa5)},
-                {"Cyan",   juce::Colour(0xff5a9ea5)},
-                {"Pink",   juce::Colour(0xffa55a92)},
-                {"Steel",  juce::Colour(0xff5a7aa5)}
-            }};
-            for (size_t i = 0; i < palette.size(); ++i)
-            {
-                juce::PopupMenu::Item item;
-                item.itemID = 100 + (int)i;
-                item.text = palette[i].first;
-                item.colour = palette[i].second;
-                colourMenu.addItem(item);
-            }
-            m.addSubMenu("Clip Colour", colourMenu);
-
-            // フェードカーブは初心者向けに既定 (リニア = 綺麗な直線の X) に固定し、
-            // 種別選択 UI (リニア/対数/等パワー/S字) は出さない (細かい設定を隠す)。
-            auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
-
-            m.addSeparator();
-            int extraCount = (int)extraSelections.size() + (selectedClip.valid() ? 1 : 0);
-            m.addItem(300, J(u8"クリップ結合 (Consolidate)"),
-                      extraCount >= 2);
-            // クロスフェードを描く: 「範囲選択あり」かつ「その範囲内で 2 つのクリップが
-            // 重なり/接触している (= クロスフェード可能な箇所がある)」時だけメニューに出す。
-            // (クリップを選んだだけ・範囲選択なしのときは出さない)
-            if (hasSelectionRange())
-            {
-                const double selS = loopStartTV;
-                const double selE = loopEndTV;
-                const double tol  = 0.005;
-                bool junction = false;
-                for (int ti = 0; ti < trackManager.getTrackCount() && !junction; ++ti)
-                {
-                    auto* track = trackManager.getTrack(ti);
-                    if (!track) continue;
-                    for (int li = 0; li < track->getLaneCount() && !junction; ++li)
-                    {
-                        auto* lane = track->getLane(li);
-                        if (!lane) continue;
-                        for (size_t a = 0; a < lane->clips.size() && !junction; ++a)
-                        {
-                            auto* ca = lane->clips[a].get();
-                            for (size_t b = 0; b < lane->clips.size(); ++b)
-                            {
-                                if (b == a) continue;
-                                auto* cb = lane->clips[b].get();
-                                if (cb->getStartPosition() < ca->getStartPosition()) continue; // ca を左に
-                                // 接触/重なり (ca.end + tol >= cb.start)
-                                if (ca->getEndPosition() + tol < cb->getStartPosition()) continue;
-                                // 境界/重なり区間が選択範囲と交差するか
-                                const double jS = juce::jmin(ca->getEndPosition(), cb->getStartPosition());
-                                const double jE = juce::jmax(ca->getEndPosition(), cb->getStartPosition());
-                                if (juce::jmax(selS, jS) <= juce::jmin(selE, jE) + tol)
-                                    { junction = true; break; }
-                            }
-                        }
-                    }
-                }
-                if (junction)
-                    m.addItem(320, J(u8"クロスフェードを描く"));
-            }
-            m.addItem(310, J(u8"無音区間をカット..."));
-            m.addItem(330, J(u8"テンポを検出"));
-            m.addItem(340, J(u8"ラウドネスを ") + juce::String(appSettings.loudnessTargetLufs, 1)
-                              + J(u8" LUFS に合わせる"));
-
-            // ── キー変更 (-6 〜 +6 半音) サブメニュー ──
-            // 現在のキー値はチェックマークで明示。 ★ は処理済みキャッシュあり。
-            juce::PopupMenu pitchMenu;
-            auto srcFileForMenu = rcRef.clip ? rcRef.clip->getFile() : juce::File();
-            auto curStem        = srcFileForMenu.getFileNameWithoutExtension();
-            int  currentSemis   = 0;
-            juce::String srcStem = curStem;
-            if (curStem.contains("_pitch"))
-            {
-                srcStem = curStem.upToLastOccurrenceOf("_pitch", false, false);
-                currentSemis = curStem.fromLastOccurrenceOf("_pitch", false, false).getIntValue();
-            }
-            for (int s = -6; s <= 6; ++s)
-            {
-                juce::String label;
-                if (s == 0) label = J(u8"0 (元の音程)");
-                else        label = (s > 0 ? juce::String("+") : juce::String()) + juce::String(s) + J(u8" 半音");
-
-                // キャッシュ判定
-                if (s != 0 && srcFileForMenu.existsAsFile())
-                {
-                    const juce::String suffix = (s > 0 ? juce::String("+") : juce::String()) + juce::String(s);
-                    auto cached = srcFileForMenu.getParentDirectory().getChildFile(srcStem + "_pitch" + suffix + ".wav");
-                    if (cached.existsAsFile())
-                        label += "  \xe2\x98\x85";  // ★ (UTF-8)
-                }
-
-                juce::PopupMenu::Item it;
-                it.itemID  = 500 + 6 + s;
-                it.text    = label;
-                it.isTicked = (s == currentSemis);
-                pitchMenu.addItem(it);
-                if (s == 0) pitchMenu.addSeparator();
-            }
-            m.addSubMenu(J(u8"キーを変更..."), pitchMenu);
-            m.addSeparator();
-            m.addItem(400, J(u8"削除"));
-
-            m.showMenuAsync(juce::PopupMenu::Options(),
-                [this, rcRef](int result) {
-                    if (result <= 0) return;
-                    if (result >= 100 && result <= 107)
-                    {
-                        // 色変更
-                        const std::array<juce::Colour, 8> palette2 = {
-                            juce::Colour(0xff3a6ea5), juce::Colour(0xff5aa55a),
-                            juce::Colour(0xffa55a5a), juce::Colour(0xffa5925a),
-                            juce::Colour(0xff7a5aa5), juce::Colour(0xff5a9ea5),
-                            juce::Colour(0xffa55a92), juce::Colour(0xff5a7aa5)
-                        };
-                        juce::Colour newCol = palette2[result - 100];
-                        // 選択中のクリップ全てに適用 (Undo 対応)
-                        std::vector<ClipRef> all;
-                        if (selectedClip.valid()) all.push_back(selectedClip);
-                        for (auto& r : extraSelections) all.push_back(r);
-                        if (all.empty()) all.push_back(rcRef);
-                        std::vector<EditActions::ClipState> oldS, newS;
-                        for (auto& r : all)
-                        {
-                            EditActions::ClipState s; s.capture(r.clip); oldS.push_back(s);
-                            r.clip->setColour(newCol);
-                            EditActions::ClipState ns; ns.capture(r.clip); newS.push_back(ns);
-                        }
-                        if (undoManager)
-                        {
-                            undoManager->beginNewTransaction();
-                            undoManager->perform(new EditActions::ClipsPropertyAction(
-                                std::move(oldS), std::move(newS), editChangeCb));
-                        }
-                        repaint();
-                        return;
-                    }
-                    if (result == 300)
-                    {
-                        consolidateSelectedClips();
-                        return;
-                    }
-                    if (result == 320)
-                    {
-                        applyCrossfadeToSelection(FadeOpMode::CrossfadeOnly);
-                        return;
-                    }
-                    if (result == 321)
-                    {
-                        // 「このテイクを使う」: 右クリックしたテイクレーンから Lane 0 へ採用。
-                        // 選択範囲があればその範囲、無ければ右クリックしたクリップ全体を当てる
-                        // (= Shift+↑ / ↑ ボタンと同じ promoteTakeLane)。範囲が無いときは
-                        // 右クリッククリップを選択状態にして promoteTakeLane の「選択クリップ」
-                        // 経路を満たす。promoteRangeToLane0 が editChangeCb
-                        // (markProjectDirty / refresh / invalidatePlayback) を呼ぶので追加処理は不要。
-                        if (!hasSelectionRange())
-                        {
-                            clearAllSelections();
-                            selectedClip = rcRef;
-                            notifySelectionChanged();
-                        }
-                        promoteTakeLane(rcRef.trackIdx, rcRef.laneIdx);
-                        return;
-                    }
-                    if (result == 310)
-                    {
-                        showStripSilenceDialog(rcRef);
-                        return;
-                    }
-                    if (result == 330)
-                    {
-                        // テンポを検出
-                        if (rcRef.valid() && rcRef.track && rcRef.clip)
-                        {
-                            auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
-
-                            // 検出は重い (全ファイル走査) ので進捗ウィンドウ付きで別スレッド実行。
-                            // モーダル実行中はクリップが破棄されないため参照キャプチャで安全。
-                            struct DetectJob : juce::ThreadWithProgressWindow
-                            {
-                                juce::File file; juce::AudioFormatManager& fmt;
-                                double off, dur; double result = 0.0;
-                                DetectJob (juce::File f, juce::AudioFormatManager& fm, double o, double d,
-                                           const juce::String& title, const juce::String& status)
-                                    : juce::ThreadWithProgressWindow (title, true, true),
-                                      file (f), fmt (fm), off (o), dur (d)
-                                { setStatusMessage (status); }
-                                void run() override
-                                {
-                                    result = BpmDetector::detect (file, fmt, off, dur,
-                                        [this] (double frac) { setProgress (frac); return ! threadShouldExit(); });
-                                }
-                            };
-                            DetectJob job (rcRef.clip->getFile(),
-                                           rcRef.track->getFormatManager(),
-                                           rcRef.clip->getFileOffset(),
-                                           rcRef.clip->getDuration(),
-                                           J(u8"テンポ検出"), J(u8"テンポを検出中…"));
-                            if (! job.runThread()) return;   // ユーザーがキャンセル
-                            const double bpm = job.result;
-                            if (bpm <= 0.0)
-                            {
-                                juce::AlertWindow::showAsync(juce::MessageBoxOptions()
-                                    .withIconType(juce::MessageBoxIconType::WarningIcon)
-                                    .withTitle(J(u8"テンポ検出"))
-                                    .withMessage(J(u8"テンポを検出できませんでした。\nクリップが短すぎるか、明確なビートが見つかりません。"))
-                                    .withButton("OK"), nullptr);
-                            }
-                            else
-                            {
-                                const juce::String msg = J(u8"検出されたテンポ: ")
-                                    + juce::String((int) std::round(bpm)) + " BPM\n\n"
-                                    + J(u8"プロジェクトに適用しますか?");
-                                juce::AlertWindow::showAsync(juce::MessageBoxOptions()
-                                    .withIconType(juce::MessageBoxIconType::QuestionIcon)
-                                    .withTitle(J(u8"テンポ検出"))
-                                    .withMessage(msg)
-                                    .withButton(J(u8"適用"))
-                                    .withButton(J(u8"キャンセル")),
-                                    [this, bpm](int r) {
-                                        if (r == 1 && onApplyDetectedBpm)
-                                            onApplyDetectedBpm(bpm);
-                                    });
-                            }
-                        }
-                        return;
-                    }
-                    if (result == 340)
-                    {
-                        // ラウドネスを -18 LUFS に合わせる (クリップゲインを調整)
-                        if (rcRef.valid() && rcRef.track && rcRef.clip)
-                        {
-                            const float  oldGain     = rcRef.clip->getGain();
-                            const double oldGainDb   = 20.0 * std::log10(juce::jmax(1.0e-12f, oldGain));
-                            const double measuredLufs = LufsMeter::measureFileSegment(
-                                rcRef.clip->getFile(),
-                                rcRef.track->getFormatManager(),
-                                rcRef.clip->getFileOffset(),
-                                rcRef.clip->getDuration(),
-                                oldGain);
-                            auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
-                            if (!std::isfinite(measuredLufs))
-                            {
-                                juce::AlertWindow::showAsync(juce::MessageBoxOptions()
-                                    .withIconType(juce::MessageBoxIconType::WarningIcon)
-                                    .withTitle(J(u8"ラウドネス測定"))
-                                    .withMessage(J(u8"ラウドネスを測定できませんでした。\nクリップが短すぎるか、無音が多すぎます。"))
-                                    .withButton("OK"), nullptr);
-                                return;
-                            }
-
-                            const double targetLufs   = (double) appSettings.loudnessTargetLufs;
-                            const double adjustmentDb = targetLufs - measuredLufs;
-                            const float  newGain      = oldGain * (float) std::pow(10.0, adjustmentDb / 20.0);
-                            const double newGainDb    = oldGainDb + adjustmentDb;
-
-                            auto fmt2 = [](double v) {
-                                return (v >= 0.0 ? juce::String("+") : juce::String())
-                                       + juce::String(v, 1);
-                            };
-                            const juce::String msg = J(u8"現在のラウドネス: ")
-                                + juce::String(measuredLufs, 1) + " LUFS\n"
-                                + J(u8"ターゲット: ") + juce::String(targetLufs, 1) + " LUFS\n"
-                                + J(u8"クリップゲイン: ") + fmt2(oldGainDb) + " dB → "
-                                + fmt2(newGainDb) + " dB ("
-                                + fmt2(adjustmentDb) + " dB)\n\n"
-                                + J(u8"適用しますか?");
-
-                            juce::Component::SafePointer<TimelineView> safe(this);
-                            juce::AlertWindow::showAsync(juce::MessageBoxOptions()
-                                .withIconType(juce::MessageBoxIconType::QuestionIcon)
-                                .withTitle(J(u8"ラウドネス調整"))
-                                .withMessage(msg)
-                                .withButton(J(u8"適用"))
-                                .withButton(J(u8"キャンセル")),
-                                [safe, rcRef, newGain](int r)
-                                {
-                                    if (r != 1) return;
-                                    auto* tv = safe.getComponent();
-                                    if (!tv || !rcRef.valid() || rcRef.clip == nullptr) return;
-                                    EditActions::ClipState oldS, newS;
-                                    oldS.capture(rcRef.clip);
-                                    rcRef.clip->setGain(newGain);
-                                    newS.capture(rcRef.clip);
-                                    if (tv->undoManager)
-                                    {
-                                        tv->undoManager->beginNewTransaction();
-                                        tv->undoManager->perform(new EditActions::ClipsPropertyAction(
-                                            { oldS }, { newS }, tv->editChangeCb));
-                                    }
-                                    tv->repaint();
-                                });
-                        }
-                        return;
-                    }
-                    // キー変更: ID 500..512 (= -6..+6 半音, 506 = 0)
-                    if (result >= 500 && result <= 512)
-                    {
-                        const int semis = result - 500 - 6;
-                        if (!rcRef.valid() || !rcRef.track || !rcRef.clip) return;
-                        auto* clip = rcRef.clip;
-                        auto srcFile = clip->getFile();
-                        auto J2 = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
-
-                        // 元ファイル (拡張子付き) を解決
-                        // - 現在が xxx_pitch±N.<ext> なら xxx.<ext> に戻して探す
-                        // - 拡張子は .wav / .aif / .aiff / .mp3 / .m4a / .flac / .ogg を順に試す
-                        juce::File origFile = srcFile;
-                        {
-                            auto stem = srcFile.getFileNameWithoutExtension();
-                            if (stem.contains("_pitch"))
-                            {
-                                stem = stem.upToLastOccurrenceOf("_pitch", false, false);
-                                auto dir = srcFile.getParentDirectory();
-                                static const char* exts[] = { ".wav", ".aif", ".aiff", ".mp3", ".m4a", ".flac", ".ogg" };
-                                juce::File found;
-                                for (auto* e : exts)
-                                {
-                                    auto f = dir.getChildFile(stem + e);
-                                    if (f.existsAsFile()) { found = f; break; }
-                                }
-                                if (found != juce::File()) origFile = found;
-                            }
-                        }
-
-                        // semis == 0 (元の音程に戻す) の場合は元ファイルへ差し替えるだけ
-                        if (semis == 0)
-                        {
-                            if (origFile == clip->getFile()) return;  // 既に元の状態
-                            if (!origFile.existsAsFile())
-                            {
-                                juce::AlertWindow::showAsync(juce::MessageBoxOptions()
-                                    .withIconType(juce::MessageBoxIconType::WarningIcon)
-                                    .withTitle(J2(u8"キー変更"))
-                                    .withMessage(J2(u8"元の音程のファイルが見つかりませんでした。"))
-                                    .withButton("OK"), nullptr);
-                                return;
-                            }
-                            clip->setFile(origFile);
-                            clip->invalidateWaveformCache();
-                            clip->refreshThumbnail();
-                            if (editChangeCb) editChangeCb();
-                            if (onWaveformRefreshNeeded) onWaveformRefreshNeeded();
-                            repaint();
-                            return;
-                        }
-
-                        // 変換目標ファイル名 = <元ステム>_pitch<符号><量>.wav
-                        srcFile = origFile;
-                        const juce::String suffix = (semis > 0 ? juce::String("+") : juce::String()) + juce::String(semis);
-                        auto outFile = srcFile.getParentDirectory().getChildFile(
-                            srcFile.getFileNameWithoutExtension() + "_pitch" + suffix + ".wav");
-
-                        // 既存キャッシュがあれば即時切り替え
-                        if (outFile.existsAsFile())
-                        {
-                            clip->setFile(outFile);
-                            clip->invalidateWaveformCache();
-                            clip->refreshThumbnail();
-                            if (editChangeCb) editChangeCb();
-                            if (onWaveformRefreshNeeded) onWaveformRefreshNeeded();
-                            repaint();
-                            return;
-                        }
-
-                        // ── プログレスウィンドウ付きで変換 ──
-                        class PitchJob : public juce::ThreadWithProgressWindow
-                        {
-                        public:
-                            PitchJob(const juce::File& in, const juce::File& out,
-                                     juce::AudioFormatManager& fmt, double sem)
-                                : juce::ThreadWithProgressWindow(
-                                    /*title*/ makeTitle(sem),
-                                    /*hasProgressBar*/ true,
-                                    /*hasCancelButton*/ false),
-                                  inFile(in), outFile(out), formatManager(fmt), semitones(sem) {}
-
-                            static juce::String makeTitle(double sem)
-                            {
-                                const juce::String semStr = (sem > 0 ? juce::String("+") : juce::String())
-                                                          + juce::String((int) sem);
-                                return tr(u8"キーを ")
-                                     + semStr
-                                     + tr(u8" へ変換中...");
-                            }
-
-                            void run() override
-                            {
-                                ok = PitchEngine::processFile(inFile, outFile, formatManager,
-                                                              semitones, 32,
-                                    [this](double p) { setProgress(p); });
-                            }
-                            bool ok { false };
-                        private:
-                            juce::File inFile, outFile;
-                            juce::AudioFormatManager& formatManager;
-                            double semitones;
-                        };
-
-                        auto job = std::make_unique<PitchJob>(
-                            srcFile, outFile, rcRef.track->getFormatManager(), (double) semis);
-                        const bool finished = job->runThread();  // モーダル
-                        if (!finished || !job->ok)
-                        {
-                            juce::AlertWindow::showAsync(juce::MessageBoxOptions()
-                                .withIconType(juce::MessageBoxIconType::WarningIcon)
-                                .withTitle(J2(u8"キー変更"))
-                                .withMessage(J2(u8"ピッチシフト処理に失敗しました。"))
-                                .withButton("OK"), nullptr);
-                            return;
-                        }
-                        clip->setFile(outFile);
-                        clip->invalidateWaveformCache();
-                        clip->refreshThumbnail();
-                        if (editChangeCb) editChangeCb();
-                        // ロード完了までポーリングして波形を再描画 (MainComponent 側に委譲)
-                        if (onWaveformRefreshNeeded) onWaveformRefreshNeeded();
-                        repaint();
-                        return;
-                    }
-                    // (「このテイクを使う」は ID 321 で上の方で処理済み。以前ここに ID 320 の
-                    //  ハンドラがあったが、320 は「クロスフェードを描く」と衝突して到達不能だった)
-                    if (result == 400)
-                    {
-                        deleteSelectedClips();
-                        return;
-                    }
-                });
+            showAudioClipContextMenu(rcRef, e);
             return;
         }
     }
@@ -842,7 +383,7 @@ void TimelineView::mouseDown(const juce::MouseEvent& e)
                 const double nS = nb->getStartPosition();
                 const double nE = nb->getEndPosition();
                 const double overlap = juce::jmin(rE, nE) - juce::jmax(rS, nS);
-                if (overlap <= 0.001) continue;
+                if (overlap <= kOverlapEpsilonSecs) continue;
 
                 // 左右を確定 (smaller start = clipA = 左, larger start = clipB = 右)
                 AudioClip* clipA = (rS <= nS) ? ref.clip : nb;
@@ -855,15 +396,12 @@ void TimelineView::mouseDown(const juce::MouseEvent& e)
                 // クリップが選ばれてしまう」不整合になる (分割片同士のクロスフェードで発生していた)。
                 // 描画と同じ条件でのみクロスフェード選択を許可する (#L3)。X が見えない
                 // 重なりを誤って「クロスフェード」として掴めてしまうのを防ぐ。
-                const bool xfadeDrawn = appSettings.autoCrossfade
-                                        || clipA->getFadeOutSecs() >= kCrossfadeFadeMinSecs
-                                        || clipB->getFadeInSecs()  >= kCrossfadeFadeMinSecs;
-                if (!xfadeDrawn) continue;
+                if (!isCrossfadeInteractive(clipA, clipB)) continue;
 
                 int xL = (int)(overlapStart * bps_ * pixelsPerBeat - scrollX);
                 int xR = (int)(overlapEnd   * bps_ * pixelsPerBeat - scrollX);
 
-                if (std::abs(e.x - xR) <= 8)
+                if (std::abs(e.x - xR) <= kXfadeHandleHitPx)
                 {
                     // 右端ハンドル → clipA.end をドラッグ
                     selectedCrossfade.clipA = clipA;
@@ -882,7 +420,7 @@ void TimelineView::mouseDown(const juce::MouseEvent& e)
                     repaint();
                     return;
                 }
-                else if (std::abs(e.x - xL) <= 8)
+                else if (std::abs(e.x - xL) <= kXfadeHandleHitPx)
                 {
                     // 左端ハンドル → clipB.start をドラッグ
                     selectedCrossfade.clipA = clipA;
@@ -903,7 +441,7 @@ void TimelineView::mouseDown(const juce::MouseEvent& e)
                     repaint();
                     return;
                 }
-                else if (e.x > xL + 8 && e.x < xR - 8)
+                else if (e.x > xL + kXfadeHandleHitPx && e.x < xR - kXfadeHandleHitPx)
                 {
                     // 中央 → クロスフェード選択
                     selectedCrossfade.clipA = clipA;
@@ -1032,7 +570,7 @@ void TimelineView::mouseDown(const juce::MouseEvent& e)
         {
             int px = cx2 + (int)(pts[i].time * bps_ * pixelsPerBeat);
             int py = clipMidY2 - (int)(dbToNormY(pts[i].dB) * halfH2);
-            if (std::abs(e.x - px) <= 6 && std::abs(e.y - py) <= 6) { hitIndex = (int)i; break; }
+            if (std::abs(e.x - px) <= kHandleHitPx && std::abs(e.y - py) <= kHandleHitPx) { hitIndex = (int)i; break; }
         }
 
         // Option+クリック = 削除

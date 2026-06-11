@@ -497,16 +497,15 @@ MainComponent::MainComponent()
 
             MetronomeSettings(float curVol, float curPan, int curSound, bool curAccent)
             {
-                auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
                 auto setupLabel = [this](juce::Label& l, juce::String txt) {
                     l.setText(txt, juce::dontSendNotification);
                     l.setColour(juce::Label::textColourId, juce::Colours::white);
                     addAndMakeVisible(l);
                 };
-                setupLabel(volLabel,    J(u8"音量"));
-                setupLabel(panLabel,    J(u8"パン"));
-                setupLabel(soundLabel,  J(u8"音色"));
-                setupLabel(accentLabel, J(u8"アクセント"));
+                setupLabel(volLabel,    tr(u8"音量"));
+                setupLabel(panLabel,    tr(u8"パン"));
+                setupLabel(soundLabel,  tr(u8"音色"));
+                setupLabel(accentLabel, tr(u8"アクセント"));
 
                 addAndMakeVisible(volSlider);
                 volSlider.setSliderStyle(juce::Slider::LinearHorizontal);
@@ -533,7 +532,7 @@ MainComponent::MainComponent()
                 soundCombo.setSelectedId(curSound + 1, juce::dontSendNotification);
                 soundCombo.onChange = [this] { if (onSound) onSound(soundCombo.getSelectedId() - 1); };
 
-                accentBtn.setButtonText(J(u8"頭の拍を強くする"));
+                accentBtn.setButtonText(tr(u8"頭の拍を強くする"));
                 accentBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
                 accentBtn.setToggleState(curAccent, juce::dontSendNotification);
                 accentBtn.onClick = [this] { if (onAccent) onAccent(accentBtn.getToggleState()); };
@@ -623,7 +622,6 @@ MainComponent::MainComponent()
             std::function<void(double)> onInsert;  // bpm
             BpmDlg(double t0, double bpm0, bool atSongStart)
             {
-                auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
                 auto setupLabel = [this](juce::Label& l, juce::String txt) {
                     l.setText(txt, juce::dontSendNotification);
                     l.setColour(juce::Label::textColourId, juce::Colours::white);
@@ -632,8 +630,8 @@ MainComponent::MainComponent()
                 int mins = (int)t0 / 60;
                 double s = t0 - mins * 60;
                 juce::String tt = juce::String::formatted("%d:%06.3f", mins, s);
-                setupLabel(timeLabel, J(u8"位置  ") + tt + (atSongStart ? J(u8"  (曲頭)") : juce::String()));
-                setupLabel(bpmLabel,  J(u8"BPM"));
+                setupLabel(timeLabel, tr(u8"位置  ") + tt + (atSongStart ? tr(u8"  (曲頭)") : juce::String()));
+                setupLabel(bpmLabel,  tr(u8"BPM"));
 
                 addAndMakeVisible(bpmSlider);
                 bpmSlider.setSliderStyle(juce::Slider::LinearHorizontal);
@@ -642,8 +640,8 @@ MainComponent::MainComponent()
                 bpmSlider.setValue(bpm0);
                 bpmSlider.setNumDecimalPlacesToDisplay(2);
 
-                insertBtn.setButtonText(J(u8"挿入"));
-                cancelBtn.setButtonText(J(u8"キャンセル"));
+                insertBtn.setButtonText(tr(u8"挿入"));
+                cancelBtn.setButtonText(tr(u8"キャンセル"));
                 addAndMakeVisible(insertBtn);
                 addAndMakeVisible(cancelBtn);
 
@@ -736,15 +734,14 @@ MainComponent::MainComponent()
             std::function<void()>              onClose;
             MeterDlg(int curBar, int n0, int d0)
             {
-                auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
                 auto setupLabel = [this](juce::Label& l, juce::String txt) {
                     l.setText(txt, juce::dontSendNotification);
                     l.setColour(juce::Label::textColourId, juce::Colours::white);
                     addAndMakeVisible(l);
                 };
-                setupLabel(barLabel, J(u8"小節"));
-                setupLabel(numLabel, J(u8"分子"));
-                setupLabel(denLabel, J(u8"分母"));
+                setupLabel(barLabel, tr(u8"小節"));
+                setupLabel(numLabel, tr(u8"分子"));
+                setupLabel(denLabel, tr(u8"分母"));
 
                 addAndMakeVisible(barSlider);
                 barSlider.setSliderStyle(juce::Slider::IncDecButtons);
@@ -760,8 +757,8 @@ MainComponent::MainComponent()
                 for (int v : { 2, 4, 8, 16 }) denCombo.addItem(juce::String(v), v);
                 denCombo.setSelectedId(d0, juce::dontSendNotification);
 
-                insertBtn.setButtonText(J(u8"挿入"));
-                cancelBtn.setButtonText(J(u8"キャンセル"));
+                insertBtn.setButtonText(tr(u8"挿入"));
+                cancelBtn.setButtonText(tr(u8"キャンセル"));
                 addAndMakeVisible(insertBtn);
                 addAndMakeVisible(cancelBtn);
 
@@ -1269,6 +1266,18 @@ void MainComponent::startRecording()
                                               loopStartSecs, loopEndSecs);
     toolbar.setRecording(isRecording);
 
+    // 録音ファイルを作れなかったトラックがあれば通知する (silent failure 防止。
+    // ディスク満杯・権限エラー等で一部または全トラックが録音できないケース)
+    if (const auto& failed = recordingMgr.getLastStartFailures(); !failed.isEmpty())
+    {
+        juce::AlertWindow::showAsync(juce::MessageBoxOptions()
+            .withIconType(juce::MessageBoxIconType::WarningIcon)
+            .withTitle(tr(u8"録音を開始できないトラックがあります"))
+            .withMessage(tr(u8"以下のトラックの録音ファイルを作成できませんでした。\nディスクの空き容量と書き込み権限を確認してください。\n\n")
+                         + failed.joinIntoString("\n"))
+            .withButton("OK"), nullptr);
+    }
+
     if (!isRecording)
         preRecSnaps.clear();  // 録音が始まらなかった場合はスナップショットも破棄
 
@@ -1538,14 +1547,13 @@ void MainComponent::deleteTracks(std::vector<int> indices)
     // 2 本以上はまとめ削除なので確認を出す (トラック削除は Undo 非対応)。
     if (indices.size() >= 2)
     {
-        auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
         juce::AlertWindow::showAsync(juce::MessageBoxOptions()
             .withIconType(juce::MessageBoxIconType::QuestionIcon)
-            .withTitle(J(u8"トラックを削除"))
+            .withTitle(tr(u8"トラックを削除"))
             .withMessage(juce::String((int) indices.size())
-                         + J(u8" 個のトラックを削除します。\nこの操作は取り消せません。"))
-            .withButton(J(u8"削除"))
-            .withButton(J(u8"キャンセル")),
+                         + tr(u8" 個のトラックを削除します。\nこの操作は取り消せません。"))
+            .withButton(tr(u8"削除"))
+            .withButton(tr(u8"キャンセル")),
             [doDelete](int r) mutable { if (r == 1) doDelete(); });
     }
     else
@@ -1720,13 +1728,12 @@ void MainComponent::applyProjectSampleRateToDevice()
     const juce::String err = dm.setAudioDeviceSetup(setup, true);
     if (err.isNotEmpty())
     {
-        auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
         juce::AlertWindow::showAsync(juce::MessageBoxOptions()
             .withIconType(juce::MessageBoxIconType::WarningIcon)
-            .withTitle(J(u8"サンプリングレート"))
-            .withMessage(J(u8"プロジェクトのサンプリングレート ")
+            .withTitle(tr(u8"サンプリングレート"))
+            .withMessage(tr(u8"プロジェクトのサンプリングレート ")
                           + juce::String((int) targetSr) + " Hz"
-                          + J(u8" にオーディオデバイスを設定できませんでした。\n\n")
+                          + tr(u8" にオーディオデバイスを設定できませんでした。\n\n")
                           + err)
             .withButton("OK"), nullptr);
     }

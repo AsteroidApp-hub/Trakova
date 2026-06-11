@@ -153,7 +153,6 @@ void TimelineView::showStripSilenceDialog(const ClipRef& ref)
 
         StripDlg()
         {
-            auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
             auto setupLabel = [this](juce::Label& l, juce::String txt) {
                 l.setText(txt, juce::dontSendNotification);
                 l.setColour(juce::Label::textColourId, juce::Colours::white);
@@ -173,18 +172,18 @@ void TimelineView::showStripSilenceDialog(const ClipRef& ref)
                 s.setColour(juce::Slider::trackColourId,             juce::Colour(0xff6a90c0));
                 addAndMakeVisible(s);
             };
-            setupLabel(thresholdLabel,  J(u8"閾値 (dB)"));
-            setupLabel(minSilenceLabel, J(u8"最短無音時間"));
-            setupLabel(padBeforeLabel,  J(u8"前パディング"));
-            setupLabel(padAfterLabel,   J(u8"後パディング"));
-            setupLabel(fadeLabel,       J(u8"境界フェード"));
+            setupLabel(thresholdLabel,  tr(u8"閾値 (dB)"));
+            setupLabel(minSilenceLabel, tr(u8"最短無音時間"));
+            setupLabel(padBeforeLabel,  tr(u8"前パディング"));
+            setupLabel(padAfterLabel,   tr(u8"後パディング"));
+            setupLabel(fadeLabel,       tr(u8"境界フェード"));
             setupSlider(thresholdSlider,  -60.0,  -20.0,  1.0,  -40.0, " dB");
             setupSlider(minSilenceSlider, 100.0, 2000.0, 50.0, 300.0, " ms");
             setupSlider(padBeforeSlider,    0.0,  500.0, 10.0,  50.0, " ms");
             setupSlider(padAfterSlider,     0.0,  500.0, 10.0,  50.0, " ms");
             setupSlider(fadeSlider,         0.0,   50.0,  1.0,   5.0, " ms");
 
-            applyBtn.setButtonText(J(u8"適用"));
+            applyBtn.setButtonText(tr(u8"適用"));
             applyBtn.onClick = [this] {
                 if (onApply)
                     onApply((float)thresholdSlider.getValue(),
@@ -197,7 +196,7 @@ void TimelineView::showStripSilenceDialog(const ClipRef& ref)
             };
             addAndMakeVisible(applyBtn);
 
-            cancelBtn.setButtonText(J(u8"キャンセル"));
+            cancelBtn.setButtonText(tr(u8"キャンセル"));
             cancelBtn.onClick = [this] {
                 if (auto* dw = findParentComponentOfClass<juce::DialogWindow>())
                     dw->exitModalState(0);
@@ -287,16 +286,15 @@ void TimelineView::showStripSilenceDialog(const ClipRef& ref)
 
         if (ref.clip->hasGainEnvelope())
         {
-            auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
             juce::AlertWindow::showAsync(
                 juce::MessageBoxOptions()
                     .withIconType(juce::MessageBoxIconType::QuestionIcon)
-                    .withTitle(J(u8"ゲインエンベロープを破棄しますか?"))
-                    .withMessage(J(u8"このクリップにはボリュームエンベロープが設定されています。\n"
+                    .withTitle(tr(u8"ゲインエンベロープを破棄しますか?"))
+                    .withMessage(tr(u8"このクリップにはボリュームエンベロープが設定されています。\n"
                                     u8"無音区間カットを実行するとエンベロープは破棄されます。\n"
                                     u8"続行しますか?"))
-                    .withButton(J(u8"続行"))
-                    .withButton(J(u8"キャンセル")),
+                    .withButton(tr(u8"続行"))
+                    .withButton(tr(u8"キャンセル")),
                 [runAction = std::move(runAction)](int result) mutable
                 {
                     if (result == 1) runAction();

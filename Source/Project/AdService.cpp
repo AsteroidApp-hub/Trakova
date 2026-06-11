@@ -14,6 +14,23 @@ namespace
         return juce::URL::InputStreamOptions(juce::URL::ParameterHandling::inAddress)
                    .withConnectionTimeoutMs(kConnectTimeoutMs);
     }
+
+    // 接続後の read がハングするサーバー対策: 時間とサイズの上限付きで読む
+    // (InputStreamOptions のタイムアウトは接続段階のみで read には効かない)
+    juce::MemoryBlock readBounded(juce::InputStream& in, size_t maxBytes, int maxMs)
+    {
+        const auto deadline = juce::Time::getMillisecondCounterHiRes() + maxMs;
+        juce::MemoryBlock mb;
+        char buf[8192];
+        while (mb.getSize() < maxBytes
+               && juce::Time::getMillisecondCounterHiRes() < deadline)
+        {
+            const int n = in.read(buf, (int)sizeof(buf));
+            if (n <= 0) break;   // EOF / エラー
+            mb.append(buf, (size_t)n);
+        }
+        return mb;
+    }
 }
 
 juce::String AdService::defaultFeedUrl()
@@ -210,8 +227,8 @@ juce::Image AdService::downloadImage(const juce::String& url, int timeoutMs)
             juce::URL::InputStreamOptions(juce::URL::ParameterHandling::inAddress)
                 .withConnectionTimeoutMs(timeoutMs)))
     {
-        juce::MemoryBlock mb;
-        in->readIntoMemoryBlock(mb);
+        // 画像は最大 5MB / 15 秒で打ち切り (バナー想定。巨大ファイル/ストールへの防御)
+        const auto mb = readBounded(*in, 5 * 1024 * 1024, 15000);
         if (mb.getSize() > 0)
             return juce::ImageFileFormat::loadFrom(mb.getData(), mb.getSize());
     }
@@ -295,7 +312,8 @@ void AdService::fetch(juce::String feedUrl, juce::String lang, juce::File dir, C
         {
             if (auto in = feed.createInputStream(streamOptions()))
             {
-                const juce::String json = in->readEntireStreamAsString();
+                // フィード JSON は最大 1MB / 10 秒で打ち切り
+                const juce::String json = readBounded(*in, 1024 * 1024, 10000).toString();
                 // 現在言語で絞り込んでから画像 DL / キャッシュ (不要言語の画像を落とさない)
                 ads = selectAdsForLanguage(parseAds(json), lang, kMaxAds);
                 ok  = ! ads.empty();

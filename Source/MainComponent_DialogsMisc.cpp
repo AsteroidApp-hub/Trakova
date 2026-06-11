@@ -27,7 +27,6 @@ void MainComponent::showAboutDialog()
 
         AboutDlg()
         {
-            auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
 
             titleLabel.setText("Utawave", juce::dontSendNotification);
             titleLabel.setFont(juce::FontOptions(28.0f, juce::Font::bold));
@@ -35,7 +34,7 @@ void MainComponent::showAboutDialog()
             titleLabel.setJustificationType(juce::Justification::centred);
             addAndMakeVisible(titleLabel);
 
-            versionLabel.setText(J(u8"バージョン ") + juce::String(ProjectInfo::versionString),
+            versionLabel.setText(tr(u8"バージョン ") + juce::String(ProjectInfo::versionString),
                                   juce::dontSendNotification);
             versionLabel.setFont(juce::FontOptions(13.0f));
             versionLabel.setColour(juce::Label::textColourId, juce::Colour(0xffb0b6bd));
@@ -43,14 +42,14 @@ void MainComponent::showAboutDialog()
             addAndMakeVisible(versionLabel);
 
             copyrightLabel.setText(
-                J(u8"© 2025-2026 Studio アステロイド  ・  オープンソース (AGPL v3)"),
+                tr(u8"© 2025-2026 Studio アステロイド  ・  オープンソース (AGPL v3)"),
                 juce::dontSendNotification);
             copyrightLabel.setFont(juce::FontOptions(12.0f));
             copyrightLabel.setColour(juce::Label::textColourId, juce::Colour(0xff8a9097));
             copyrightLabel.setJustificationType(juce::Justification::centred);
             addAndMakeVisible(copyrightLabel);
 
-            licenseHeader.setText(J(u8"ライセンス情報 / 利用しているオープンソース"),
+            licenseHeader.setText(tr(u8"ライセンス情報 / 利用しているオープンソース"),
                                    juce::dontSendNotification);
             licenseHeader.setFont(juce::FontOptions(13.0f, juce::Font::bold));
             licenseHeader.setColour(juce::Label::textColourId, juce::Colours::white);
@@ -68,7 +67,7 @@ void MainComponent::showAboutDialog()
             licenseText.setText(buildLicenseText(), juce::dontSendNotification);
             addAndMakeVisible(licenseText);
 
-            closeBtn.setButtonText(J(u8"閉じる"));
+            closeBtn.setButtonText(tr(u8"閉じる"));
             closeBtn.onClick = [this] {
                 if (auto* dw = findParentComponentOfClass<juce::DialogWindow>())
                     dw->exitModalState(0);
@@ -80,37 +79,36 @@ void MainComponent::showAboutDialog()
 
         static juce::String buildLicenseText()
         {
-            auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
             juce::String t;
-            t << J(u8"Utawave © 2025-2026 Studio アステロイド\n");
-            t << J(u8"本アプリは AGPL v3 ライセンスの下で配布されています。\n")
-              << J(u8"ソースコードは GitHub にて公開しています。\n")
+            t << tr(u8"Utawave © 2025-2026 Studio アステロイド\n");
+            t << tr(u8"本アプリは AGPL v3 ライセンスの下で配布されています。\n")
+              << tr(u8"ソースコードは GitHub にて公開しています。\n")
               << "  https://github.com/AsteroidApp-hub/Utawave\n\n";
 
-            t << J(u8"── 免責事項 ──\n")
-              << J(u8"本ソフトウェアは無料で「現状のまま」提供されます。万一、使用（または使用できないこと）により損害が生じた場合でも、作者は責任を負いかねます。大切なデータはバックアップしてください。(詳細は AGPL v3 第15条・第16条)\n\n");
+            t << tr(u8"── 免責事項 ──\n")
+              << tr(u8"本ソフトウェアは無料で「現状のまま」提供されます。万一、使用（または使用できないこと）により損害が生じた場合でも、作者は責任を負いかねます。大切なデータはバックアップしてください。(詳細は AGPL v3 第15条・第16条)\n\n");
 
-            t << J(u8"開発を応援する (寄付):\n")
+            t << tr(u8"開発を応援する (寄付):\n")
               << "  GitHub Sponsors: https://github.com/sponsors/AsteroidApp-hub\n\n";
 
-            t << J(u8"── 利用しているサードパーティ ライブラリ ──\n\n");
+            t << tr(u8"── 利用しているサードパーティ ライブラリ ──\n\n");
 
             t << "JUCE Framework\n"
-              << J(u8"  Copyright (c) Raw Material Software Limited.\n")
-              << J(u8"  AGPL v3 (非商用 / オープンソース利用)\n\n");
+              << tr(u8"  Copyright (c) Raw Material Software Limited.\n")
+              << tr(u8"  AGPL v3 (非商用 / オープンソース利用)\n\n");
 
             t << "LAME (libmp3lame)\n"
-              << J(u8"  Copyright (c) The LAME project (http://lame.sourceforge.net/).\n")
-              << J(u8"  GNU LGPL v2.0 or later\n\n");
+              << tr(u8"  Copyright (c) The LAME project (http://lame.sourceforge.net/).\n")
+              << tr(u8"  GNU LGPL v2.0 or later\n\n");
 
             t << "r8brain-free-src\n"
-              << J(u8"  Copyright (c) Aleksey Vaneev.  MIT License\n\n");
+              << tr(u8"  Copyright (c) Aleksey Vaneev.  MIT License\n\n");
 
-            t << J(u8"ASIO Interface Technology  (Windows ビルド時のみ、任意)\n")
-              << J(u8"  ASIO is a trademark and software of\n")
-              << J(u8"  Steinberg Media Technologies GmbH.\n")
-              << J(u8"  デュアルライセンス (Steinberg ASIO License または GPL v3)\n")
-              << J(u8"  本プロジェクトでは GPL v3 の選択肢で利用\n");
+            t << tr(u8"ASIO Interface Technology  (Windows ビルド時のみ、任意)\n")
+              << tr(u8"  ASIO is a trademark and software of\n")
+              << tr(u8"  Steinberg Media Technologies GmbH.\n")
+              << tr(u8"  デュアルライセンス (Steinberg ASIO License または GPL v3)\n")
+              << tr(u8"  本プロジェクトでは GPL v3 の選択肢で利用\n");
 
             return t;
         }
@@ -158,7 +156,6 @@ void MainComponent::showAboutDialog()
 // ─────────────────────────────────────────────────────────────────────────
 void MainComponent::showDocumentation()
 {
-    auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
 
     // 同梱した help.html を探す。macOS は .app/Contents/Resources、Windows は実行ファイル隣。
     // (CMake で MACOSX_PACKAGE_LOCATION / POST_BUILD コピーにより配置される)
@@ -182,8 +179,8 @@ void MainComponent::showDocumentation()
 
     juce::AlertWindow::showAsync(juce::MessageBoxOptions()
         .withIconType(juce::MessageBoxIconType::WarningIcon)
-        .withTitle(J(u8"使い方ドキュメント"))
-        .withMessage(J(u8"ドキュメントファイル (help.html) が見つかりませんでした。"))
+        .withTitle(tr(u8"使い方ドキュメント"))
+        .withMessage(tr(u8"ドキュメントファイル (help.html) が見つかりませんでした。"))
         .withButton("OK"), nullptr);
 }
 
@@ -209,14 +206,13 @@ void MainComponent::showShortcutsDialog()
             const int keyW = 180;       // 左カラム (キー) 幅
             int y = padY;
 
-            auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
 
             for (auto& sec : sections)
             {
                 // セクションタイトル
                 g.setColour(juce::Colour(0xff7aaef0));
                 g.setFont(juce::FontOptions(13.5f, juce::Font::bold));
-                g.drawText(J(sec.title), padX, y, getWidth() - padX * 2, 20,
+                g.drawText(tr(sec.title), padX, y, getWidth() - padX * 2, 20,
                            juce::Justification::centredLeft);
                 y += 22;
 
@@ -230,10 +226,10 @@ void MainComponent::showShortcutsDialog()
                 for (auto& e : sec.entries)
                 {
                     g.setColour(juce::Colour(0xfff0c060));  // キーは黄色寄り
-                    g.drawText(J(e.key), padX + 4, y, keyW, 18,
+                    g.drawText(tr(e.key), padX + 4, y, keyW, 18,
                                juce::Justification::centredLeft);
                     g.setColour(juce::Colour(0xffd0d4d8));   // アクションは白寄り
-                    g.drawText(J(e.action), padX + keyW + 8, y,
+                    g.drawText(tr(e.action), padX + keyW + 8, y,
                                getWidth() - padX * 2 - keyW - 8, 18,
                                juce::Justification::centredLeft);
                     y += 20;

@@ -28,7 +28,8 @@ bool Mp3EncoderWriter::encodeBuffer(const juce::AudioBuffer<float>& buffer,
                                     double sampleRate,
                                     int bitrateKbps,
                                     const juce::File& outFile,
-                                    juce::String* errorOut)
+                                    juce::String* errorOut,
+                                    std::function<bool()> shouldCancel)
 {
     auto setErr = [errorOut](const juce::String& s) { if (errorOut) *errorOut = s; };
 
@@ -72,6 +73,9 @@ bool Mp3EncoderWriter::encodeBuffer(const juce::AudioBuffer<float>& buffer,
     int pos = 0;
     while (pos < nFrames)
     {
+        if (shouldCancel && shouldCancel())
+            return false;  // キャンセル: errorOut は設定しない (呼び出し側がファイルを破棄)
+
         const int n = juce::jmin(blockSamples, nFrames - pos);
 
         int written = 0;
@@ -101,16 +105,22 @@ bool Mp3EncoderWriter::encodeBuffer(const juce::AudioBuffer<float>& buffer,
             setErr("lame_encode_buffer_ieee_float failed: " + juce::String(written));
             return false;
         }
-        if (written > 0)
-            out.write(mp3Buf.data(), (size_t)written);
+        if (written > 0 && !out.write(mp3Buf.data(), (size_t)written))
+        {
+            setErr(tr(u8"出力ファイルへの書き込みに失敗しました (ディスク容量を確認してください)"));
+            return false;
+        }
 
         pos += n;
     }
 
     // 末尾フラッシュ
     int flushed = lame_encode_flush(lame, mp3Buf.data(), (int)mp3Buf.size());
-    if (flushed > 0)
-        out.write(mp3Buf.data(), (size_t)flushed);
+    if (flushed > 0 && !out.write(mp3Buf.data(), (size_t)flushed))
+    {
+        setErr(tr(u8"出力ファイルへの書き込みに失敗しました (ディスク容量を確認してください)"));
+        return false;
+    }
 
     // INFO/Xing タグをファイル先頭に書き戻す。
     // LAME はエンコード開始時にプレースホルダフレームを書いており、

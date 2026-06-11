@@ -147,7 +147,6 @@ TransportBar::TransportBar()
     tapTempoBtn.setWantsKeyboardFocus(false);
     tapTempoBtn.onClick = [this]
     {
-        auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
 
         auto* dlg = new TapTempoDialog(currentBpm);
         dlg->onApply = [this](double newBpm)
@@ -159,7 +158,7 @@ TransportBar::TransportBar()
 
         juce::DialogWindow::LaunchOptions opts;
         opts.content.setOwned(dlg);
-        opts.dialogTitle                  = J(u8"タップでテンポを検出");
+        opts.dialogTitle                  = tr(u8"タップでテンポを検出");
         opts.dialogBackgroundColour       = juce::Colour(0xff2a2a2a);
         opts.escapeKeyTriggersCloseButton = true;
         opts.useNativeTitleBar            = true;
@@ -308,19 +307,18 @@ TransportBar::TransportBar()
     snapBtn.setWantsKeyboardFocus(false);
     snapBtn.onClick = [this] {
         juce::PopupMenu m;
-        auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
         m.addItem(1, "Off");
         m.addSeparator();
-        m.addItem(2, J(u8"1/1    小節"));
-        m.addItem(3, J(u8"1/2    二分音符"));
-        m.addItem(4, J(u8"1/4    四分音符"));
-        m.addItem(5, J(u8"1/8    八分音符"));
-        m.addItem(6, J(u8"1/16   十六分音符"));
-        m.addItem(7, J(u8"1/32   三十二分音符"));
+        m.addItem(2, tr(u8"1/1    小節"));
+        m.addItem(3, tr(u8"1/2    二分音符"));
+        m.addItem(4, tr(u8"1/4    四分音符"));
+        m.addItem(5, tr(u8"1/8    八分音符"));
+        m.addItem(6, tr(u8"1/16   十六分音符"));
+        m.addItem(7, tr(u8"1/32   三十二分音符"));
         m.addSeparator();
-        m.addItem(8,  J(u8"1/4 T  四分三連"));
-        m.addItem(9,  J(u8"1/8 T  八分三連"));
-        m.addItem(10, J(u8"1/16 T 十六分三連"));
+        m.addItem(8,  tr(u8"1/4 T  四分三連"));
+        m.addItem(9,  tr(u8"1/8 T  八分三連"));
+        m.addItem(10, tr(u8"1/16 T 十六分三連"));
         m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(snapBtn),
             [this](int result) {
                 if (result <= 0) return;
@@ -349,12 +347,11 @@ TransportBar::TransportBar()
     countInBtn.setWantsKeyboardFocus(false);
     countInBtn.onClick = [this] {
         juce::PopupMenu m;
-        auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
-        m.addItem(1, J(u8"なし"));
+        m.addItem(1, tr(u8"なし"));
         m.addSeparator();
-        m.addItem(2, J(u8"1 小節"));
-        m.addItem(3, J(u8"2 小節"));
-        m.addItem(4, J(u8"4 小節"));
+        m.addItem(2, tr(u8"1 小節"));
+        m.addItem(3, tr(u8"2 小節"));
+        m.addItem(4, tr(u8"4 小節"));
         m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(countInBtn),
             [this](int r) {
                 if (r <= 0 || !onCountInChanged) return;
@@ -374,12 +371,11 @@ TransportBar::TransportBar()
     preRollBtn.setWantsKeyboardFocus(false);
     preRollBtn.onClick = [this] {
         juce::PopupMenu m;
-        auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
-        m.addItem(1, J(u8"なし"));
+        m.addItem(1, tr(u8"なし"));
         m.addSeparator();
-        m.addItem(2, J(u8"1 秒"));
-        m.addItem(3, J(u8"2 秒"));
-        m.addItem(4, J(u8"3 秒"));
+        m.addItem(2, tr(u8"1 秒"));
+        m.addItem(3, tr(u8"2 秒"));
+        m.addItem(4, tr(u8"3 秒"));
         m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(preRollBtn),
             [this](int r) {
                 if (r <= 0 || !onPreRollChanged) return;

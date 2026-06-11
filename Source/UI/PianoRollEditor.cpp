@@ -2,6 +2,7 @@
 // Copyright (C) 2025-2026 Studio Asteroid
 
 #include "PianoRollEditor.h"
+#include "../Localisation.h"
 #include "../AppColours.h"
 
 // MIDI ノート編集を main UndoManager に乗せるための UndoableAction。
@@ -52,18 +53,17 @@ PianoRollEditor::PianoRollEditor(MidiClip& clipRef, double projectBpm,
     rebuildNotesFromClip();
 
     // ── グリッド (スナップ) 選択 ComboBox ──
-    auto J = [](const char* s) { return juce::translate(juce::String::fromUTF8(s)); };
-    snapBox.addItem(J(u8"GRID: Off"),  (int) SnapMode::Off + 1);
-    snapBox.addItem(J(u8"GRID: 1/1"),  (int) SnapMode::Bar + 1);
-    snapBox.addItem(J(u8"GRID: 1/2"),  (int) SnapMode::Half + 1);
-    snapBox.addItem(J(u8"GRID: 1/4"),  (int) SnapMode::Quarter + 1);
-    snapBox.addItem(J(u8"GRID: 1/8"),  (int) SnapMode::Eighth + 1);
-    snapBox.addItem(J(u8"GRID: 1/16"), (int) SnapMode::Sixteenth + 1);
-    snapBox.addItem(J(u8"GRID: 1/32"), (int) SnapMode::ThirtySecond + 1);
+    snapBox.addItem(tr(u8"GRID: Off"),  (int) SnapMode::Off + 1);
+    snapBox.addItem(tr(u8"GRID: 1/1"),  (int) SnapMode::Bar + 1);
+    snapBox.addItem(tr(u8"GRID: 1/2"),  (int) SnapMode::Half + 1);
+    snapBox.addItem(tr(u8"GRID: 1/4"),  (int) SnapMode::Quarter + 1);
+    snapBox.addItem(tr(u8"GRID: 1/8"),  (int) SnapMode::Eighth + 1);
+    snapBox.addItem(tr(u8"GRID: 1/16"), (int) SnapMode::Sixteenth + 1);
+    snapBox.addItem(tr(u8"GRID: 1/32"), (int) SnapMode::ThirtySecond + 1);
     snapBox.addSeparator();
-    snapBox.addItem(J(u8"GRID: 1/4 三連"), (int) SnapMode::QuarterT + 1);
-    snapBox.addItem(J(u8"GRID: 1/8 三連"), (int) SnapMode::EighthT + 1);
-    snapBox.addItem(J(u8"GRID: 1/16 三連"), (int) SnapMode::SixteenthT + 1);
+    snapBox.addItem(tr(u8"GRID: 1/4 三連"), (int) SnapMode::QuarterT + 1);
+    snapBox.addItem(tr(u8"GRID: 1/8 三連"), (int) SnapMode::EighthT + 1);
+    snapBox.addItem(tr(u8"GRID: 1/16 三連"), (int) SnapMode::SixteenthT + 1);
     snapBox.setSelectedId((int) snapMode + 1, juce::dontSendNotification);
     snapBox.setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff2a2d31));
     snapBox.setColour(juce::ComboBox::textColourId,       juce::Colours::white);

@@ -44,7 +44,7 @@ private:
     class TrackRow : public juce::Component
     {
     public:
-        TrackRow(int idx, const MidiImporter::ImportedTrack& tr, bool drumDefault);
+        TrackRow(int idx, const MidiImporter::ImportedTrack& trk, bool drumDefault);
         void resized() override;
 
         juce::ToggleButton checkBtn;
