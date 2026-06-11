@@ -176,10 +176,18 @@
 
 <h3>対応 OS</h3>
 <ul>
+  <li><strong>Windows 11 以降</strong></li>
   <li><strong>macOS 12 (Monterey) 以降</strong>  ※ Apple Silicon (M1 以降) 専用</li>
 </ul>
 
-<h3>インストール手順</h3>
+<h3>インストール手順 (Windows)</h3>
+<ol>
+  <li>配布された zip をダウンロードして展開 (右クリック → <strong>すべて展開</strong>)</li>
+  <li>展開したフォルダ内の <code>Utawave.exe</code> を実行</li>
+  <li>初回起動時に「Windows によって PC が保護されました」と表示された場合は、<strong>「詳細情報」→「実行」</strong> の順にクリック</li>
+</ol>
+
+<h3>インストール手順 (macOS)</h3>
 <ol>
   <li>配布された <code>Utawave.app</code> をダウンロード (zip の場合は展開)</li>
   <li><code>Utawave.app</code> を <strong>アプリケーションフォルダ</strong> へドラッグ</li>
@@ -188,8 +196,8 @@
 </ol>
 
 <div class="callout warning">
-  <strong>注意:</strong> 2 回目以降は通常通りダブルクリックで起動できます。<br>
-  なお、Apple ID で署名されていない開発版アプリのため、初回のみ macOS 側で許可が必要です。
+  <strong>注意:</strong> 2 回目以降はどちらの OS でも通常通りダブルクリックで起動できます。<br>
+  コード署名を取得していない個人開発アプリのため、初回のみ OS 側で許可が必要です。
 </div>
 
 <!-- ─────────────────── 2. 初回起動 ─────────────────── -->
@@ -233,10 +241,14 @@
 <h2 id="import-bgm">5. インスト (伴奏) を読み込む</h2>
 
 <h3>方法 A: ドラッグ & ドロップ</h3>
-<p>Finder から音声ファイル (WAV / AIFF / MP3 / M4A / FLAC) をタイムラインへ直接ドロップ。トラックが自動生成され、適切な場所にクリップが配置されます。</p>
+<p>エクスプローラー (Mac は Finder) から音声ファイル (WAV / AIFF / MP3 / FLAC 等) をタイムラインへ直接ドロップ。トラックが自動生成され、適切な場所にクリップが配置されます。</p>
 
 <h3>方法 B: メニューから取り込み</h3>
-<p><kbd>Cmd</kbd> + <kbd>I</kbd> または File メニュー → <strong>オーディオファイルを取り込む</strong></p>
+<p><kbd>Ctrl</kbd> + <kbd>I</kbd> または File メニュー → <strong>オーディオファイルを取り込む</strong></p>
+
+<div class="callout">
+  本マニュアルのショートカットは Windows 表記です。Mac では <kbd>Ctrl</kbd> を <kbd>Cmd</kbd>、<kbd>Alt</kbd> を <kbd>Option</kbd> に読み替えてください。
+</div>
 
 <div class="callout tip">
   <strong>サンプリングレートが違う場合:</strong> 自動的にプロジェクトのサンプリングレートにリサンプリングされます。
@@ -256,6 +268,10 @@
   <li>トラックの <strong>R</strong> (録音) ボタンをクリック → 赤く点灯 (このトラックが録音対象になる)</li>
   <li><strong>I</strong> (Input Monitor) ボタンで自分の声を返したい場合は ON にする</li>
 </ol>
+
+<div class="callout tip">
+  <strong>Windows は ASIO がおすすめ:</strong> オーディオインターフェイスをお使いの場合は、AUDIO 設定でドライバの種類に <strong>ASIO</strong> を選んでください。標準のドライバより遅延が大幅に少なく、自分の声を聞きながらの録音が快適になります (インターフェイス付属の ASIO ドライバを事前にインストールしてください)。
+</div>
 
 <h3>録音開始</h3>
 <table>
@@ -305,11 +321,11 @@
   <tr><th>操作</th><th>動作</th></tr>
   <tr><td>クリップをドラッグ</td><td>移動</td></tr>
   <tr><td>クリップの端をドラッグ</td><td>リサイズ (トリム)</td></tr>
-  <tr><td><kbd>Option</kbd> (Alt) + クリック</td><td>その位置でクリップを分割（波形 / MIDI）</td></tr>
+  <tr><td><kbd>Alt</kbd> (Mac は Option) + クリック</td><td>その位置でクリップを分割（波形 / MIDI）</td></tr>
   <tr><td><kbd>F</kbd></td><td>選択範囲で フェードイン/フェードアウト</td></tr>
   <tr><td><kbd>X</kbd></td><td>選択範囲で クロスフェード (隣接クリップ間)</td></tr>
   <tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>選択クリップを削除</td></tr>
-  <tr><td><kbd>Cmd</kbd> + <kbd>Z</kbd> / <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></td><td>取り消し / やり直し</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>Z</kbd> / <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></td><td>取り消し / やり直し</td></tr>
 </table>
 
 <h3>クリップ右クリックメニュー</h3>
@@ -326,8 +342,8 @@
 <h3>ズーム操作</h3>
 <table class="keyrow">
   <tr><th>操作</th><th>動作</th></tr>
-  <tr><td><kbd>Cmd</kbd> + スクロール</td><td>横方向ズーム (再生バー or マウス位置中心)</td></tr>
-  <tr><td><kbd>Shift</kbd> + <kbd>Option</kbd> + スクロール</td><td>波形振幅 (縦) ズーム</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + スクロール</td><td>横方向ズーム (再生バー or マウス位置中心)</td></tr>
+  <tr><td><kbd>Shift</kbd> + <kbd>Alt</kbd> + スクロール</td><td>波形振幅 (縦) ズーム</td></tr>
   <tr><td>ルーラー上下ドラッグ</td><td>横ズーム (クリック位置中心)</td></tr>
   <tr><td>右下 [-][+] ボタン</td><td>横/縦ズーム</td></tr>
   <tr><td><kbd>Shift</kbd> + <kbd>F</kbd></td><td>プロジェクト全体ビューにフィット</td></tr>
@@ -363,8 +379,8 @@
   <li>トラックヘッダーで <strong>INSERTS</strong> 列を右クリック → <strong>INS スロットを表示</strong></li>
   <li>空きスロットの <strong>+</strong> をクリックしてプラグインを選択</li>
   <li>スロットをクリックしてエディタを開く</li>
-  <li><strong>Cmd</strong> + クリックでバイパス切替</li>
-  <li>ドラッグで別トラックへ移動、<kbd>Option</kbd> + ドラッグでコピー</li>
+  <li><strong>Ctrl</strong> + クリックでバイパス切替</li>
+  <li>ドラッグで別トラックへ移動、<kbd>Alt</kbd> + ドラッグでコピー</li>
 </ol>
 
 <h3>マスターチェーン / ディザー</h3>
@@ -375,7 +391,7 @@
 <p>ハモリやガイドメロディを打ち込みたいときは MIDI トラックを使います。</p>
 <ol>
   <li><strong>+ Add Track</strong> メニュー → <strong>MIDI トラックを追加</strong> (空のトラックが作られます)</li>
-  <li>タイムラインの空きエリアで <strong>ダブルクリック</strong> = 1 小節の MIDI クリップ作成 / <kbd>Option</kbd> + ドラッグ = ドラッグした長さで作成</li>
+  <li>タイムラインの空きエリアで <strong>ダブルクリック</strong> = 1 小節の MIDI クリップ作成 / <kbd>Alt</kbd> + ドラッグ = ドラッグした長さで作成</li>
   <li>クリップの <strong>左右端ドラッグ</strong>でリサイズ、<strong>タイトル部ドラッグ</strong>で移動 (グリッドにスナップ)</li>
   <li>クリップを <strong>ダブルクリック</strong>すると<strong>ピアノロール</strong>が開きます</li>
   <li>ピアノロールでノートを打ち込み (操作はショートカット表を参照)</li>
@@ -389,7 +405,7 @@
 <h2 id="export">10. 書き出し (WAV / MP3)</h2>
 
 <ol>
-  <li><kbd>Cmd</kbd> + <kbd>E</kbd> または メニュー → <strong>書き出し</strong></li>
+  <li><kbd>Ctrl</kbd> + <kbd>E</kbd> または メニュー → <strong>書き出し</strong></li>
   <li>書き出し範囲: <strong>プロジェクト全体</strong> / <strong>選択範囲</strong> / <strong>マーカー間</strong> から選択</li>
   <li>形式: <strong>WAV</strong> / <strong>AIFF</strong> / <strong>MP3</strong> (MP3 エンコーダ内蔵)</li>
   <li>ビット深度・サンプリングレートを指定</li>
@@ -404,6 +420,8 @@
 <!-- ─────────────────── 11. ショートカット ─────────────────── -->
 <h2 id="shortcut">11. キーボードショートカット</h2>
 
+<p>Windows 表記です。Mac では <kbd>Ctrl</kbd> を <kbd>Cmd</kbd>、<kbd>Alt</kbd> を <kbd>Option</kbd> に読み替えてください。</p>
+
 <h3>トランスポート</h3>
 <table class="keyrow">
   <tr><th>キー</th><th>機能</th></tr>
@@ -413,28 +431,28 @@
   <tr><td><kbd>L</kbd></td><td>ループ再生 ON / OFF</td></tr>
   <tr><td><kbd>N</kbd> / <kbd>B</kbd></td><td>1 小節 進む / 戻る</td></tr>
   <tr><td><kbd>Shift</kbd> + <kbd>N</kbd> / <kbd>Shift</kbd> + <kbd>B</kbd></td><td>次 / 前のマーカーへジャンプ</td></tr>
-  <tr><td><kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd></td><td>遡及録音を確定</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd></td><td>遡及録音を確定</td></tr>
 </table>
 
 <h3>ファイル / プロジェクト</h3>
 <table class="keyrow">
   <tr><th>キー</th><th>機能</th></tr>
-  <tr><td><kbd>Cmd</kbd> + <kbd>S</kbd></td><td>保存</td></tr>
-  <tr><td><kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></td><td>別名で保存</td></tr>
-  <tr><td><kbd>Cmd</kbd> + <kbd>O</kbd></td><td>開く</td></tr>
-  <tr><td><kbd>Cmd</kbd> + <kbd>I</kbd></td><td>オーディオファイルを取り込む</td></tr>
-  <tr><td><kbd>Cmd</kbd> + <kbd>E</kbd></td><td>書き出し</td></tr>
-  <tr><td><kbd>Cmd</kbd> + <kbd>,</kbd></td><td>環境設定</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>保存</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></td><td>別名で保存</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>O</kbd></td><td>開く</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>I</kbd></td><td>オーディオファイルを取り込む</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>E</kbd></td><td>書き出し</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>,</kbd></td><td>環境設定</td></tr>
 </table>
 
 <h3>編集</h3>
 <table class="keyrow">
   <tr><th>キー</th><th>機能</th></tr>
-  <tr><td><kbd>Cmd</kbd> + <kbd>Z</kbd> / <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></td><td>取り消し / やり直し</td></tr>
-  <tr><td><kbd>Cmd</kbd> + <kbd>A</kbd></td><td>全選択</td></tr>
-  <tr><td><kbd>Cmd</kbd> + <kbd>C</kbd> / <kbd>V</kbd> / <kbd>X</kbd> / <kbd>D</kbd></td><td>コピー / ペースト / カット / 複製</td></tr>
-  <tr><td><kbd>Option</kbd> (Alt) + クリック</td><td>クリップ分割（波形 / MIDI）</td></tr>
-  <tr><td><kbd>Cmd</kbd> + クリック</td><td>プラグインバイパス (INS チップ)</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>Z</kbd> / <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></td><td>取り消し / やり直し</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>A</kbd></td><td>全選択</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>C</kbd> / <kbd>V</kbd> / <kbd>X</kbd> / <kbd>D</kbd></td><td>コピー / ペースト / カット / 複製</td></tr>
+  <tr><td><kbd>Alt</kbd> (Mac は Option) + クリック</td><td>クリップ分割（波形 / MIDI）</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + クリック</td><td>プラグインバイパス (INS チップ)</td></tr>
   <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td>選択クリップを微小ナッジ</td></tr>
   <tr><td><kbd>F</kbd></td><td>選択範囲でフェード</td></tr>
   <tr><td><kbd>X</kbd></td><td>選択範囲でクロスフェード</td></tr>
@@ -445,8 +463,8 @@
 <h3>表示 / ズーム</h3>
 <table class="keyrow">
   <tr><th>キー</th><th>機能</th></tr>
-  <tr><td><kbd>Cmd</kbd> + スクロール</td><td>横ズーム</td></tr>
-  <tr><td><kbd>Shift</kbd> + <kbd>Option</kbd> + スクロール</td><td>波形振幅ズーム</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + スクロール</td><td>横ズーム</td></tr>
+  <tr><td><kbd>Shift</kbd> + <kbd>Alt</kbd> + スクロール</td><td>波形振幅ズーム</td></tr>
   <tr><td><kbd>Shift</kbd> + スクロール</td><td>横スクロール</td></tr>
   <tr><td><kbd>Shift</kbd> + <kbd>F</kbd></td><td>プロジェクト全体ビュー</td></tr>
 </table>
@@ -475,15 +493,15 @@
   <tr><td>ルーラー (小節番号) クリック</td><td>プレイヘッドをその位置へ</td></tr>
   <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td>ノートを時間方向にナッジ</td></tr>
   <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>ノートを半音上下</td></tr>
-  <tr><td><kbd>Cmd</kbd> + <kbd>A</kbd> / <kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd></td><td>全選択 / コピー / カット / ペースト</td></tr>
-  <tr><td><kbd>Cmd</kbd> + <kbd>Z</kbd> / <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></td><td>取り消し / やり直し</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>A</kbd> / <kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd></td><td>全選択 / コピー / カット / ペースト</td></tr>
+  <tr><td><kbd>Ctrl</kbd> + <kbd>Z</kbd> / <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></td><td>取り消し / やり直し</td></tr>
   <tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>選択ノート削除</td></tr>
 </table>
 
 <!-- ─────────────────── 12. 環境設定 ─────────────────── -->
 <h2 id="settings">12. 環境設定</h2>
 
-<p><kbd>Cmd</kbd> + <kbd>,</kbd> または右上の <strong>SETTING</strong> ボタンで環境設定ダイアログを開きます。</p>
+<p><kbd>Ctrl</kbd> + <kbd>,</kbd> または右上の <strong>SETTING</strong> ボタンで環境設定ダイアログを開きます。</p>
 
 <table>
   <tr><th>項目</th><th>説明</th><th>デフォルト</th></tr>
@@ -492,6 +510,8 @@
   <tr><td>停止時に再生開始位置へ戻る (RTZ)</td><td>停止時に巻き戻す</td><td>ON</td></tr>
   <tr><td>Cmd+スクロール拡大の起点</td><td>OFF=再生バー中央 / ON=マウス位置</td><td>ON</td></tr>
   <tr><td>再生中バックグラウンド録音</td><td>遡及録音モード</td><td>ON</td></tr>
+  <tr><td>録音レイテンシ自動補正</td><td>録音した音を機器の遅延分だけ自動で手前にずらす (録音が遅れて聞こえる場合の補正)</td><td>ON</td></tr>
+  <tr><td>追加の録音補正 (ms)</td><td>自動補正でもまだずれる場合の微調整 (+で手前へ)</td><td>0 ms</td></tr>
   <tr><td>自動保存間隔</td><td>5/10/15/20/25/30 分または無効</td><td>5 分</td></tr>
   <tr><td>VU メータ基準レベル</td><td>-14 / -18 / -20 / -24 dBFS</td><td>-18 dBFS</td></tr>
   <tr><td>ラウドネス自動調整ターゲット</td><td>-14 / -16 / -18 / -23 / -24 LUFS</td><td>-24 LUFS</td></tr>
@@ -500,7 +520,7 @@
 </table>
 
 <div class="callout">
-  <strong>言語</strong>: 初回起動時はお使いの Mac のシステム言語に合わせて自動選択されます (日本語以外は英語)。
+  <strong>言語</strong>: 初回起動時はお使いの OS のシステム言語に合わせて自動選択されます (日本語以外は英語)。
   環境設定で切り替えた場合は<strong>次回起動時</strong>に反映されます。
 </div>
 
@@ -509,7 +529,10 @@
 <!-- ─────────────────── 13. トラブル ─────────────────── -->
 <h2 id="trouble">13. トラブルシューティング</h2>
 
-<h4>Q: 「開発元を確認できません」と出て起動できない</h4>
+<h4>Q: 「Windows によって PC が保護されました」と出て起動できない (Windows)</h4>
+<p>A: <strong>「詳細情報」→「実行」</strong> の順にクリックしてください。コード署名を取得していない個人開発アプリのため表示されるもので、次回からは表示されません。</p>
+
+<h4>Q: 「開発元を確認できません」と出て起動できない (macOS)</h4>
 <p>A: Finder で <strong>右クリック → 開く</strong> を選択し、確認ダイアログで <strong>開く</strong> をクリックしてください。次回からは通常のダブルクリックで OK です。</p>
 
 <h4>Q: 音が鳴らない / 録音できない</h4>

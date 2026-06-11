@@ -101,7 +101,8 @@ details.
 ## ダウンロード / Download
 
 ビルド済みアプリ（macOS / Windows）は **[Releases](https://github.com/AsteroidApp-hub/Utawave/releases)**
-からダウンロードできます。リリース手順は [RELEASE.md](RELEASE.md) を参照。
+からダウンロードできます（公式サイト <https://utawave.com/download.html> でも同じものを配布しています）。
+リリース手順は [RELEASE.md](RELEASE.md) を参照。
 
 ## 貢献
 
