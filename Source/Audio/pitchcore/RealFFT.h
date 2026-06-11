@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 Studio Asteroid
+// Copyright (C) 2025-2026 Utawave
 //
 // PitchCore — 自前の実数 FFT (外部ライブラリ非依存・C++17 のみ)
 //

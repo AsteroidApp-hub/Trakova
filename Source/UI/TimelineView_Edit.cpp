@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 Studio Asteroid
+// Copyright (C) 2025-2026 Utawave
 
 // TimelineView の編集系操作 (削除/コピー/ペースト/カット/複製/結合/無音カット/
 // クロスフェード/分割/選択/ナッジ/横ズーム/全体フィット 等)。

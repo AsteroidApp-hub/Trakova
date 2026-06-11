@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 Studio Asteroid
+// Copyright (C) 2025-2026 Utawave
 
 // Utawave — クラッシュレポート (CrashReporter) のネットワーク非依存ロジックのテスト。
 // install() のハンドラ登録・sendAsync() の通信・offerPendingReports() のダイアログは

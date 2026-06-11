@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 Studio Asteroid
+// Copyright (C) 2025-2026 Utawave
 
 // MainComponent の環境設定ダイアログ実装 (showPreferences)。
 // MainComponent_Dialogs.cpp から分割。

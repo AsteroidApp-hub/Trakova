@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 Studio Asteroid
+// Copyright (C) 2025-2026 Utawave
 
 // Utawave — AppSettings の音楽位置/テンポ計算 + グリッド量子化のユニットテスト
 //

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 Studio Asteroid
+// Copyright (C) 2025-2026 Utawave
 
 // Utawave — TrackManager のユニットテスト (色サイクル / 自動命名 / 複製 / フォルダ署名)
 //

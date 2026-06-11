@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 Studio Asteroid
+// Copyright (C) 2025-2026 Utawave
 
 // MainComponent のメニュー・コマンドターゲット・キーボードショートカット実装。
 // MainComponent.cpp が肥大化したため分割。クラス本体は MainComponent.h で宣言されている。

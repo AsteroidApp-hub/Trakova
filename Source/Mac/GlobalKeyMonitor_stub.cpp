@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 Studio Asteroid
+// Copyright (C) 2025-2026 Utawave
 
 // 非 macOS 向けの no-op 実装。
 // Windows ではプラグインのネイティブ UI 越しのキー受付には SetWindowsHookEx 等の

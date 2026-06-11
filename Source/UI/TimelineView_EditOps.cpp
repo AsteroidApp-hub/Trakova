@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 Studio Asteroid
+// Copyright (C) 2025-2026 Utawave
 
 // TimelineView の重い編集操作 (結合/無音カット/クロスフェード/分割) (TimelineView_Edit.cpp から分割)。
 

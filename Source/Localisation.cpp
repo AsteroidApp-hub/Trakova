@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 Studio Asteroid
+// Copyright (C) 2025-2026 Utawave
 
 #include "Localisation.h"
 
@@ -387,9 +387,8 @@ static const char* const englishTranslations =
     // ── About ──
     "\"バージョン \" = \"Version \"\n"
     "\"オープンソース (AGPL v3)\" = \"Open source (AGPL v3)\"\n"
-    "\"© 2025-2026 Studio アステロイド  ・  オープンソース (AGPL v3)\" = \"© 2025-2026 Studio Asteroid  ·  Open source (AGPL v3)\"\n"
-    "\"Utawave © 2025-2026 Studio アステロイド\\n\" = \"Utawave © 2025-2026 Studio Asteroid\\n\"\n"
-    "\"ライセンス情報 / 利用しているオープンソース\" = \"License / Open-source acknowledgements\"\n"
+    "\"© 2025-2026 Utawave  ・  オープンソース (AGPL v3)\" = \"© 2025-2026 Utawave  ·  Open source (AGPL v3)\"\n"
+        "\"ライセンス情報 / 利用しているオープンソース\" = \"License / Open-source acknowledgements\"\n"
     "\"本アプリは AGPL v3 ライセンスの下で配布されています。\\n\" = \"This app is distributed under the AGPL v3 license.\\n\"\n"
     "\"ソースコードは GitHub にて公開しています。\\n\" = \"The source code is available on GitHub.\\n\"\n"
     "\"── 免責事項 ──\\n\" = \"── Disclaimer ──\\n\"\n"

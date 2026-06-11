@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 Studio Asteroid
+// Copyright (C) 2025-2026 Utawave
 
 // MainComponent の About / ショートカット / オーディオ設定 / 書き出しダイアログ実装。
 // MainComponent_Dialogs.cpp から分割。
@@ -42,7 +42,7 @@ void MainComponent::showAboutDialog()
             addAndMakeVisible(versionLabel);
 
             copyrightLabel.setText(
-                tr(u8"© 2025-2026 Studio アステロイド  ・  オープンソース (AGPL v3)"),
+                tr(u8"© 2025-2026 Utawave  ・  オープンソース (AGPL v3)"),
                 juce::dontSendNotification);
             copyrightLabel.setFont(juce::FontOptions(12.0f));
             copyrightLabel.setColour(juce::Label::textColourId, juce::Colour(0xff8a9097));
@@ -80,7 +80,7 @@ void MainComponent::showAboutDialog()
         static juce::String buildLicenseText()
         {
             juce::String t;
-            t << tr(u8"Utawave © 2025-2026 Studio アステロイド\n");
+            t << tr(u8"Utawave © 2025-2026\n");
             t << tr(u8"本アプリは AGPL v3 ライセンスの下で配布されています。\n")
               << tr(u8"ソースコードは GitHub にて公開しています。\n")
               << "  https://github.com/AsteroidApp-hub/Utawave\n\n";

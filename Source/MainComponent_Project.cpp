@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 Studio Asteroid
+// Copyright (C) 2025-2026 Utawave
 
 // MainComponent のプロジェクトファイル管理 (保存/読込/自動保存/フォルダ管理) 実装。
 // MainComponent.cpp が肥大化したため分割。

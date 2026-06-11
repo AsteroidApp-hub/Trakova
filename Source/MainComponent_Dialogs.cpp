@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 Studio Asteroid
+// Copyright (C) 2025-2026 Utawave
 
 // MainComponent のダイアログ関連実装 (環境設定 / About / ショートカット / 書き出し /
 // オーディオデバイス設定 / オーディオ/MIDI インポート)。

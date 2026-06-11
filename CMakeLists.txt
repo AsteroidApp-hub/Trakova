@@ -34,7 +34,7 @@ juce_add_gui_app(Utawave
     ICON_SMALL                      "${CMAKE_CURRENT_SOURCE_DIR}/Icon/icon_256.png"
     MICROPHONE_PERMISSION_ENABLED   TRUE
     MICROPHONE_PERMISSION_TEXT      "Utawave は音声の録音にマイクへのアクセスを必要とします。 / Utawave needs microphone access for audio recording."
-    PLIST_TO_MERGE                  "<plist version=\"1.0\"><dict><key>NSHumanReadableCopyright</key><string>Copyright (C) 2025-2026 Studio Asteroid</string></dict></plist>"
+    PLIST_TO_MERGE                  "<plist version=\"1.0\"><dict><key>NSHumanReadableCopyright</key><string>Copyright (C) 2025-2026 Utawave</string></dict></plist>"
 )
 
 juce_generate_juce_header(Utawave)

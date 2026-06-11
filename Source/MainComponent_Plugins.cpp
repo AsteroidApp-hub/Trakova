@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 Studio Asteroid
+// Copyright (C) 2025-2026 Utawave
 
 // MainComponent のプラグイン関連処理 (Track / Master の追加・削除・編集ウィンドウ管理)
 // および PianoRollWindow / PluginEditorWindow の実装。

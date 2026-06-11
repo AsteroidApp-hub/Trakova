@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2025-2026 Studio Asteroid
+// Copyright (C) 2025-2026 Utawave
 
 // TimelineView の波形クリップ右クリックメニュー (構築 + showMenuAsync 結果ハンドラ)。
 // TimelineView_Mouse.cpp の mouseDown から抽出した showAudioClipContextMenu の実体。
