@@ -84,6 +84,30 @@ void TrackManager::removeTrack(int index)
     }
 }
 
+std::unique_ptr<Track> TrackManager::extractTrack(int index)
+{
+    if (index < 0 || index >= (int)tracks.size()) return nullptr;
+    auto t = std::move(tracks[(size_t)index]);
+    tracks.erase(tracks.begin() + index);
+    if (onChanged) onChanged();
+    return t;
+}
+
+void TrackManager::insertTrack(int index, std::unique_ptr<Track> track)
+{
+    if (!track) return;
+    const int idx = juce::jlimit(0, (int)tracks.size(), index);
+    tracks.insert(tracks.begin() + idx, std::move(track));
+    if (onChanged) onChanged();
+}
+
+int TrackManager::indexOf(const Track* t) const
+{
+    for (size_t i = 0; i < tracks.size(); ++i)
+        if (tracks[i].get() == t) return (int)i;
+    return -1;
+}
+
 Track* TrackManager::duplicateTrack(int sourceIdx)
 {
     if (sourceIdx < 0 || sourceIdx >= (int) tracks.size()) return nullptr;

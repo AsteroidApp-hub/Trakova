@@ -16,6 +16,13 @@ public:
     // MIDI トラックが 1 つでも存在するか (MIDI 書き出しメニューの活性判定などに使う)
     bool   hasMidiTrack() const;
     void   removeTrack(int index);
+    // Undo 用: トラックを破棄せずリストから取り外す / 指定位置へ戻す。
+    // インスタンスをアクション側が所有して延命するため、undo→redo で同一インスタンス
+    // (プラグイン/クリップ含む) が復帰する。色サイクル (nextColourIndex) は消費しない
+    std::unique_ptr<Track> extractTrack(int index);
+    void   insertTrack(int index, std::unique_ptr<Track> track);
+    // t の現在のインデックス (見つからなければ -1)。Undo 時の生存確認 + 位置解決に使う
+    int    indexOf(const Track* t) const;
     // トラックを from → to に移動。to は移動後の最終インデックス
     void   moveTrack(int from, int to);
     // sourceIdx のトラックを複製し、すぐ後ろに挿入する。

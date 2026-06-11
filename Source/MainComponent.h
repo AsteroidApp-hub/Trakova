@@ -226,7 +226,16 @@ private:
     // トラックを複製 (右クリックメニュー「トラックを複製」から呼ばれる)。
     // TrackManager::duplicateTrack でクリップ/設定をコピーし、
     // この関数でプラグインチェーンをクローンする。
+    // ツールバーの GRID 表示を appSettings.snapMode に同期する (ラベル + 点灯)。
+    // プロジェクト読込後にも呼ぶ (スナップは効くのに表示が Off のままになるのを防ぐ)
+    void syncSnapLabelToSettings();
     void duplicateTrack(int sourceTrackIdx);
+    // トラック追加/複製を Undo 可能にする (t は追加済みであること。最初の perform は no-op)。
+    // newTransaction=false で現在のトランザクションに積む (MIDI インポートのように複数
+    // トラック + テンポ/拍子を 1 回の Undo で戻したい場合)。
+    // 実装は MainComponent_Plugins.cpp — undo 時にプラグインエディタ / ピアノロールを
+    // 閉じるため完全型が必要
+    void pushTrackAddUndo(Track* t, bool newTransaction = true);
 
     // 指定 index 群のトラックをまとめて削除する (プラグイン後処理 + 再生スナップショット更新)。
     // 2 本以上は確認ダイアログを出す (トラック削除は Undo 非対応のため)。

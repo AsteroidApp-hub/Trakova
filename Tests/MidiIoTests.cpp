@@ -104,6 +104,7 @@ public:
         testMeterRoundTrip();
         testMeterChangeRoundTrip();
         testMeterChangeTempoIndependent();
+        testApplyTempoMeterToSettings();
         testTempoChangeRoundTrip();
         testOverwriteExistingFile();
         testImporterDirectSmf();
@@ -469,6 +470,53 @@ public:
         if (! imp.meterChanges.empty())
             expectEquals(imp.meterChanges[0].first, 4,
                          "bar index 4 despite a tempo change before it");
+    }
+
+    // ── 10d. インポート結果 → AppSettings への反映 (applyTempoMeterToSettings 純関数) ──
+    // MIDI インポート確定時の変換と、その結果がルーラー/グリッドの計算
+    // (bpmAtTime / getMeterAtBar) に効くことを SMF からの全経路で固定する。
+    // (途中の拍子/テンポ変化が表示に反映されなかったバグの回帰テスト)
+    void testApplyTempoMeterToSettings()
+    {
+        beginTest("applyTempoMeterToSettings: imported map drives ruler math");
+
+        // 元プロジェクト: 120 BPM 4/4、2.0s で 60 BPM、bar index 4 (bar 5) から 3/4
+        AppSettings src;
+        src.initialBpm       = 120.0;
+        src.bpmChanges       = { { 2.0, 60.0 } };
+        src.meterNumerator   = 4;
+        src.meterDenominator = 4;
+        src.meterChanges     = { { 4, 3, 4 } };
+        juce::AudioFormatManager fmt;
+        fmt.registerBasicFormats();
+        TrackManager tm(fmt);
+        auto* track = tm.addTrack("Lead");
+        track->setMidiTrack(true);
+        addNote(*track->addMidiClip(0.0, 2.0), 60, 0.0, 0.5);
+
+        auto f = outFile("apply_tempometer.mid");
+        expect(MidiExporter::save(f, tm, src).ok, "export ok");
+        auto imp = MidiImporter::load(f);
+        expect(imp.ok, "import ok");
+
+        // 既定値 (新規プロジェクト相当) へ反映
+        AppSettings dst;
+        MidiImporter::applyTempoMeterToSettings(imp, dst);
+
+        expectWithinAbsoluteError(dst.initialBpm, 120.0, 0.05, "initial bpm applied");
+        expectEquals(dst.meterNumerator, 4, "initial numerator applied");
+        expectEquals(dst.meterDenominator, 4, "initial denominator applied");
+        expect(dst.bpmChanges.size() == 1 && dst.meterChanges.size() == 1,
+               "mid-song changes applied");
+
+        // ルーラー/グリッドが読む計算に効いていること (= 表示に反映される実体)
+        expectWithinAbsoluteError(dst.bpmAtTime(0.5), 120.0, 0.5, "bpm before the change");
+        expectWithinAbsoluteError(dst.bpmAtTime(3.0), 60.0, 0.5, "bpm after the change");
+        int n = 0, d = 0;
+        dst.getMeterAtBar(4, n, d);   // 1 始まり bar 4 = 変化前
+        expect(n == 4 && d == 4, "meter before the change bar is 4/4");
+        dst.getMeterAtBar(5, n, d);   // bar 5 (barIndex 4) から 3/4
+        expect(n == 3 && d == 4, "meter from bar 5 is 3/4");
     }
 
     // ── 11. テンポチェンジ (bpmChanges) の往復 ──

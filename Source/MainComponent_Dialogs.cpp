@@ -228,6 +228,10 @@ void MainComponent::importMidiFromFile(const juce::File& file, double dropTimeOv
                           ? dropTimeOverride
                           : audioEngine.getCurrentPositionSeconds();
 
+        // インポート全体 (トラック追加 + テンポ/拍子/マーカー) を 1 つの Undo に束ねる
+        const MusicState beforeMusic = captureMusicState();
+        undoManager.beginNewTransaction();
+
         for (int trackIdx : r.selectedTrackIndices)
         {
             if (trackIdx < 0 || trackIdx >= (int)sharedResult->tracks.size()) continue;
@@ -251,21 +255,14 @@ void MainComponent::importMidiFromFile(const juce::File& file, double dropTimeOv
                 clip->setChannel(src.primaryChannel);
                 clip->getSequence() = src.sequence;
             }
+            pushTrackAddUndo(track, /*newTransaction=*/false);
         }
 
         if (r.importTempoMeter)
         {
-            bpm = sharedResult->initialBpm;
-            appSettings.initialBpm = sharedResult->initialBpm;
-            appSettings.meterNumerator   = sharedResult->meterNumerator;
-            appSettings.meterDenominator = sharedResult->meterDenominator;
-            // 途中変化も取り込む (SMF のテンポ/拍子マップを保持)
-            appSettings.bpmChanges.clear();
-            for (auto& tc : sharedResult->tempoChanges)
-                appSettings.bpmChanges.push_back({ tc.first, tc.second });
-            appSettings.meterChanges.clear();
-            for (auto& mc : sharedResult->meterChanges)
-                appSettings.meterChanges.push_back({ mc.first, mc.second.first, mc.second.second });
+            // 途中変化も含めて取り込む (純関数・MidiIoTests が検証)
+            MidiImporter::applyTempoMeterToSettings(*sharedResult, appSettings);
+            bpm = appSettings.initialBpm;
             toolbar.setBpm(bpm);
             timelineView.setBpm(bpm);
             audioEngine.setMetronomeBpm(bpm);
@@ -274,6 +271,19 @@ void MainComponent::importMidiFromFile(const juce::File& file, double dropTimeOv
         if (r.importMarkers)
             for (const auto& mk : sharedResult->markers)
                 timelineView.addMarkerAtTime(mk.first, mk.second);
+
+        // テンポ/拍子/マーカーの変化を同じトランザクションへ積む。SnapshotAction の
+        // perform() が applyMusicState(after) を呼び、bpmChanges / meterChanges を
+        // timelineView (ルーラー/グリッド) と audioEngine (メトロノーム経路) へ伝搬する。
+        // 旧実装は appSettings へ代入するだけで伝搬を忘れており、途中の拍子/テンポ変更が
+        // 「保存して開き直すまで表示に反映されない」バグがあった
+        {
+            const MusicState afterMusic = captureMusicState();
+            if (!(beforeMusic == afterMusic))
+                undoManager.perform(new EditActions::SnapshotAction<MusicState>(
+                    beforeMusic, afterMusic,
+                    [this](const MusicState& s) { applyMusicState(s); }));
+        }
 
         trackHeaderPanel.refresh();
         timelineView.refresh();

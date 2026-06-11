@@ -70,12 +70,7 @@ MainComponent::MainComponent()
     {
         appSettings.snapMode = (SnapMode)mode;
         timelineView.setAppSettings(appSettings);
-        const char* labels[] = {
-            "Off", "1/1", "1/2", "1/4", "1/8", "1/16", "1/32",
-            "1/4 T", "1/8 T", "1/16 T"
-        };
-        if (mode >= 0 && mode < (int)(sizeof(labels)/sizeof(labels[0])))
-            toolbar.setSnapLabel(labels[mode], mode != 0);
+        syncSnapLabelToSettings();
     };
 
     // Track management
@@ -90,7 +85,7 @@ MainComponent::MainComponent()
 
     trackHeaderPanel.onAddTrack            = [this] { addTrack(); markProjectDirty(); };
     trackHeaderPanel.onAddTrackWithMode    = [this](bool stereo) {
-        trackManager.addTrack({}, stereo);
+        pushTrackAddUndo(trackManager.addTrack({}, stereo));
         markProjectDirty();
     };
     trackHeaderPanel.onAddMidiTrack        = [this] { addMidiTrack(); };
@@ -103,6 +98,7 @@ MainComponent::MainComponent()
             t->setVolume(juce::Decibels::gainToDecibels(
                 juce::jmax(0.0001f, audioEngine.getMetronomeVolume() * 2.0f)));
             t->setPan(audioEngine.getMetronomePan());
+            pushTrackAddUndo(t);
         }
         audioEngine.preparePlayback(trackManager);
         markProjectDirty();
@@ -1076,7 +1072,7 @@ void MainComponent::onVBlank (double timestampSec)
 
 void MainComponent::addTrack()
 {
-    trackManager.addTrack();
+    pushTrackAddUndo(trackManager.addTrack());
     markProjectDirty();
 }
 
@@ -1117,6 +1113,8 @@ void MainComponent::addMidiTrack()
 
     // クリップは空のまま作らない。ユーザがタイムライン上で
     // Option+ドラッグ または 空きエリアのダブルクリックで MIDI クリップを作る。
+
+    pushTrackAddUndo(track);
 
     // 内蔵シンセの確保 / 再生キャッシュを更新 (停止中なら次の play() で rebuild)。
     audioEngine.invalidatePlayback();
@@ -1536,6 +1534,18 @@ void MainComponent::commitRetrospective()
 }
 
 // ── 自動保存 ─────────────────────────────────────────────────────────
+void MainComponent::syncSnapLabelToSettings()
+{
+    // ラベル表は SnapMode の並び (AppSettings.h) と一致させること
+    static const char* labels[] = {
+        "Off", "1/1", "1/2", "1/4", "1/8", "1/16", "1/32",
+        "1/4 T", "1/8 T", "1/16 T"
+    };
+    const int mode = (int) appSettings.snapMode;
+    if (mode >= 0 && mode < (int)(sizeof(labels) / sizeof(labels[0])))
+        toolbar.setSnapLabel(labels[mode], mode != 0);
+}
+
 void MainComponent::duplicateTrack(int sourceTrackIdx)
 {
     auto* src = trackManager.getTrack(sourceTrackIdx);
@@ -1576,6 +1586,10 @@ void MainComponent::duplicateTrack(int sourceTrackIdx)
         if (srcChain.isBypassed(i))
             dstChain.setBypassed(i, true);
     }
+
+    // 複製も「追加」として Undo 可能に (プラグインクローン後に積むので、undo→redo で
+    // クローン済みインスタンスごと同一トラックが復帰する)
+    pushTrackAddUndo(dst);
 
     // UI / オーディオエンジンに通知
     trackHeaderPanel.refresh();

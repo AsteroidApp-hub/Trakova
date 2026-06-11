@@ -14,6 +14,7 @@
 
 #include <JuceHeader.h>
 #include "../Source/Tracks/TrackManager.h"
+#include "../Source/Edit/TrackActions.h"
 #include "../Source/Localisation.h"
 
 namespace
@@ -32,6 +33,8 @@ public:
         testDuplicateMidiDeepCopy();
         testDuplicateGuardsAndUniqueName();
         testAudioFolderSignature();
+        testExtractInsertIndexOf();
+        testTrackAddAction();
     }
 
     // ── 色サイクル: track i は paletteColour(i)、9 本目 (idx 8) は 1 本目と同色 ──
@@ -232,6 +235,88 @@ public:
                ".aif file IS counted in the signature");
 
         dir.deleteRecursively();
+    }
+
+    // ── extractTrack / insertTrack / indexOf (トラック追加 Undo の土台) ──
+    void testExtractInsertIndexOf()
+    {
+        beginTest("extractTrack / insertTrack / indexOf round-trip keeps the instance");
+        juce::AudioFormatManager fmt; fmt.registerBasicFormats();
+        TrackManager tm(fmt);
+        auto* a = tm.addTrack("A", false);
+        auto* b = tm.addTrack("B", false);
+        auto* c = tm.addTrack("C", false);
+
+        expect(tm.indexOf(b) == 1, "indexOf finds the middle track");
+        expect(tm.indexOf(nullptr) == -1, "indexOf of null is -1");
+
+        // 真ん中を取り外す → 残りが詰まり、インスタンスは生きている
+        auto held = tm.extractTrack(1);
+        expect(held.get() == b, "extract returns the same instance");
+        expect(tm.getTrackCount() == 2 && tm.getTrack(0) == a && tm.getTrack(1) == c,
+               "remaining tracks shift up");
+        expect(tm.indexOf(b) == -1, "extracted track is no longer found");
+        expect(held->getName() == "B", "extracted instance is alive and intact");
+
+        // 同じ位置へ戻す → 同一インスタンス・元の順序
+        tm.insertTrack(1, std::move(held));
+        expect(tm.getTrackCount() == 3 && tm.getTrack(1) == b, "reinsert restores order");
+
+        // ガード: 範囲外 extract は null / 範囲外 index の insert はクランプ / null insert は no-op
+        expect(tm.extractTrack(99) == nullptr && tm.extractTrack(-1) == nullptr,
+               "out-of-range extract returns null");
+        auto held2 = tm.extractTrack(2);   // c
+        tm.insertTrack(99, std::move(held2));
+        expect(tm.getTrack(2) == c, "insert index clamps to the end");
+        tm.insertTrack(0, nullptr);
+        expect(tm.getTrackCount() == 3, "null insert is a no-op");
+    }
+
+    // ── TrackAddAction: 追加の Undo/Redo (同一インスタンス復帰・willRemove 発火) ──
+    void testTrackAddAction()
+    {
+        beginTest("TrackAddAction: undo removes / redo restores the same instance");
+        juce::AudioFormatManager fmt; fmt.registerBasicFormats();
+        TrackManager tm(fmt);
+        auto* a = tm.addTrack("A", false);
+        auto* added = tm.addTrack("Added", true);
+        juce::ignoreUnused(a);
+
+        int willRemoveCount = 0, changeCount = 0;
+        Track* willRemoveArg = nullptr;
+        EditActions::TrackAddAction action(tm, added,
+            [&](Track* t) { ++willRemoveCount; willRemoveArg = t; },
+            [&] { ++changeCount; });
+
+        // 最初の perform は no-op (追加自体は呼び出し側が実施済み)
+        expect(action.perform(), "first perform succeeds");
+        expect(tm.getTrackCount() == 2 && changeCount == 0,
+               "first perform does not change anything");
+
+        // undo → リストから外れるがインスタンスは延命 (willRemove が先に 1 回)
+        expect(action.undo(), "undo succeeds");
+        expect(tm.getTrackCount() == 1 && tm.indexOf(added) == -1, "track removed by undo");
+        expect(willRemoveCount == 1 && willRemoveArg == added,
+               "willRemove fired once with the track");
+        expect(changeCount == 1, "onChange fired on undo");
+
+        // redo → 同一インスタンスが同じ位置 (index 1) へ復帰
+        expect(action.perform(), "redo succeeds");
+        expect(tm.getTrackCount() == 2 && tm.getTrack(1) == added,
+               "redo restores the same instance at the same index");
+        expect(added->getName() == "Added" && added->isStereo(),
+               "instance state survives undo/redo");
+        expect(changeCount == 2, "onChange fired on redo");
+
+        // undo → (Undo 非対応の削除を模して) トラックを消した後の再 undo は安全に false
+        expect(action.undo(), "second undo succeeds");
+        expect(action.undo() == false, "undo with the track already gone is a safe no-op");
+
+        // redo して戻し、もう一度 undo してから二重 redo: 2 回目は stored が無いので false
+        expect(action.perform(), "redo after failed undo still works");
+        expect(action.undo(), "third undo succeeds");
+        expect(action.perform(), "third redo succeeds");
+        expect(action.perform() == false, "redo without a preceding undo is rejected");
     }
 };
 

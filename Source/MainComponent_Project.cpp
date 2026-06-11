@@ -311,6 +311,8 @@ bool MainComponent::loadProjectFrom(const juce::File& f, bool isRecovery)
     toolbar.setLoopActive(loopActive);
     toolbar.setCountInBars(appSettings.countInBars);
     toolbar.setPreRollSecs(appSettings.preRollSecs);
+    // GRID 表示も復元した snapMode に同期 (スナップは効くのに表示が Off のままになるのを防ぐ)
+    syncSnapLabelToSettings();
     trackHeaderPanel.refresh();
     timelineView.refresh();
     audioEngine.preparePlayback(trackManager);

@@ -3,6 +3,7 @@
 
 #pragma once
 #include <JuceHeader.h>
+#include "../AppSettings.h"
 
 /**
     Standard MIDI File (.mid) を読み込んでトラック単位のシーケンスに分解する。
@@ -39,4 +40,23 @@ public:
     };
 
     static ImportResult load(const juce::File& smfFile);
+
+    // インポート結果のテンポ/拍子マップをプロジェクト設定へ反映する純関数
+    // (MIDI インポート確定時の MainComponent_Dialogs とユニットテストで共用)。
+    // ここで設定した bpmChanges / meterChanges を、ルーラー/グリッド
+    // (AppSettings::barAndBeatAtTime / getMeterAtBar) とメトロノーム経路が読む。
+    // 呼び出し側は反映後に timelineView.setAppSettings / audioEngine.setAppSettings で
+    // 伝搬すること (代入だけでは表示に反映されない — 2026-06 の反映漏れバグの教訓)
+    static void applyTempoMeterToSettings(const ImportResult& r, AppSettings& s)
+    {
+        s.initialBpm       = r.initialBpm;
+        s.meterNumerator   = r.meterNumerator;
+        s.meterDenominator = r.meterDenominator;
+        s.bpmChanges.clear();
+        for (const auto& tc : r.tempoChanges)
+            s.bpmChanges.push_back({ tc.first, tc.second });
+        s.meterChanges.clear();
+        for (const auto& mc : r.meterChanges)
+            s.meterChanges.push_back({ mc.first, mc.second.first, mc.second.second });
+    }
 };

@@ -30,6 +30,10 @@ void MainComponent::showPreferences()
         juce::Label        exportLabel, startupLabel;
         const bool         adsUi { AppPreferences::adsCompiledIn() };  // 広告がコンパイル時有効な時だけ UI を出す
         juce::TextButton closeBtn, resetBtn;
+        // 設定項目は縦に長いので Viewport でスクロールさせる (ウィンドウは従来の約半分の高さ)。
+        // resetBtn / closeBtn だけはダイアログ下部に固定し、スクロールしなくても押せるようにする
+        juce::Viewport  viewport;
+        juce::Component content;
         std::function<void(int)>   onBitsChanged;
         std::function<void(bool)>  onFollowSelChanged;
         std::function<void(bool)>  onRetroChanged;
@@ -342,43 +346,73 @@ void MainComponent::showPreferences()
             };
             addAndMakeVisible(resetBtn);
 
-            setSize(480, adsUi ? 998 : 940);
+            // 設定項目 (resetBtn / closeBtn 以外の全子コンポーネント) をスクロール
+            // コンテンツへ移す。addAndMakeVisible が親を付け替えるため、先に一覧を取る
+            {
+                juce::Array<juce::Component*> toMove;
+                for (int i = 0; i < getNumChildComponents(); ++i)
+                {
+                    auto* c = getChildComponent(i);
+                    if (c != &resetBtn && c != &closeBtn)
+                        toMove.add(c);
+                }
+                for (auto* c : toMove)
+                    content.addAndMakeVisible(c);
+            }
+            viewport.setViewedComponent(&content, /*deleteWhenRemoved*/ false);
+            viewport.setScrollBarsShown(/*vertical*/ true, /*horizontal*/ false);
+            addAndMakeVisible(viewport);
+
+            setSize(480, 520);   // 従来 (940〜998) の約半分。項目はスクロールで見る
         }
-        void resized() override
+
+        // 設定項目を幅 w で縦に並べ、コンテンツの総高さを返す (座標は content 相対)
+        int layoutContent(int w)
         {
             int y = 14;
-            languageLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
-            languageCombo.setBounds(14, y, getWidth() - 28, 26); y += 36;
-            bitsLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
-            bitsCombo.setBounds(14, y, getWidth() - 28, 26); y += 32;
-            stripMetaBtn.setBounds(14, y, getWidth() - 28, 24); y += 32;
-            behaviorLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
-            followSelBtn.setBounds(14, y, getWidth() - 28, 24); y += 28;
-            rtzBtn.setBounds      (14, y, getWidth() - 28, 24); y += 28;
-            zoomMouseBtn.setBounds(14, y, getWidth() - 28, 24); y += 28;
-            zeroCrossBtn.setBounds(14, y, getWidth() - 28, 24); y += 32;
-            recLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
-            retroBtn.setBounds(14, y, getWidth() - 28, 24); y += 28;
-            recCompBtn.setBounds(14, y, getWidth() - 28, 24); y += 26;
+            languageLabel.setBounds(14, y, w - 28, 22); y += 26;
+            languageCombo.setBounds(14, y, w - 28, 26); y += 36;
+            bitsLabel.setBounds(14, y, w - 28, 22); y += 26;
+            bitsCombo.setBounds(14, y, w - 28, 26); y += 32;
+            stripMetaBtn.setBounds(14, y, w - 28, 24); y += 32;
+            behaviorLabel.setBounds(14, y, w - 28, 22); y += 26;
+            followSelBtn.setBounds(14, y, w - 28, 24); y += 28;
+            rtzBtn.setBounds      (14, y, w - 28, 24); y += 28;
+            zoomMouseBtn.setBounds(14, y, w - 28, 24); y += 28;
+            zeroCrossBtn.setBounds(14, y, w - 28, 24); y += 32;
+            recLabel.setBounds(14, y, w - 28, 22); y += 26;
+            retroBtn.setBounds(14, y, w - 28, 24); y += 28;
+            recCompBtn.setBounds(14, y, w - 28, 24); y += 26;
             recCompOffsetLabel.setBounds(14, y, 250, 24);
-            recCompOffsetSlider.setBounds(270, y, getWidth() - 270 - 14, 24); y += 34;
-            autoSaveLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
-            autoSaveCombo.setBounds(14, y, getWidth() - 28, 26); y += 32;
-            backupCountLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
-            backupCountCombo.setBounds(14, y, getWidth() - 28, 26); y += 32;
-            vuRefLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
-            vuRefCombo.setBounds(14, y, getWidth() - 28, 26); y += 32;
-            loudnessLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
-            loudnessCombo.setBounds(14, y, getWidth() - 28, 26); y += 28;
-            autoNormBtn.setBounds(14, y, getWidth() - 28, 24); y += 32;
-            exportLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
-            peakGuardBtn.setBounds(14, y, getWidth() - 28, 24); y += 28;
-            showMidiExportBtn.setBounds(14, y, getWidth() - 28, 24); y += 32;
+            recCompOffsetSlider.setBounds(270, y, w - 270 - 14, 24); y += 34;
+            autoSaveLabel.setBounds(14, y, w - 28, 22); y += 26;
+            autoSaveCombo.setBounds(14, y, w - 28, 26); y += 32;
+            backupCountLabel.setBounds(14, y, w - 28, 22); y += 26;
+            backupCountCombo.setBounds(14, y, w - 28, 26); y += 32;
+            vuRefLabel.setBounds(14, y, w - 28, 22); y += 26;
+            vuRefCombo.setBounds(14, y, w - 28, 26); y += 32;
+            loudnessLabel.setBounds(14, y, w - 28, 22); y += 26;
+            loudnessCombo.setBounds(14, y, w - 28, 26); y += 28;
+            autoNormBtn.setBounds(14, y, w - 28, 24); y += 32;
+            exportLabel.setBounds(14, y, w - 28, 22); y += 26;
+            peakGuardBtn.setBounds(14, y, w - 28, 24); y += 28;
+            showMidiExportBtn.setBounds(14, y, w - 28, 24); y += 32;
             if (adsUi)
             {
-                startupLabel.setBounds(14, y, getWidth() - 28, 22); y += 26;
-                showAdsBtn.setBounds(14, y, getWidth() - 28, 24); y += 32;
+                startupLabel.setBounds(14, y, w - 28, 22); y += 26;
+                showAdsBtn.setBounds(14, y, w - 28, 24); y += 32;
             }
+            return y + 6;
+        }
+
+        enum { kFooterH = 46 };   // 下部の固定ボタン帯 (リセット / 閉じる)。ローカルクラスのため enum 定数
+
+        void resized() override
+        {
+            viewport.setBounds(0, 0, getWidth(), getHeight() - kFooterH);
+            // スクロールバー分を引いた幅でコンテンツを敷く (横スクロールを出さない)
+            const int cw = getWidth() - viewport.getScrollBarThickness();
+            content.setSize(cw, layoutContent(cw));
             resetBtn.setBounds(14, getHeight() - 34, 140, 26);
             closeBtn.setBounds(getWidth() - 100 - 14, getHeight() - 34, 100, 26);
         }
@@ -436,7 +470,13 @@ void MainComponent::showPreferences()
             }
             loudnessCombo.setSelectedId(lufsId, juce::dontSendNotification);
         }
-        void paint(juce::Graphics& g) override { g.fillAll(juce::Colour(0xff2a2a2a)); }
+        void paint(juce::Graphics& g) override
+        {
+            g.fillAll(juce::Colour(0xff2a2a2a));
+            // スクロール領域と固定ボタン帯の境界線
+            g.setColour(juce::Colour(0xff444444));
+            g.drawHorizontalLine(getHeight() - kFooterH, 0.0f, (float) getWidth());
+        }
     };
 
     auto* dlg = new PrefsDlg(appSettings.resampleOutputBits,

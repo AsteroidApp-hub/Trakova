@@ -8,6 +8,7 @@
 #include "Localisation.h"
 #include "VST/PluginChain.h"
 #include "Edit/PluginActions.h"   // プラグインチェーン操作の Undo アクション (テスト可能・共有)
+#include "Edit/TrackActions.h"    // トラック追加/複製の Undo アクション (テスト可能・共有)
 #include "UI/PluginManagerDialog.h"
 #include "UI/PianoRollEditor.h"
 
@@ -89,6 +90,54 @@ void MainComponent::closePluginEditorFor(juce::AudioPluginInstance* plugin)
     for (int i = pluginEditorWindows.size(); --i >= 0;)
         if (pluginEditorWindows[i] && pluginEditorWindows[i]->getPlugin() == plugin)
             pluginEditorWindows.remove(i);   // OwnedArray が delete してくれる
+}
+
+// ── トラック追加 / 複製の Undo (TrackAddAction) ──────────────────────
+// t は追加済みであること (最初の perform は no-op)。undo は Track を破棄せずアクションが
+// 所有して延命するため、redo で同一インスタンス (プラグイン/クリップ含む) が復帰する。
+// この実装が本ファイルにあるのは、undo 時に閉じる PluginEditorWindow / PianoRollWindow の
+// 完全型が必要なため (ヘッダの宣言コメント参照)。
+void MainComponent::pushTrackAddUndo(Track* t, bool newTransaction)
+{
+    if (!t) return;
+    if (newTransaction)
+        undoManager.beginNewTransaction();
+    undoManager.perform(new EditActions::TrackAddAction(
+        trackManager, t,
+        /*willRemove*/ [this](Track* tr)
+        {
+            if (!tr) return;
+            // 開いているプラグインエディタを閉じる (deleteTracks と同じ手順)
+            auto& chain = tr->getPluginChain();
+            for (int i = 0; i < chain.getNumPlugins(); ++i)
+                closePluginEditorFor(chain.getPlugin(i));
+            // このトラックの MIDI クリップを開いているピアノロールも閉じる (dangling 防止)
+            for (int wi = pianoRollWindows.size(); --wi >= 0;)
+            {
+                auto* w = pianoRollWindows[wi];
+                if (!w) continue;
+                for (int ci = 0; ci < tr->getMidiClipCount(); ++ci)
+                    if (w->getClip() == tr->getMidiClip(ci))
+                    {
+                        pianoRollWindows.remove(wi);
+                        break;
+                    }
+            }
+            // Track* / AudioClip* の参照を再生スナップショットから切る (UAF バリア)
+            audioEngine.clearPlayback();
+        },
+        /*onChange*/ [this]
+        {
+            // 消えた / 戻った index を参照しないよう選択をリセット (deleteTracks と同じ)
+            selectedTrackIndex = -1;
+            trackHeaderPanel.clearTrackSelection();
+            trackHeaderPanel.refresh();
+            timelineView.refresh();
+            scheduleWaveformRefresh();
+            audioEngine.invalidatePlayback();
+            if (trackHeaderPanel.onTrackChanged) trackHeaderPanel.onTrackChanged();
+            markProjectDirty();
+        }));
 }
 
 // ── PianoRollWindow 実装 ─────────────────────────────────────────────
