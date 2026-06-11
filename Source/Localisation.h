@@ -30,3 +30,16 @@ inline juce::String tr(const char* utf8Japanese)
 {
     return juce::translate(juce::String::fromUTF8(utf8Japanese));
 }
+
+// ショートカットを含む文言の修飾キー表記をプラットフォームに合わせる (表示直前に通す)。
+// 文言キー・翻訳テーブルは Mac 表記 (Cmd / Option) のまま統一し、非 Mac では Ctrl / Alt
+// に置換して表示する。キー名以外に Cmd/Option/Ctrl/Alt の語を含む文字列には使わないこと。
+//   例: platformShortcutText(tr(u8"環境設定 (Cmd+,)"))  → Windows では「環境設定 (Ctrl+,)」
+inline juce::String platformShortcutText(juce::String text)
+{
+   #if JUCE_MAC
+    return text.replace("Ctrl", "Cmd").replace("Alt", "Option");
+   #else
+    return text.replace("Cmd", "Ctrl").replace("Option", "Alt");
+   #endif
+}

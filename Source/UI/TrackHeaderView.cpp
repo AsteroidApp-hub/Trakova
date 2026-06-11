@@ -300,9 +300,9 @@ TrackHeaderView::TrackHeaderView(Track& t) : track(t)
                 waveformBtn.setButtonText("Off");
                 waveformBtn.setColour(juce::TextButton::textColourOffId, AppColours::textDim);
             }
-            waveformBtn.setTooltip(on
+            waveformBtn.setTooltip(platformShortcutText(on
                 ? tr(u8"クリック: 波形切替 / 右クリック または Cmd+クリック: 内蔵シンセを OFF")
-                : tr(u8"内蔵シンセ OFF 中。右クリック または Cmd+クリックで ON に戻す"));
+                : tr(u8"内蔵シンセ OFF 中。右クリック または Cmd+クリックで ON に戻す")));
         };
         waveformBtn.setColour(juce::TextButton::buttonColourId,  AppColours::buttonBg);
         waveformBtn.setWantsKeyboardFocus(false);

@@ -178,7 +178,7 @@ TransportBar::TransportBar()
     prefsBtn.setButtonText("SETTING");
     prefsBtn.setColour(juce::TextButton::buttonColourId,  AppColours::buttonBg);
     prefsBtn.setColour(juce::TextButton::textColourOffId, AppColours::text);
-    prefsBtn.setTooltip(tr(u8"環境設定 (Cmd+,)"));
+    prefsBtn.setTooltip(platformShortcutText(tr(u8"環境設定 (Cmd+,)")));
     prefsBtn.setWantsKeyboardFocus(false);
     prefsBtn.onClick = [this] { if (onPreferences) onPreferences(); };
     addAndMakeVisible(prefsBtn);

@@ -127,8 +127,8 @@ void MainComponent::showPreferences()
             };
             addAndMakeVisible(rtzBtn);
 
-            zoomMouseBtn.setButtonText(
-                tr(u8"Cmd+スクロール拡大の起点をマウス位置にする (OFF: 再生バー中央)"));
+            zoomMouseBtn.setButtonText(platformShortcutText(
+                tr(u8"Cmd+スクロール拡大の起点をマウス位置にする (OFF: 再生バー中央)")));
             zoomMouseBtn.setToggleState(curZoomMouse, juce::dontSendNotification);
             zoomMouseBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
             zoomMouseBtn.onClick = [this] {
@@ -146,7 +146,8 @@ void MainComponent::showPreferences()
             addAndMakeVisible(zeroCrossBtn);
 
             // 録音フロー
-            retroBtn.setButtonText(tr(u8"再生中バックグラウンド録音 (遡及録音 Cmd+Shift+R で確定)"));
+            retroBtn.setButtonText(platformShortcutText(
+                tr(u8"再生中バックグラウンド録音 (遡及録音 Cmd+Shift+R で確定)")));
             retroBtn.setToggleState(curRetro, juce::dontSendNotification);
             retroBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
             retroBtn.onClick = [this] {

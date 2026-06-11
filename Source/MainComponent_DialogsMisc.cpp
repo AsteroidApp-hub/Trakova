@@ -226,7 +226,7 @@ void MainComponent::showShortcutsDialog()
                 for (auto& e : sec.entries)
                 {
                     g.setColour(juce::Colour(0xfff0c060));  // キーは黄色寄り
-                    g.drawText(tr(e.key), padX + 4, y, keyW, 18,
+                    g.drawText(platformShortcutText(tr(e.key)), padX + 4, y, keyW, 18,
                                juce::Justification::centredLeft);
                     g.setColour(juce::Colour(0xffd0d4d8));   // アクションは白寄り
                     g.drawText(tr(e.action), padX + keyW + 8, y,
