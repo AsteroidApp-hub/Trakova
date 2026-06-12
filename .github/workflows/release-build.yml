@@ -1,0 +1,157 @@
+name: Release Build (macOS + Windows)
+
+# 手動発火のみ (push では走らない)。Actions タブ → このワークフロー → "Run workflow" から実行する。
+# version を入力すると zip 名 (Utawave-<version>-macOS.zip / -win64.zip) に使われる。
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'リリースバージョン (例: 0.1.0) — zip 名に使う'
+        required: true
+        type: string
+
+jobs:
+  # ──────────────────────────────────────────────────────────────
+  # macOS: ビルド → (証明書があれば) Developer ID 署名 + notarize → zip
+  #   証明書シークレット未登録のうちは ad-hoc ビルド (未署名) のまま zip 化する。
+  # ──────────────────────────────────────────────────────────────
+  macos:
+    runs-on: macos-14
+    env:
+      # secrets は if 条件で直接参照できないため job env 経由で真偽を持つ
+      HAS_SIGNING: ${{ secrets.MACOS_CERT_P12 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # JUCE は FetchContent で取得される (build/_deps)。毎回の clone を避けるためキャッシュする。
+      - name: Cache JUCE (FetchContent)
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: juce-8.0.12-${{ runner.os }}
+
+      - name: Build (Release)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release --target Utawave
+
+      - name: Locate .app
+        id: app
+        run: echo "path=$(find build -type d -name 'Utawave.app' | head -1)" >> "$GITHUB_OUTPUT"
+
+      # ---- 以下 3 ステップは証明書シークレットが登録されている時だけ実行 ----
+      - name: Import Developer ID certificate
+        if: env.HAS_SIGNING == 'true'
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN_PW=$(uuidgen)
+          echo "$MACOS_CERT_P12" | base64 --decode > cert.p12
+          security create-keychain -p "$KEYCHAIN_PW" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PW" build.keychain
+          security set-keychain-settings -lut 3600 build.keychain
+          security import cert.p12 -k build.keychain -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PW" build.keychain
+          rm -f cert.p12
+
+      - name: Codesign (hardened runtime + entitlements)
+        if: env.HAS_SIGNING == 'true'
+        env:
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+        run: |
+          codesign --force --timestamp --options runtime \
+            --entitlements .github/macos/Utawave.entitlements \
+            --sign "$MACOS_SIGN_IDENTITY" "${{ steps.app.outputs.path }}"
+          codesign --verify --strict --verbose=2 "${{ steps.app.outputs.path }}"
+
+      - name: Notarize & staple
+        if: env.HAS_SIGNING == 'true'
+        env:
+          AC_APPLE_ID: ${{ secrets.AC_APPLE_ID }}
+          AC_APP_PASSWORD: ${{ secrets.AC_APP_PASSWORD }}
+          AC_TEAM_ID: ${{ secrets.AC_TEAM_ID }}
+        run: |
+          ditto -c -k --keepParent "${{ steps.app.outputs.path }}" notarize.zip
+          xcrun notarytool submit notarize.zip \
+            --apple-id "$AC_APPLE_ID" --password "$AC_APP_PASSWORD" --team-id "$AC_TEAM_ID" --wait
+          xcrun stapler staple "${{ steps.app.outputs.path }}"
+
+      # ---- zip 化 (署名の有無に関わらず) ----
+      - name: Package zip
+        run: |
+          mkdir -p Utawave-macOS
+          cp -R "${{ steps.app.outputs.path }}" Utawave-macOS/
+          cp LICENSE THIRD_PARTY_LICENSES.txt Docs/MANUAL.html README.md Utawave-macOS/
+          ditto -c -k --sequesterRsrc --keepParent Utawave-macOS "Utawave-${{ inputs.version }}-macOS.zip"
+
+      - name: Upload macOS zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: Utawave-${{ inputs.version }}-macOS
+          path: Utawave-${{ inputs.version }}-macOS.zip
+
+  # ──────────────────────────────────────────────────────────────
+  # Windows: ビルド → SignPath で署名 → zip
+  #   SignPath の出所検証 (Origin Verification) のため、未署名 exe を
+  #   GitHub artifact としてアップロードしてから署名要求を出す。
+  # ──────────────────────────────────────────────────────────────
+  windows:
+    runs-on: windows-latest
+    permissions:
+      id-token: write    # 出所検証 (OIDC) に必要
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      # JUCE は FetchContent で取得される (build/_deps)。毎回の clone を避けるためキャッシュする。
+      - name: Cache JUCE (FetchContent)
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: juce-8.0.12-${{ runner.os }}
+
+      - name: Build (Release)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release --target Utawave
+
+      - name: Stage unsigned exe
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path build -Recurse -Filter Utawave.exe | Select-Object -First 1
+          New-Item -ItemType Directory -Force -Path artifact | Out-Null
+          Copy-Item $exe.FullName artifact/Utawave.exe
+
+      - name: Upload unsigned exe (signing input)
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: utawave-unsigned
+          path: artifact/Utawave.exe
+
+      - name: Submit signing request to SignPath
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.upload.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Package zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path Utawave-Windows | Out-Null
+          Copy-Item signed/Utawave.exe Utawave-Windows/
+          Copy-Item LICENSE,THIRD_PARTY_LICENSES.txt,Docs/MANUAL.html,README.md Utawave-Windows/
+          Compress-Archive -Path Utawave-Windows -DestinationPath "Utawave-${{ inputs.version }}-win64.zip" -Force
+
+      - name: Upload Windows zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: Utawave-${{ inputs.version }}-win64
+          path: Utawave-${{ inputs.version }}-win64.zip

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- 録音のためのマイクアクセス (hardened runtime では Info.plist の説明文に加えてこの entitlement が必要) -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+
+    <!-- 他社が署名した VST3 / AU プラグインをロードできるようにする (プラグインホストに必須。
+         無いと notarized 版で他社プラグインが一切ロードできない) -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+
+    <!-- 一部プラグイン / JIT が未署名の実行可能メモリを使うため (DAW では一般的) -->
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+</dict>
+</plist>
