@@ -6,7 +6,7 @@
 
 // アプリ全体の UI 設定 (プロジェクトに依存しないグローバル設定)。
 // 言語 (Localisation) や ウィンドウサイズ (WindowState) と同じく、プロジェクトファイル
-// (.utawave) ではなく ~/Library/Application Support/Utawave/app_prefs.xml に保存する。
+// (.uta) ではなく ~/Library/Application Support/Utawave/app_prefs.xml に保存する。
 class AppPreferences
 {
 public:

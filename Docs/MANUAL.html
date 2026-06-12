@@ -207,7 +207,7 @@
 
 <ul>
   <li><strong>新規プロジェクト</strong> ― サンプリングレート / ビット深度 (<strong>32-bit がおすすめ</strong>) を指定して作成</li>
-  <li><strong>プロジェクトを開く</strong> ― 既存の <code>.utawave</code> ファイルを開く</li>
+  <li><strong>プロジェクトを開く</strong> ― 既存の <code>.uta</code> ファイルを開く</li>
   <li><strong>最近使ったプロジェクト</strong> ― リストから素早く再開</li>
 </ul>
 
@@ -216,7 +216,7 @@
 
 <table>
   <tr><th>用語</th><th>説明</th></tr>
-  <tr><td><strong>プロジェクト</strong></td><td>1 曲分の作業データ。<code>.utawave</code> ファイル + 同じフォルダの <code>Audio</code> / <code>Cache</code> / <code>Backup</code> / <code>Export</code> サブフォルダで構成。</td></tr>
+  <tr><td><strong>プロジェクト</strong></td><td>1 曲分の作業データ。<code>.uta</code> ファイル + 同じフォルダの <code>Audio</code> / <code>Cache</code> / <code>Backup</code> / <code>Export</code> サブフォルダで構成。</td></tr>
   <tr><td><strong>トラック</strong></td><td>音源 1 つ分の入れ物。インスト用・ボーカル用などを別々のトラックに分けて配置。</td></tr>
   <tr><td><strong>クリップ</strong></td><td>トラック上に配置される音声/MIDIブロック。録音やインポートで生成される。</td></tr>
   <tr><td><strong>テイク (Take)</strong></td><td>1 つのトラックは複数のテイクを持てる (テイクリスト)。<strong>Take 0</strong> がメイン (再生対象)。<strong>Take 1</strong> 以降は録り溜めたテイクの控え。</td></tr>
@@ -230,7 +230,7 @@
   <li>保存先フォルダとプロジェクト名を指定</li>
   <li>サンプリングレート (44.1k / 48k / 96k 等) を選択</li>
   <li>ビット深度 (16 / 24 / 32-bit) を選択</li>
-  <li>作成すると <code>MyProject.utawave</code> と <code>Audio</code> 等のフォルダが生成される</li>
+  <li>作成すると <code>MyProject.uta</code> と <code>Audio</code> 等のフォルダが生成される</li>
 </ol>
 
 <div class="callout">
@@ -553,7 +553,7 @@
 <p>A: 右下 ステータスバーの CPU% を確認。多数のプラグインを使う場合は バッファサイズを増やしてください (AUDIO 設定)。</p>
 
 <h4>Q: 自動保存はどこに?</h4>
-<p>A: プロジェクトフォルダ内の <code>Backup/</code> サブフォルダに <code>&lt;name&gt;.autosave.utawave</code> として保存されています。クラッシュ後の起動時に復旧候補があれば自動でダイアログが出ます。</p>
+<p>A: プロジェクトフォルダ内の <code>Backup/</code> サブフォルダに <code>&lt;name&gt;.autosave.uta</code> として保存されています。クラッシュ後の起動時に復旧候補があれば自動でダイアログが出ます。</p>
 
 <footer>
   Utawave © 2026 — AGPLv3 / オープンソースライブラリのライセンスは同梱の THIRD_PARTY_LICENSES.txt を参照

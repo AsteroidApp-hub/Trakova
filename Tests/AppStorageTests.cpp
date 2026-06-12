@@ -79,9 +79,9 @@ public:
     {
         beginTest("RecentProjects: newest first, duplicates move to front");
         RecentProjects::clear();
-        auto a = makeProject("A.utawave");
-        auto b = makeProject("B.utawave");
-        auto c = makeProject("C.utawave");
+        auto a = makeProject("A.uta");
+        auto b = makeProject("B.uta");
+        auto c = makeProject("C.uta");
         RecentProjects::add(a);
         RecentProjects::add(b);
         RecentProjects::add(c);
@@ -97,13 +97,13 @@ public:
     {
         beginTest("RecentProjects: non-existent files are ignored on add and filtered on load");
         RecentProjects::clear();
-        auto real = makeProject("real.utawave");
+        auto real = makeProject("real.uta");
         RecentProjects::add(real);
-        RecentProjects::add(tmpDir.getChildFile("ghost.utawave"));   // 存在しない → 無視
+        RecentProjects::add(tmpDir.getChildFile("ghost.uta"));   // 存在しない → 無視
         expect(listEquals(RecentProjects::load(), { real }), "non-existent file is not added");
 
         // ストアに存在しないパスを直接書いても load は弾く
-        auto ghost = tmpDir.getChildFile("ghost2.utawave");
+        auto ghost = tmpDir.getChildFile("ghost2.uta");
         RecentProjects::getStoreFile().replaceWithText(
             ghost.getFullPathName() + "\n" + real.getFullPathName());
         expect(listEquals(RecentProjects::load(), { real }), "load filters out paths that no longer exist");
@@ -111,7 +111,7 @@ public:
         // 削除されたファイルは次の load から消える
         real.deleteFile();
         expect(RecentProjects::load().isEmpty(), "a deleted project drops out of the list");
-        makeProject("real.utawave");   // 後続テストのため作り直し (tmpDir は後で消す)
+        makeProject("real.uta");   // 後続テストのため作り直し (tmpDir は後で消す)
 
         // 空行・空白のみの行は load でスキップ (load の trim().isEmpty() 分岐)
         RecentProjects::getStoreFile().replaceWithText(
@@ -127,7 +127,7 @@ public:
         RecentProjects::clear();
         juce::Array<juce::File> files;
         for (int i = 0; i < 12; ++i)
-            files.add(makeProject("p" + juce::String(i) + ".utawave"));
+            files.add(makeProject("p" + juce::String(i) + ".uta"));
         for (auto& f : files) RecentProjects::add(f);   // p0 .. p11 の順に追加
 
         auto got = RecentProjects::load();
@@ -143,15 +143,15 @@ public:
     {
         beginTest("RecentProjects: remove deletes one entry, clear empties the list");
         RecentProjects::clear();
-        auto a = makeProject("ra.utawave");
-        auto b = makeProject("rb.utawave");
+        auto a = makeProject("ra.uta");
+        auto b = makeProject("rb.uta");
         RecentProjects::add(a);
         RecentProjects::add(b);
         RecentProjects::remove(a);
         expect(listEquals(RecentProjects::load(), { b }), "remove(a) leaves only b");
 
         // リストに無いファイルの remove は no-op
-        auto never = makeProject("never.utawave");
+        auto never = makeProject("never.uta");
         RecentProjects::remove(never);
         expect(listEquals(RecentProjects::load(), { b }), "remove of a file not in the list is a no-op");
 

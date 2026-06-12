@@ -15,7 +15,7 @@ namespace BackupManager
     juce::String filePrefix(const juce::String& baseName);
 
     // 列挙結果の前方一致フィルタ: "<name>.autosave" / 未保存 "autosave"
-    // 旧固定名 "<name>.autosave.utawave" と日時付き "<name>.autosave-....utawave" の両方に一致。
+    // 旧固定名 "<name>.autosave.uta" と日時付き "<name>.autosave-....uta" の両方に一致。
     // 名前を直接ワイルドカードに入れないので、名前に '*' '?' (macOS で合法) が含まれても
     // 過剰一致しない。
     juce::String matchPrefix(const juce::String& baseName);

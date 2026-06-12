@@ -22,7 +22,7 @@ public:
     static constexpr int kWidthNoAds   = 820;
     static constexpr int kHeight       = 520;
 
-    // file: 新規時は <location>/<name>/<name>.utawave、既存時は選択された .utawave
+    // file: 新規時は <location>/<name>/<name>.uta、既存時は選択された .uta
     // sr / bits: 新規時のみ意味を持つ。既存読み込み時はプロジェクトファイル側の値を使用
     std::function<void(const juce::File& file, double sampleRate, int bitDepth, bool isNew)> onProjectChosen;
 

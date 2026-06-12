@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 Utawave
 
-// Utawave — ProjectManager (.utawave 保存/読み込み) のユニットテスト
+// Utawave — ProjectManager (.uta 保存/読み込み) のユニットテスト
 //
 // データ永続性の耐久性契約。シリアライズのバグはユーザーのプロジェクトを黙って破壊する
 // (テイク消失・ゲイン誤り・MIDI 破損)。save/load は手書き XML の二重写経で、片方だけに
@@ -74,7 +74,7 @@ public:
         auto projDir = dir.getChildFile("Proj");
         projDir.createDirectory();
         auto wav = writeWav(projDir.getChildFile("Audio").getChildFile("clip.wav"), 48000.0, 1.0);
-        auto projFile = projDir.getChildFile("Proj.utawave");
+        auto projFile = projDir.getChildFile("Proj.uta");
 
         // ── シーン構築 (A) ──
         juce::AudioFormatManager fmtA; fmtA.registerBasicFormats();
@@ -294,7 +294,7 @@ public:
     void testSettingsFallback()
     {
         beginTest("load: missing Settings attributes fall back to AppSettings{} defaults");
-        auto f = dir.getChildFile("fallback.utawave");
+        auto f = dir.getChildFile("fallback.uta");
         {
             juce::XmlElement root("UtawaveProject");
             root.setAttribute("version", "1.0");
@@ -353,7 +353,7 @@ public:
         auto projDir = dir.getChildFile("Proj2");
         projDir.createDirectory();
         auto wav = writeWav(projDir.getChildFile("Audio").getChildFile("a.wav"), 48000.0, 1.0);
-        auto projFile = projDir.getChildFile("Proj2.utawave");
+        auto projFile = projDir.getChildFile("Proj2.uta");
 
         juce::AudioFormatManager fmt; fmt.registerBasicFormats();
         TrackManager tm(fmt);
@@ -400,7 +400,7 @@ public:
         beginTest("save: atomic (no .tmp leftover); guards (null / missing / bad XML) return false");
         auto projDir = dir.getChildFile("Proj3");
         projDir.createDirectory();
-        auto projFile = projDir.getChildFile("Proj3.utawave");
+        auto projFile = projDir.getChildFile("Proj3.uta");
 
         juce::AudioFormatManager fmt; fmt.registerBasicFormats();
         TrackManager tm(fmt);
@@ -421,8 +421,8 @@ public:
         expect(! ProjectManager::load(projFile, bad), "load with null trackManager -> false");
 
         // load: 存在しないファイル / 不正 XML -> false
-        expect(! ProjectManager::load(dir.getChildFile("nope.utawave"), s), "load missing file -> false");
-        auto badXml = dir.getChildFile("bad.utawave");
+        expect(! ProjectManager::load(dir.getChildFile("nope.uta"), s), "load missing file -> false");
+        auto badXml = dir.getChildFile("bad.uta");
         badXml.replaceWithText("<NotAUtawaveProject/>");
         expect(! ProjectManager::load(badXml, s), "load non-UtawaveProject XML -> false");
     }

@@ -49,7 +49,7 @@ public:
         dir = juce::File::getSpecialLocation(juce::File::tempDirectory)
                   .getChildFile("UtawaveBackupMgrTests");
         projFile = juce::File::getSpecialLocation(juce::File::tempDirectory)
-                       .getChildFile("UtawaveBackupMgrProj.utawave");
+                       .getChildFile("UtawaveBackupMgrProj.uta");
 
         testPrefixes();
         testDatedFileName();
@@ -76,19 +76,19 @@ public:
         expect(BackupManager::matchPrefix("")      == "autosave",       "untitled match prefix");
     }
 
-    // ── 2. 日時付きファイル名 = <prefix><YYYYMMDD_HHMMSS>.utawave ──
+    // ── 2. 日時付きファイル名 = <prefix><YYYYMMDD_HHMMSS>.uta ──
     void testDatedFileName()
     {
-        beginTest("datedFile: structure prefix + 15-char stamp + .utawave (timezone-independent)");
+        beginTest("datedFile: structure prefix + 15-char stamp + .uta (timezone-independent)");
         freshDir();
         auto f  = BackupManager::datedFile(dir, "Song", at(0));
         auto nm = f.getFileName();
         expect(f.getParentDirectory() == dir, "dated file is in backup dir");
         expect(nm.startsWith("Song.autosave-"), "starts with file prefix");
-        expect(nm.endsWith(".utawave"), "ends with extension");
+        expect(nm.endsWith(".uta"), "ends with extension");
 
         auto stamp = nm.fromFirstOccurrenceOf("Song.autosave-", false, false)
-                       .upToLastOccurrenceOf(".utawave", false, false);
+                       .upToLastOccurrenceOf(".uta", false, false);
         expect(stamp.length() == 15, "stamp is YYYYMMDD_HHMMSS (8+1+6 = 15 chars)");
         expect(stamp.length() == 15 && stamp[8] == '_', "stamp separator at index 8");
         bool digits = (stamp.length() == 15);
@@ -103,11 +103,11 @@ public:
     {
         beginTest("list: matches dated+legacy, excludes project file / other project / prefix boundary");
         freshDir();
-        auto dated  = makeFile("Song.autosave-20230101_000000.utawave", at(10));
-        auto legacy = makeFile("Song.autosave.utawave",                 at(5));
-        makeFile("Song.utawave",                          at(20));   // 本体ファイル相当 → 除外
-        makeFile("SongX.autosave-20230101_000000.utawave", at(20));  // 別プロジェクト → 除外
-        makeFile("Songbook.autosave-20230101_000000.utawave", at(20)); // 接頭辞境界 → 除外
+        auto dated  = makeFile("Song.autosave-20230101_000000.uta", at(10));
+        auto legacy = makeFile("Song.autosave.uta",                 at(5));
+        makeFile("Song.uta",                          at(20));   // 本体ファイル相当 → 除外
+        makeFile("SongX.autosave-20230101_000000.uta", at(20));  // 別プロジェクト → 除外
+        makeFile("Songbook.autosave-20230101_000000.uta", at(20)); // 接頭辞境界 → 除外
 
         auto got = BackupManager::list(dir, "Song");
         expect(got.size() == 2, "exactly the two Song backups are listed");
@@ -120,9 +120,9 @@ public:
     {
         beginTest("list: sorted by modification time, newest first");
         freshDir();
-        auto a = makeFile("Song.autosave-20230101_000001.utawave", at(10));
-        auto b = makeFile("Song.autosave-20230101_000002.utawave", at(30));
-        auto c = makeFile("Song.autosave-20230101_000003.utawave", at(20));
+        auto a = makeFile("Song.autosave-20230101_000001.uta", at(10));
+        auto b = makeFile("Song.autosave-20230101_000002.uta", at(30));
+        auto c = makeFile("Song.autosave-20230101_000003.uta", at(20));
 
         auto got = BackupManager::list(dir, "Song");
         expect(got.size() == 3, "three backups");
@@ -137,9 +137,9 @@ public:
         beginTest("newest: latest mtime, or empty when none");
         freshDir();
         expect(BackupManager::newest(dir, "Song") == juce::File(), "empty when no backups");
-        makeFile("Song.autosave-20230101_000001.utawave", at(10));
-        auto top = makeFile("Song.autosave-20230101_000002.utawave", at(50));
-        makeFile("Song.autosave-20230101_000003.utawave", at(30));
+        makeFile("Song.autosave-20230101_000001.uta", at(10));
+        auto top = makeFile("Song.autosave-20230101_000002.uta", at(50));
+        makeFile("Song.autosave-20230101_000003.uta", at(30));
         expect(BackupManager::newest(dir, "Song") == top, "newest is the latest mtime");
     }
 
@@ -150,7 +150,7 @@ public:
         freshDir();
         juce::Array<juce::File> made;
         for (int i = 0; i < 5; ++i)   // i が大きいほど新しい
-            made.add(makeFile("Song.autosave-2023010" + juce::String(i + 1) + "_000000.utawave",
+            made.add(makeFile("Song.autosave-2023010" + juce::String(i + 1) + "_000000.uta",
                               at(i * 100)));
 
         BackupManager::prune(dir, "Song", 3);
@@ -169,7 +169,7 @@ public:
         freshDir();
         juce::Array<juce::File> made;
         for (int i = 0; i < 3; ++i)
-            made.add(makeFile("Song.autosave-2023010" + juce::String(i + 1) + "_000000.utawave",
+            made.add(makeFile("Song.autosave-2023010" + juce::String(i + 1) + "_000000.uta",
                               at(i * 100)));
 
         BackupManager::prune(dir, "Song", 10);   // keep >= count → 何も消さない
@@ -191,14 +191,14 @@ public:
         // (名前に glob メタ文字を含むプロジェクト) は原理的に発生しない。リテラル前方
         // 一致が glob 化しないことは testListMatchesAndFilters の境界ケース (Songbook) で
         // 別途検証済み。ここでは前提が成立しないことだけを記録してスキップする。
-        expect(! makeFile("My*Mix.autosave-20230101_000000.utawave", at(10)).existsAsFile(),
+        expect(! makeFile("My*Mix.autosave-20230101_000000.uta", at(10)).existsAsFile(),
                "Windows rejects '*' in filenames; wildcard scenario is not applicable");
        #else
-        auto starFile = makeFile("My*Mix.autosave-20230101_000000.utawave", at(10));
+        auto starFile = makeFile("My*Mix.autosave-20230101_000000.uta", at(10));
         // '*' を含むファイルが作れない環境ならこのテストは前提が崩れるので明示
         expect(starFile.existsAsFile(), "filesystem allows '*' in a file name");
         // 旧実装 (名前をワイルドカードへ連結) なら "My*Mix" の '*' が下を誤って拾っていた
-        makeFile("MyXMix.autosave-20230101_000000.utawave", at(20));
+        makeFile("MyXMix.autosave-20230101_000000.uta", at(20));
 
         auto got = BackupManager::list(dir, "My*Mix");
         expect(got.size() == 1, "literal prefix match: '*' is not treated as a wildcard");
@@ -211,9 +211,9 @@ public:
     {
         beginTest("list: untitled ('') matches autosave* only, not named backups");
         freshDir();
-        auto dated  = makeFile("autosave-20230101_000000.utawave", at(10));
-        auto legacy = makeFile("autosave.utawave",                 at(5));
-        makeFile("Song.autosave-20230101_000000.utawave", at(20));   // 名前付き → 未保存では除外
+        auto dated  = makeFile("autosave-20230101_000000.uta", at(10));
+        auto legacy = makeFile("autosave.uta",                 at(5));
+        makeFile("Song.autosave-20230101_000000.uta", at(20));   // 名前付き → 未保存では除外
 
         auto got = BackupManager::list(dir, "");
         expect(got.size() == 2, "only the two untitled backups");
@@ -233,20 +233,20 @@ public:
                "no backups: do not offer");
 
         // (b) バックアップが本体より古い
-        makeFile("Song.autosave-20230101_000000.utawave", at(50));
+        makeFile("Song.autosave-20230101_000000.uta", at(50));
         expect(! BackupManager::shouldOfferRecovery(dir, "Song", projFile),
                "older backup: do not offer");
 
         // (c) 同時刻 (境界 <=)
         freshDir();
-        auto eq = makeFile("Song.autosave-20230101_000001.utawave", at(100));
+        auto eq = makeFile("Song.autosave-20230101_000001.uta", at(100));
         eq.setLastModificationTime(projFile.getLastModificationTime());  // 厳密に一致させる
         expect(! BackupManager::shouldOfferRecovery(dir, "Song", projFile),
                "equal mtime: do not offer (<=)");
 
         // (d) バックアップが本体より新しい
         freshDir();
-        makeFile("Song.autosave-20230101_000002.utawave", at(150));
+        makeFile("Song.autosave-20230101_000002.uta", at(150));
         expect(BackupManager::shouldOfferRecovery(dir, "Song", projFile),
                "newer backup: offer recovery");
     }

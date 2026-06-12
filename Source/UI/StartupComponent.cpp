@@ -338,8 +338,8 @@ void StartupComponent::browseExisting()
         startDir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory);
 
     fileChooser = std::make_unique<juce::FileChooser>(
-        // 旧名 (Trakova) 時代の .trakova も開ける (ProjectManager::openWildcard と同義。include を増やさないため直書き)
-        tr(u8"プロジェクトを開く"), startDir, "*.utawave;*.trakova", true);
+        // 新拡張子のみ (ProjectManager::openWildcard と同義。include を増やさないため直書き)
+        tr(u8"プロジェクトを開く"), startDir, "*.uta", true);
 
     fileChooser->launchAsync(juce::FileBrowserComponent::openMode
                             | juce::FileBrowserComponent::canSelectFiles,
@@ -375,7 +375,7 @@ void StartupComponent::createNewProject()
     }
 
     auto projectDir  = loc.getChildFile(name);
-    auto projectFile = projectDir.getChildFile(name + ".utawave");
+    auto projectFile = projectDir.getChildFile(name + ".uta");
 
     if (projectDir.exists() && !projectDir.isDirectory())
     {
