@@ -1,38 +1,40 @@
 # Utawave
 
-歌い手（ボーカルカバー投稿者）向けの**録音特化 DAW**。macOS / Windows のクロスプラットフォームで無料配布します。
+**English** | [日本語](README.ja.md)
+
+A free, **recording-focused DAW** for vocal-cover artists, distributed at no cost for macOS and Windows.
 
 Copyright (C) 2025-2026 Utawave
 Licensed under the **GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)**.
 
-- ソースコード: https://github.com/AsteroidApp-hub/Utawave
-- ライセンス全文: [LICENSE](LICENSE)
-- 同梱ライブラリの表記: [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt)
+- Source code: https://github.com/AsteroidApp-hub/Utawave
+- Full license text: [LICENSE](LICENSE)
+- Third-party components: [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt)
 
 ---
 
-## 特長
+## Features
 
-- マルチトラック録音 / 再生（複数トラック同時録音・パンチイン・遡及録音・ループ録音）
-- 波形編集（移動 / リサイズ / 分割 / 結合 / フェード / クロスフェード / 無音カット）
-- MIDI トラック・ピアノロール・内蔵シンセ
-- ミキサー / メータリング / 簡易リバーブ / プラグイン（VST3）ホスト
-- WAV / AIFF / MP3 書き出し（内蔵エンコーダ・高品質ディザ）
-- 日本語 / English
+- Multitrack recording / playback (simultaneous multi-track recording, punch-in, retrospective recording, loop recording)
+- Waveform editing (move / resize / split / consolidate / fade / crossfade / strip silence)
+- MIDI tracks, piano roll, built-in synth
+- Mixer / metering / simple reverb / plugin (VST3) hosting
+- WAV / AIFF / MP3 export (built-in encoder, high-quality dither)
+- Japanese / English UI
 
-詳細は同梱マニュアル（[Docs/MANUAL.html](Docs/MANUAL.html)）と仕様書（[Docs/SPEC.md](Docs/SPEC.md)）を参照。
+See the bundled manual ([Docs/MANUAL.html](Docs/MANUAL.html)) and the specification ([Docs/SPEC.md](Docs/SPEC.md)) for details.
 
 ---
 
-## ビルド
+## Build
 
-### 前提
+### Requirements
 
-- CMake 3.22 以上
-- C++17 対応コンパイラ（macOS: Xcode / Windows: MSVC）
-- JUCE 8（CMake が自動取得、またはローカル `JUCE/` に配置）
+- CMake 3.22 or later
+- A C++17 compiler (macOS: Xcode / Windows: MSVC)
+- JUCE 8 (fetched automatically by CMake, or placed in a local `JUCE/`)
 
-### 手順
+### Steps
 
 ```sh
 git clone https://github.com/AsteroidApp-hub/Utawave.git
@@ -41,85 +43,60 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ```
 
-初回の configure で **JUCE 8 (8.0.12) を自動ダウンロード**します（CMake FetchContent）。
-リポジトリに JUCE は含まれません。オフラインや特定バージョンでビルドしたい場合は、JUCE 8 を
-リポジトリ直下 `JUCE/` に配置すると、ダウンロードせずローカルの `JUCE/` を使います。
+The first configure **automatically downloads JUCE 8 (8.0.12)** via CMake FetchContent; JUCE is not
+vendored in the repository. To build offline or pin a specific version, place JUCE 8 in `JUCE/` at the
+repository root and the local copy is used instead of downloading.
 
-### Windows での ASIO 対応（任意）
+### ASIO support on Windows (optional)
 
-ASIO SDK は再配布が制限されているためリポジトリには含まれません。利用する場合は
-[Steinberg Developer](https://www.steinberg.net/developers/) から SDK を取得し、
-`Source/ThirdParty/asiosdk/` に配置してください（配置されていれば CMake が自動で有効化します）。
-未配置の場合は WASAPI / DirectSound のみで動作します。
+The ASIO SDK is not included because its redistribution is restricted. To use it, obtain the SDK from
+[Steinberg Developer](https://www.steinberg.net/developers/) and place it in `Source/ThirdParty/asiosdk/`
+(CMake enables it automatically when present). Without it, the app runs with WASAPI / DirectSound only.
 
 ---
 
-## テスト
+## Tests
 
 ```sh
 cmake --build build --target UtawaveTests --config Debug
 ./build/UtawaveTests_artefacts/Debug/UtawaveTests
 ```
 
-`juce::UnitTest` ベースのコンソールアプリです（全合格で終了コード 0）。
+A console app based on `juce::UnitTest` (exit code 0 when all pass).
 
 ---
 
-## ライセンス
+## License
 
-本アプリ本体は **AGPL-3.0-or-later** で配布されます。AGPL ではバイナリを受け取った人に対して
-対応するソースコードを提供する必要があり、本リポジトリがその対応ソースです。利用しているオープンソース
-ライブラリ・SDK のライセンスは [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt) を参照してください。
+The application itself is distributed under **AGPL-3.0-or-later**. Under the AGPL, anyone who receives
+the binary must be able to obtain the corresponding source code, and this repository is that
+corresponding source. See [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt) for the licenses of the
+open-source libraries and SDKs used.
 
-## 免責事項
+## Disclaimer
 
-本ソフトウェアは無料で「現状のまま（AS IS）」提供されます。動作の確認には努めていますが、
-すべての環境での動作や特定の目的への適合をお約束するものではありません。
+This software is free and provided "AS IS". While every effort is made to ensure it works well, it comes
+with no guarantee that it will fit any particular environment or purpose. The author cannot accept
+liability for damages (including loss or corruption of recordings or project data, or damage to other
+software or equipment) arising from the use of, or inability to use, this software. Please back up
+important data. See Sections 15 and 16 of the AGPL-3.0-or-later for details.
 
-万一、本ソフトウェアの使用（または使用できないこと）により損害（録音・プロジェクトデータの
-消失や破損、他のソフトウェア・機材への影響などを含みます）が生じた場合でも、作者は責任を
-負いかねます。大切なデータは事前のバックアップをお願いします。
+## Support
 
-詳細は AGPL-3.0-or-later 第15条（保証の否認）および第16条（責任の制限）をご覧ください。
-
-### Disclaimer
-
-This software is free and provided "AS IS". While every effort is made to ensure it works well,
-it comes with no guarantee that it will fit any particular environment or purpose. The author
-cannot accept liability for damages (including loss or corruption of recordings or project data,
-or damage to other software or equipment) arising from the use of, or inability to use, this
-software. Please back up important data. See Sections 15 and 16 of the AGPL-3.0-or-later for
-details.
-
-## 支援 / Support
-
-開発の継続を応援していただけると励みになります 🙇
+Your support helps keep development going 🙇
 
 - **GitHub Sponsors**: https://github.com/sponsors/AsteroidApp-hub
-- **Ko-fi**: （準備中 — アカウント開設後にリンクを追加します）
+- **Ko-fi**: (coming soon — a link will be added once the account is set up)
 
-## ダウンロード / Download
+## Download
 
-ビルド済みアプリ（macOS / Windows）は **[Releases](https://github.com/AsteroidApp-hub/Utawave/releases)**
-からダウンロードできます（公式サイト <https://utawave.com/download.html> でも同じものを配布しています）。
-リリース手順は [RELEASE.md](RELEASE.md) を参照。
+Prebuilt apps (macOS / Windows) are available from
+**[Releases](https://github.com/AsteroidApp-hub/Utawave/releases)** (the same builds are also distributed
+on the official site <https://utawave.com/download.html>). See [RELEASE.md](RELEASE.md) for the release
+procedure.
 
-## 貢献
+## Contributing
 
-Pull Request やバグ報告・提案を受け付けています。ただし個人開発のため、内容の確認・反映に
-お時間をいただくことや、内容によっては取り込みをお約束できない場合があります。送る際は
-[CONTRIBUTING.md](CONTRIBUTING.md) の条件（AGPL-3.0-or-later / DCO サインオフ）をご確認ください。
-
----
-
-## English summary
-
-**Utawave** is a free, recording-focused DAW for vocal-cover singers (macOS / Windows).
-
-Copyright (C) 2025-2026 Utawave. Licensed under **AGPL-3.0-or-later** (see [LICENSE](LICENSE)).
-Third-party components are listed in [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt).
-
-Build with CMake 3.22+ and a C++17 compiler; JUCE 8 is **not** vendored in the repo — it is
-fetched automatically at configure time via CMake FetchContent (or place it in `./JUCE` for
-offline builds). See [CONTRIBUTING.md](CONTRIBUTING.md) before submitting changes
-(contributions are AGPL-3.0-or-later, DCO sign-off required).
+Pull requests, bug reports, and suggestions are welcome. As this is a personal project, review and
+integration may take time, and a merge cannot always be guaranteed. Before sending changes, please
+review the terms in [CONTRIBUTING.md](CONTRIBUTING.md) (AGPL-3.0-or-later / DCO sign-off).

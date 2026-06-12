@@ -83,7 +83,7 @@ jobs:
         run: |
           mkdir -p Utawave-macOS
           cp -R "${{ steps.app.outputs.path }}" Utawave-macOS/
-          cp LICENSE THIRD_PARTY_LICENSES.txt Docs/MANUAL.html README.md Utawave-macOS/
+          cp LICENSE THIRD_PARTY_LICENSES.txt Docs/MANUAL.html README.md README.ja.md Utawave-macOS/
           ditto -c -k --sequesterRsrc --keepParent Utawave-macOS "Utawave-${{ inputs.version }}-macOS.zip"
 
       - name: Upload macOS zip
@@ -153,7 +153,7 @@ jobs:
           $src = if (Test-Path signed/Utawave.exe) { 'signed/Utawave.exe' } else { 'artifact/Utawave.exe' }
           New-Item -ItemType Directory -Force -Path Utawave-Windows | Out-Null
           Copy-Item $src Utawave-Windows/Utawave.exe
-          Copy-Item LICENSE,THIRD_PARTY_LICENSES.txt,Docs/MANUAL.html,README.md Utawave-Windows/
+          Copy-Item LICENSE,THIRD_PARTY_LICENSES.txt,Docs/MANUAL.html,README.md,README.ja.md Utawave-Windows/
           Compress-Archive -Path Utawave-Windows -DestinationPath "Utawave-${{ inputs.version }}-win64.zip" -Force
 
       - name: Upload Windows zip

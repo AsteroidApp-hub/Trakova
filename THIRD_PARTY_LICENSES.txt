@@ -1,7 +1,7 @@
-Utawave 第三者ソフトウェアライセンス表記
+Utawave — Third-Party Software Licenses
 ===========================================
 
-本ソフトウェアは以下のオープンソースライブラリ・SDK を利用しています。
+This software uses the following open-source libraries and SDKs.
 
 
 JUCE Framework
@@ -12,40 +12,40 @@ open-source distribution. See JUCE/LICENSE.md for full terms.
 https://juce.com/
 
 
-LAME (libmp3lame) — MP3 エンコーダ
+LAME (libmp3lame) — MP3 encoder
 -----------------------------------
 LAME is licensed under the GNU Lesser General Public License v2.0 or later.
 Copyright (c) The LAME project (http://lame.sourceforge.net/).
 See Source/ThirdParty/lame/COPYING for full terms.
 
 
-r8brain-free-src — リサンプラー
+r8brain-free-src — resampler
 --------------------------------
 Copyright (c) Aleksey Vaneev.
 Licensed under the MIT License.
 See Source/ThirdParty/r8brain/LICENSE for full terms.
 
 
-Ooura FFT (r8brain に同梱)
+Ooura FFT (bundled with r8brain)
 --------------------------
 Copyright (c) 1996-2001 Takuya Ooura.
-汎用 FFT パッケージ。作者表記を保持すれば自由に使用・改変・再配布可能。
+A general-purpose FFT package; free to use, modify, and redistribute provided the
+author attribution is retained.
 See Source/ThirdParty/r8brain/fft/fft4g.h for the original notice.
 
 
-VST3 SDK (JUCE に同梱)
+VST3 SDK (bundled with JUCE)
 ----------------------
 Copyright (c) Steinberg Media Technologies GmbH.
 Licensed under the MIT License. VST is a trademark of Steinberg Media
 Technologies GmbH. See the bundled VST3_SDK/LICENSE.txt within JUCE for full terms.
 
 
-ASIO Interface Technology (任意 / Windows のみ)
+ASIO Interface Technology (optional / Windows only)
 -----------------------------------------------
 ASIO is a trademark and software of Steinberg Media Technologies GmbH.
 "ASIO Interface Technology by Steinberg Media Technologies GmbH."
 
-Steinberg ASIO SDK 自体は本リポジトリには含まれていません。
-Windows で ASIO サポートを利用したい場合は、各自で
-https://www.steinberg.net/developers/ から SDK を取得し、
-Source/ThirdParty/asiosdk/ に配置してビルドしてください。
+The Steinberg ASIO SDK itself is not included in this repository. To use ASIO support
+on Windows, obtain the SDK yourself from https://www.steinberg.net/developers/ and
+place it in Source/ThirdParty/asiosdk/ before building.

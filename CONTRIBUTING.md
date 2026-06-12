@@ -1,66 +1,50 @@
-# Contributing to Utawave / コントリビューションについて
+# Contributing to Utawave
 
-Pull Request やバグ報告・改善のご提案を受け付けています。
-ただし個人開発のため、内容の確認や反映までお時間をいただくことがあり、
-また内容によっては取り込みをお約束できない場合があります。あらかじめご了承ください。
-Pull Request を送る場合は、以下の条件に同意したものとみなします。
+**English** | [日本語](CONTRIBUTING.ja.md)
 
-## ライセンス（重要 / inbound = outbound）
+Pull requests, bug reports, and suggestions are welcome. As this is a personal project, however, review
+and integration may take some time, and a merge cannot always be guaranteed — thank you for your
+understanding. Opening a pull request is taken as agreement to the terms below.
 
-- 本プロジェクトへのコントリビューションは、本体と同じ
-  **AGPL-3.0-or-later** で提供いただくものとします（inbound = outbound）。
-- プルリクエストを送る = あなたの変更を AGPL-3.0-or-later で提供することに同意した、とみなします。
-- Utawave は **JUCE**（AGPLv3 / 商用のデュアルライセンス）にリンクしています。
-  本プロジェクトは AGPL の選択肢で利用しており、コントリビューションも AGPL で受け入れます。
+## License (important / inbound = outbound)
 
-## DCO（Developer Certificate of Origin）
+- Contributions to this project are provided under the same license as the application,
+  **AGPL-3.0-or-later** (inbound = outbound).
+- Opening a pull request means you agree to license your changes under AGPL-3.0-or-later.
+- Utawave links **JUCE** (dual-licensed AGPLv3 / commercial). This project uses the AGPL option and
+  accepts contributions under AGPL.
 
-各コミットに **サインオフ** を付けてください。これは
-[Developer Certificate of Origin](https://developercertificate.org/) に同意し、
-「自分にその変更を貢献する権利がある」ことを表明するものです。
+## DCO (Developer Certificate of Origin)
+
+Please **sign off** every commit. This certifies your agreement to the
+[Developer Certificate of Origin](https://developercertificate.org/) and that you have the right to
+contribute the change.
 
 ```sh
 git commit -s -m "Fix: ..."
 ```
 
-`-s` を付けると以下の行がコミットメッセージに追加されます:
+Adding `-s` appends the following line to the commit message:
 
 ```
 Signed-off-by: Your Name <your.email@example.com>
 ```
 
-## 開発環境
+## Development environment
 
-ビルド手順は [README.md](README.md) を参照してください
-（CMake 3.22+ / C++17 / JUCE 8 は CMake が自動取得）。変更後はユニットテストを実行してください:
+See [README.md](README.md) for build instructions (CMake 3.22+ / C++17 / JUCE 8 fetched automatically by
+CMake). Run the unit tests after making changes:
 
 ```sh
 cmake --build build --target UtawaveTests --config Debug
 ./build/UtawaveTests_artefacts/Debug/UtawaveTests
 ```
 
-## コーディング方針（抜粋）
+## Coding guidelines (excerpt)
 
-- C++17。JUCE のクラス・型（`juce::String` / `juce::File` 等）を活用。
-- **オーディオスレッドではメモリ確保・ロック・I/O を行わない**。
-- **エンドユーザーに見える文言は `tr(u8"...")` で多言語化**し、英訳テーブルにキーを追加する
-  （キーは末尾スペース・改行まで完全一致させること）。
-- **ユーザーに見える UI 文言に他社製品名・外部ライブラリ名を露出させない**
-  （ライセンス表記ファイルを除く）。
-
----
-
-## English
-
-Pull requests, bug reports, and suggestions are welcome. As this is a personal project, however,
-review and integration may take some time, and a merge cannot always be guaranteed — thank you for
-your understanding. Contributions are accepted under **AGPL-3.0-or-later** (inbound = outbound): opening a pull
-request means you agree to license your changes under AGPL-3.0-or-later. Utawave links **JUCE**
-(dual-licensed AGPLv3 / commercial); this project uses the AGPL option and accepts contributions
-under AGPL.
-
-Please **sign off** every commit (`git commit -s`) to certify the
-[Developer Certificate of Origin](https://developercertificate.org/). See [README.md](README.md)
-for build instructions and run `UtawaveTests` before submitting. Keep third-party product/library
-names out of end-user-visible strings (license/attribution files excepted), and wrap user-facing
-text in `tr(u8"...")` with a matching entry in the English translation table.
+- C++17. Use JUCE classes and types (`juce::String` / `juce::File`, etc.).
+- **Never allocate memory, take locks, or perform I/O on the audio thread.**
+- **Wrap end-user-visible text in `tr(u8"...")`** for localization and add the key to the English
+  translation table (the key must match exactly, including trailing spaces and newlines).
+- **Keep third-party product / library names out of end-user-visible strings**
+  (license / attribution files excepted).

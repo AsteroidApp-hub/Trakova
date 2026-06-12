@@ -29,7 +29,7 @@ zip のファイル名にはバージョンを含めます（例: `Utawave-0.1.0
    - `Utawave-<version>-macOS`（署名 + 公証済み / 未設定時は ad-hoc）
    - `Utawave-<version>-win64`（SignPath 署名済み exe を zip 化済み）
 
-> 両 zip ともライセンス類（LICENSE / THIRD_PARTY_LICENSES.txt / MANUAL.html / README.md）を同梱済み。
+> 両 zip ともライセンス類（LICENSE / THIRD_PARTY_LICENSES.txt / MANUAL.html / README.md / README.ja.md）を同梱済み。
 > ローカルでの再パッケージは不要。
 
 ## 3. ユニットテスト（任意・推奨）
@@ -90,7 +90,7 @@ cmake --build build --config Release
 $exe = Get-ChildItem -Path build -Recurse -Filter Utawave.exe | Select-Object -First 1
 New-Item -ItemType Directory -Force -Path Utawave-Windows | Out-Null
 Copy-Item $exe.FullName Utawave-Windows/
-Copy-Item LICENSE,THIRD_PARTY_LICENSES.txt,Docs/MANUAL.html,README.md Utawave-Windows/
+Copy-Item LICENSE,THIRD_PARTY_LICENSES.txt,Docs/MANUAL.html,README.md,README.ja.md Utawave-Windows/
 Compress-Archive -Path Utawave-Windows -DestinationPath Utawave-0.1.0-win64-asio.zip -Force
 ```
 
