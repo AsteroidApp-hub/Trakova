@@ -102,6 +102,9 @@ jobs:
     permissions:
       id-token: write    # 出所検証 (OIDC) に必要
       contents: read
+    env:
+      # SignPath API トークン未登録のうちは署名をスキップして未署名 exe を zip 化する
+      HAS_SIGNING: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -132,6 +135,7 @@ jobs:
           path: artifact/Utawave.exe
 
       - name: Submit signing request to SignPath
+        if: env.HAS_SIGNING == 'true'
         uses: signpath/github-action-submit-signing-request@v1
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -145,8 +149,10 @@ jobs:
       - name: Package zip
         shell: pwsh
         run: |
+          # 署名済みがあればそれを、無ければ未署名 exe を使う
+          $src = if (Test-Path signed/Utawave.exe) { 'signed/Utawave.exe' } else { 'artifact/Utawave.exe' }
           New-Item -ItemType Directory -Force -Path Utawave-Windows | Out-Null
-          Copy-Item signed/Utawave.exe Utawave-Windows/
+          Copy-Item $src Utawave-Windows/Utawave.exe
           Copy-Item LICENSE,THIRD_PARTY_LICENSES.txt,Docs/MANUAL.html,README.md Utawave-Windows/
           Compress-Archive -Path Utawave-Windows -DestinationPath "Utawave-${{ inputs.version }}-win64.zip" -Force
 
