@@ -8,7 +8,12 @@
     クラッシュレポート。
 
     - install() がプロセス全体のクラッシュハンドラを登録し、クラッシュ時にスタックトレース +
-      アプリ版 + OS 情報をローカルのログファイルへ書き出す (この時点では送信しない)。
+      アプリ版 + OS + スレッド情報をローカルのログファイルへ書き出す (この時点では送信しない)。
+      Windows では例外コード / 発生アドレス / AV の read-write と対象アドレスも記録し、
+      バックトレースは独自実装で全フレームを「モジュール名 + RVA」形式で出力する
+      (JUCE 標準の getStackBacktrace はシンボル解決に失敗したフレーム = PDB の無い配布 exe や
+      プラグイン DLL 内のフレームを黙って捨てるため。RVA は保管した PDB でオフライン解決する —
+      手順は Docs/CRASH_REPORT_SETUP.md)。
     - 次回起動時に offerPendingReports() が未処理ログを見つけると、**ユーザーの同意ダイアログ**を
       出してから開発者へ送信する (同意なしに送信しない)。「送信しない」を選んでもログは
       ローカルに残る (.handled にリネームされ再プロンプトはされない)。
@@ -16,7 +21,8 @@
       ビルドでは送信機能ごと無効で、「ログを確認しますか?」のローカル表示のみになる
       (AdService / UpdateChecker と同じコンパイル時ゲートの作法)。
     - ネットワークは AdService と同じデタッチスレッド + 値コピー + callAsync。純関数
-      (pendingLogs / markHandled / buildReportJson / crashLogFileName) は CrashReporterTests が検証。
+      (pendingLogs / markHandled / buildReportJson / crashLogFileName / exceptionCodeName) は
+      CrashReporterTests が検証。
 */
 class CrashReporter
 {
@@ -42,6 +48,9 @@ public:
 
     // ログファイル名 (純関数): crash-YYYYMMDD_HHMMSS.log
     static juce::String crashLogFileName(juce::Time when);
+
+    // Windows の例外コード → 名前 (純関数。未知のコードは空文字を返す)
+    static juce::String exceptionCodeName(juce::uint32 code);
 
     // コンパイル時に送信先 URL が埋め込まれているか
     static bool reportingCompiledIn();

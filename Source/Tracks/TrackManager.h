@@ -13,6 +13,7 @@ public:
     Track* addTrack(const juce::String& name = {}, bool stereo = false);
     Track* addClickTrack();
     bool   hasClickTrack() const;
+    Track* getClickTrack() const;   // CLICK トラック (無ければ nullptr)
     // MIDI トラックが 1 つでも存在するか (MIDI 書き出しメニューの活性判定などに使う)
     bool   hasMidiTrack() const;
     void   removeTrack(int index);
@@ -25,6 +26,9 @@ public:
     int    indexOf(const Track* t) const;
     // トラックを from → to に移動。to は移動後の最終インデックス
     void   moveTrack(int from, int to);
+    // Undo 用: 現在のトラックを desired (Track* 列) の順に並べ替える。desired が現在の
+    // トラック集合の並べ替えでなければ (数違い / 消えたトラックを含む) false を返し何もしない。
+    bool   reorderTo(const std::vector<Track*>& desired);
     // sourceIdx のトラックを複製し、すぐ後ろに挿入する。
     // クリップ・ゲイン/パン/リバーブ送り・色・MIDI 設定までコピーする。
     // プラグインチェーンは AudioPluginInstance の生成が非同期なので別途呼び出し側でクローンする。
@@ -72,13 +76,18 @@ public:
         juce::FileInputStream in(cacheFile);
         if (in.openedOk()) thumbnailCache.readFromStream(in);
     }
-    void saveThumbnailCache(const juce::File& cacheFile, const juce::File& audioFolder)
+    // force=false: 波形が変わっていなければ (Audio フォルダの署名が既存の .sig と一致) 書き出しを
+    //   スキップする。大規模プロジェクトで Cmd+S のたびに数 MB を書き出して固まるのを防ぐ。
+    // force=true: 署名が同じでも必ず書き出す。「サムネイルのデコードが完了して初めて完全な
+    //   キャッシュになる」一方、署名 (= 音声ファイルの内容) は変わらないため、デコード未完了の
+    //   まま保存された空/部分キャッシュが署名スキップで永久に残り、毎回再デコードになる不具合が
+    //   あった。波形ロード完了時はデコード結果が新しくなっているので force=true で確実に上書きする。
+    void saveThumbnailCache(const juce::File& cacheFile, const juce::File& audioFolder,
+                            bool force = false)
     {
-        // 波形が変わっていなければ (Audio フォルダの署名が既存の .sig と一致) 書き出しをスキップ。
-        // 大規模プロジェクトで Cmd+S のたびに数 MB を書き出して固まるのを防ぐ。
         const auto sig = audioFolderSignature(audioFolder);
         auto sigFile = cacheFile.withFileExtension("sig");
-        if (cacheFile.existsAsFile() && sigFile.loadFileAsString().trim() == sig)
+        if (!force && cacheFile.existsAsFile() && sigFile.loadFileAsString().trim() == sig)
             return;
 
         cacheFile.getParentDirectory().createDirectory();

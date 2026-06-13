@@ -115,10 +115,14 @@ MainComponent::convertImportSourcesWithProgress(const juce::Array<juce::File>& s
 void MainComponent::importAudioFilesAtDrop(const juce::Array<juce::File>& sources,
                                            double dropTime, int targetTrackIdx)
 {
+    juce::ignoreUnused(dropTime);
     auto items = convertImportSourcesWithProgress(sources);
 
-    // 配置: ドロップ位置 (dropTime) と対象トラック (targetTrackIdx) を尊重。
+    // 配置: ドロップした対象トラック (targetTrackIdx) は尊重するが、時間位置は常に
+    // プロジェクト先頭 (0 秒) 固定にする。歌い手用途で「カラオケ音源を頭から並べる」が
+    // 定番のため、ドロップ位置 (dropTime) ではなく頭に置く (Cmd+I と同じ挙動)。
     // 既存トラックが無効 / クリックトラックなら新規作成して順に下のトラックへ。
+    const double placeAt = 0.0;
     bool added = false;
     int  created = 0;
     for (auto& it : items)
@@ -134,7 +138,7 @@ void MainComponent::importAudioFilesAtDrop(const juce::Array<juce::File>& source
         }
         if (t)
         {
-            t->addClip(it.file, dropTime, it.dur);
+            t->addClip(it.file, placeAt, it.dur);
             if (it.hasVol) t->setVolume(it.volDb);   // ラウドネス調整 (変換時に測定済み)
             added = true;
         }

@@ -178,7 +178,8 @@ void PluginChain::releaseResources()
             s->plugin->releaseResources();
 }
 
-void PluginChain::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
+void PluginChain::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi,
+                               juce::AudioPlayHead* playHead)
 {
     const juce::ScopedLock sl(chainLock);
     if (slots.isEmpty()) return;
@@ -186,6 +187,10 @@ void PluginChain::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffe
     for (auto* s : slots)
     {
         if (s == nullptr || s->plugin == nullptr || s->bypassed) continue;
+
+        // 再生位置情報を供給する。setPlayHead はポインタ代入のみ (audio thread から安全)。
+        // 毎ブロック設定するのは再生中にプラグインが追加されても確実に行き渡らせるため。
+        s->plugin->setPlayHead(playHead);
 
         // プラグインが要求するチャンネル数を確認 (disableNonMainBuses + setPlayConfigDetails で
         // 通常は 2ch だが、念のため安全策として最大値で確保)

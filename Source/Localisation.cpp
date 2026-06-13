@@ -106,6 +106,7 @@ static const char* const englishTranslations =
     "\"MIDI を書き出す\" = \"Export MIDI\"\n"
     "\"MIDI を書き出す...\" = \"Export MIDI...\"\n"
     "\"「MIDI を書き出す」をファイルメニューに表示\" = \"Show Export MIDI in the File menu\"\n"
+    "\"MIDI 編集の再生バーがビュー外へ出たら自動でページ送りする\" = \"Auto-page the MIDI editor when the playhead moves out of view\"\n"
     "\"書き出せる MIDI ノートがありません\" = \"There are no MIDI notes to export\"\n"
     "\"書き出し\" = \"Export\"\n"
     "\"書き出し...\" = \"Export...\"\n"

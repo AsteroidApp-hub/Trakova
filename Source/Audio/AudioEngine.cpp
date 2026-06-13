@@ -1112,6 +1112,28 @@ void AudioEngine::copyRealtimeCaptureTo(juce::AudioBuffer<float>& dst) const
         dst.copyFrom(ch, 0, captureBuffer, ch, 0, written);
 }
 
+void AudioEngine::fillPlayHead(EnginePlayHead& ph, double posSecs, double sr,
+                               const AppSettings& cfg, bool isPlaying, bool isRecording,
+                               bool looping, double loopStartSec, double loopEndSec)
+{
+    const double bpm = cfg.bpmAtTime(posSecs);
+    const double ppq = cfg.beatsAtTime(posSecs);   // 1 拍 = 四分音符なので拍数 = ppq
+    int bar1 = 1, beat1 = 1;
+    cfg.barAndBeatAtTime(posSecs, bar1, beat1);
+    // 小節頭の ppq = floor(ppq) (= 完了拍数) − 現在小節内の拍数 (beat1-1)
+    const double ppqBarStart = std::floor(ppq) - (double)(beat1 - 1);
+    int tsNum = 4, tsDen = 4;
+    cfg.getMeterAtBar(bar1, tsNum, tsDen);
+
+    const double loopStartPpq = looping ? cfg.beatsAtTime(loopStartSec) : 0.0;
+    const double loopEndPpq   = looping ? cfg.beatsAtTime(loopEndSec)   : 0.0;
+    const juce::int64 samples = (juce::int64) std::llround(posSecs * sr);
+
+    ph.update(samples, posSecs, bpm, ppq, ppqBarStart,
+              tsNum, tsDen, isPlaying, isRecording,
+              looping, loopStartPpq, loopEndPpq);
+}
+
 void AudioEngine::renderOfflineRange(double startSec, double endSec,
                                       juce::AudioBuffer<float>& outBuffer,
                                       std::function<void(double)> progress,
@@ -1123,6 +1145,12 @@ void AudioEngine::renderOfflineRange(double startSec, double endSec,
     const double sr        = currentSampleRate;
     const int    totalSamp = (int)std::round((endSec - startSec) * sr);
     const int    blockSize = 1024;
+
+    // 書き出し中もプラグインへ再生位置を供給する (テンポ同期プラグイン等が正しく動くように)。
+    // audio thread と競合しないよう、メンバ playHead ではなくローカルインスタンスを使う。
+    EnginePlayHead exportHead;
+    std::shared_ptr<const AppSettings> exportCfg;
+    { const juce::SpinLock::ScopedLockType l(appSettingsLock); exportCfg = activeAppSettings; }
 
     if (outBuffer.getNumSamples() < totalSamp || outBuffer.getNumChannels() < 2)
         outBuffer.setSize(2, totalSamp, false, true, true);
@@ -1138,6 +1166,9 @@ void AudioEngine::renderOfflineRange(double startSec, double endSec,
         blockBuf.clear();
 
         const double posStart = startSec + (double)written / sr;
+        if (exportCfg) fillPlayHead(exportHead, posStart, sr, *exportCfg,
+                                    /*playing*/ true, /*recording*/ false,
+                                    /*looping*/ false, 0.0, 0.0);
 
         {
             // 再生スナップショットを per-block で取得する (旧 playbackLock 相当)。per-block にする
@@ -1193,7 +1224,7 @@ void AudioEngine::renderOfflineRange(double startSec, double endSec,
                 if (track && track->getPluginChain().getNumPlugins() > 0)
                 {
                     juce::MidiBuffer midi;
-                    track->getPluginChain().processBlock(trackBuf, midi);
+                    track->getPluginChain().processBlock(trackBuf, midi, &exportHead);
                 }
 
                 if (preFader)
@@ -1220,7 +1251,7 @@ void AudioEngine::renderOfflineRange(double startSec, double endSec,
             if (masterChain && masterChain->getNumPlugins() > 0)
             {
                 juce::MidiBuffer midi;
-                masterChain->processBlock(blockBuf, midi);
+                masterChain->processBlock(blockBuf, midi, &exportHead);
             }
             blockBuf.applyGain(masterGain.load());
         }
@@ -1498,6 +1529,12 @@ void AudioEngine::audioDeviceIOCallbackWithContext(
 
     double posStart = currentPosition.load();
 
+    // プラグインへ供給する再生位置情報をブロック先頭で 1 回更新する (Melodyne 等の transport
+    // 同期用)。トラック/MIDI/マスターの全チェーンがこの playHead を共有する。
+    fillPlayHead(playHead, posStart, currentSampleRate, *appCfg,
+                 /*playing*/ true, isRecordingActive.load(),
+                 loopActive.load(), loopStartSecs.load(), loopEndSecs.load());
+
     // 簡易リバーブ送りバスのフラグ
     bool anyReverbSend = false;
 
@@ -1557,7 +1594,7 @@ void AudioEngine::audioDeviceIOCallbackWithContext(
                 if (track && track->getPluginChain().getActivePluginCountAtomic() > 0)
                 {
                     chainMidiScratch.clear();
-                    track->getPluginChain().processBlock(trackBuf, chainMidiScratch);
+                    track->getPluginChain().processBlock(trackBuf, chainMidiScratch, &playHead);
                 }
 
                 // PDC: 自分より遅いトラックに合わせて trackBuf を遅延させる
@@ -1724,7 +1761,7 @@ void AudioEngine::audioDeviceIOCallbackWithContext(
             // プラグインチェーン（音源プラグインなら MIDI から音を生成、エフェクトなら trackBuf を加工）。
             // ロックを取らずに処理対象有無を判定する。mb は本トラックの note/state 入力なのでそのまま渡す。
             if (mp.track->getPluginChain().getActivePluginCountAtomic() > 0)
-                mp.track->getPluginChain().processBlock(trackBuf, mb);
+                mp.track->getPluginChain().processBlock(trackBuf, mb, &playHead);
 
             applyTrackDelay(snap->trackDelays, mp.trackIdx, trackBuf, numSamples);
 
@@ -1811,7 +1848,7 @@ void AudioEngine::audioDeviceIOCallbackWithContext(
     if (masterChain && masterChain->getActivePluginCountAtomic() > 0)
     {
         chainMidiScratch.clear();
-        masterChain->processBlock(workBuffer, chainMidiScratch);
+        masterChain->processBlock(workBuffer, chainMidiScratch, &playHead);
     }
     workBuffer.applyGain(masterGain.load());
 

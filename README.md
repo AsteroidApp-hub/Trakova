@@ -39,8 +39,8 @@ See the bundled manual ([Docs/MANUAL.html](Docs/MANUAL.html)) and the specificat
 ```sh
 git clone https://github.com/AsteroidApp-hub/Utawave.git
 cd Utawave
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release
+cmake -S . -B build-mac -DCMAKE_BUILD_TYPE=Release
+cmake --build build-mac --config Release
 ```
 
 The first configure **automatically downloads JUCE 8 (8.0.12)** via CMake FetchContent; JUCE is not
@@ -58,8 +58,8 @@ The ASIO SDK is not included because its redistribution is restricted. To use it
 ## Tests
 
 ```sh
-cmake --build build --target UtawaveTests --config Debug
-./build/UtawaveTests_artefacts/Debug/UtawaveTests
+cmake --build build-mac --target UtawaveTests --config Debug
+./build-mac/UtawaveTests_artefacts/Debug/UtawaveTests
 ```
 
 A console app based on `juce::UnitTest` (exit code 0 when all pass).

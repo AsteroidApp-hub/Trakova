@@ -3,6 +3,7 @@
 
 #include "TrackManager.h"
 #include "../Localisation.h"
+#include <algorithm>
 
 TrackManager::TrackManager(juce::AudioFormatManager& fmt)
     : formatManager(fmt)
@@ -58,6 +59,12 @@ bool TrackManager::hasClickTrack() const
     return false;
 }
 
+Track* TrackManager::getClickTrack() const
+{
+    for (auto& t : tracks) if (t->isClickTrack()) return t.get();
+    return nullptr;
+}
+
 bool TrackManager::hasMidiTrack() const
 {
     for (auto& t : tracks) if (t->isMidiTrack()) return true;
@@ -73,6 +80,26 @@ void TrackManager::moveTrack(int from, int to)
     tracks.erase(tracks.begin() + from);
     tracks.insert(tracks.begin() + to, std::move(t));
     if (onChanged) onChanged();
+}
+
+bool TrackManager::reorderTo(const std::vector<Track*>& desired)
+{
+    // desired が現在のトラック集合の純粋な並べ替えであることを、move する前に検証する
+    // (数一致 + 現在の各トラックが desired に含まれる → 重複なしの permutation)。
+    if (desired.size() != tracks.size()) return false;
+    for (auto& up : tracks)
+        if (std::find(desired.begin(), desired.end(), up.get()) == desired.end())
+            return false;
+
+    std::vector<std::unique_ptr<Track>> rebuilt;
+    rebuilt.reserve(tracks.size());
+    for (auto* want : desired)
+        for (auto& up : tracks)
+            if (up && up.get() == want) { rebuilt.push_back(std::move(up)); break; }
+
+    tracks = std::move(rebuilt);
+    if (onChanged) onChanged();
+    return true;
 }
 
 void TrackManager::removeTrack(int index)

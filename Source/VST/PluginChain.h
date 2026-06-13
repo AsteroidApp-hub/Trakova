@@ -37,8 +37,10 @@ public:
     void prepareToPlay(double sampleRate, int blockSize);
     void releaseResources();
     /** buffer をプラグインチェーン全体に通す（in-place）。
-        @param numChannels 入力チャンネル数（プラグイン処理ではモノ→ステレオに拡張する場合あり） */
-    void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi);
+        @param playHead 各プラグインへ供給する再生位置情報 (Melodyne 等の transport 同期用)。
+                        nullptr なら設定しない（書き出し以外の経路や transport 不要なテスト用）。 */
+    void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi,
+                      juce::AudioPlayHead* playHead = nullptr);
 
     // バイパス（個別プラグイン）
     void setBypassed(int index, bool bypassed);

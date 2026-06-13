@@ -18,6 +18,9 @@ public:
     ~TrackHeaderPanel() override;
 
     void paint(juce::Graphics&) override;
+    // 並び替えドラッグ中の挿入位置ライン。トラックヘッダ (子コンポーネント) の上に描くため
+    // paint ではなく paintOverChildren を使う。
+    void paintOverChildren(juce::Graphics&) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent&) override;
     void mouseDrag(const juce::MouseEvent&) override;
@@ -61,6 +64,10 @@ public:
     // 削除する trackIdx 群（複数選択をまとめて削除。プラグイン後処理・確認は呼び出し側でやる）
     std::function<void(const std::vector<int>&)> onTracksDeleteRequest;
     std::function<void(int)> onTrackDuplicateRequest;    // trackIdx（プラグインも含めて複製）
+    // 並べ替え完了通知 (Undo 用): 変更前/変更後のトラック順 + 移動した (選択中の) トラック群
+    // (Track* 列)。並べ替えは performReorder が既に実施済みで、呼び出し側は履歴に積むだけ。
+    // 移動トラック群は undo/redo 後に identity で選択を貼り直すのに使う (選択状態を維持)。
+    std::function<void(std::vector<Track*>, std::vector<Track*>, std::vector<Track*>)> onTracksReordered;
     // テイクレーン ↑ ボタン: 指定トラックの指定レーンを Lane 0 へ採用
     std::function<void(int, int)> onLanePromoteRequest;  // trackIdx, laneIdx
     // ↑ ボタンの活性判定 (trackIdx, laneIdx)
@@ -95,6 +102,14 @@ private:
 
     TrackManager& trackManager;
     int scrollY { 0 };
+
+    // INS スロット一括表示の状態 (FX ボタンの点灯/トグル意図)。トラックが 1 本もない
+    // 状態で FX を押した時の「次に追加するトラックを INS 表示で出す」意図をここに覚えておき、
+    // pendingInsApply が立っていれば次の refresh() で新規トラックへ反映する。
+    // (プロジェクト読込は明示トグルではないので pendingInsApply を立てず、読込んだ
+    //  per-track の insertSlotsVisible を壊さない)
+    bool insSlotsOn     { false };
+    bool pendingInsApply { false };
 
     juce::TextButton addTrackBtn;
     juce::TextButton addTrackPlus;

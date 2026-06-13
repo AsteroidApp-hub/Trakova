@@ -47,6 +47,34 @@ void TrackHeaderPanel::RulerHeader::paint(juce::Graphics& g)
                juce::Justification::centredLeft);
 }
 
+void TrackHeaderPanel::paintOverChildren(juce::Graphics& g)
+{
+    // 並び替えドラッグ中だけ、ドロップ先 (差し込まれる箇所) に挿入ラインを描く。
+    if (!dragReorderStarted || dropTargetIndex < 0 || headerViews.empty())
+        return;
+
+    // 挿入位置の Y: dropTargetIndex 番目ビューの上端 (末尾 = 最後のビューの下端)。
+    int lineY = (dropTargetIndex < (int) headerViews.size())
+                  ? headerViews[(size_t) dropTargetIndex]->getY()
+                  : headerViews.back()->getBottom();
+    // ルーラー (最前面) に被らないようクランプ。
+    lineY = juce::jlimit(rulerH, getHeight(), lineY);
+
+    const float x1 = 3.0f;
+    const float x2 = (float) getWidth() - 3.0f;
+    const float y  = (float) lineY;
+
+    g.setColour(AppColours::accentHover);
+    g.fillRect(x1, y - 1.5f, x2 - x1, 3.0f);
+
+    // 左右端に内向きの三角キャップを付けて挿入位置を明示する。
+    const float s = 4.0f;
+    juce::Path caps;
+    caps.addTriangle(x1, y - s, x1, y + s, x1 + s, y);
+    caps.addTriangle(x2, y - s, x2, y + s, x2 - s, y);
+    g.fillPath(caps);
+}
+
 void TrackHeaderPanel::showAddTrackMenu()
 {
     juce::PopupMenu m;
@@ -210,6 +238,11 @@ void TrackHeaderPanel::performReorder(int dropIndex)
     for (int i : sel)
         if (auto* t = trackManager.getTrack(i)) movers.push_back(t);
 
+    // Undo 用に並べ替え前のトラック順を控える
+    std::vector<Track*> beforeOrder;
+    for (int i = 0; i < trackManager.getTrackCount(); ++i)
+        beforeOrder.push_back(trackManager.getTrack(i));
+
     // dropIndex を「動かさない最初のトラックの直前」と解釈し anchor を確定
     Track* anchorTrack = nullptr;
     for (int i = dropIndex; i < trackManager.getTrackCount(); ++i)
@@ -246,6 +279,11 @@ void TrackHeaderPanel::performReorder(int dropIndex)
         if (from != to) trackManager.moveTrack(from, to);
     }
 
+    // 並べ替え後のトラック順を控える (Undo 用)
+    std::vector<Track*> afterOrder;
+    for (int i = 0; i < trackManager.getTrackCount(); ++i)
+        afterOrder.push_back(trackManager.getTrack(i));
+
     // 選択集合を新しい位置に再構築
     selectedIndices.clear();
     for (int i = 0; i < trackManager.getTrackCount(); ++i)
@@ -255,6 +293,17 @@ void TrackHeaderPanel::performReorder(int dropIndex)
             selectedIndices.insert(i);
     }
     selectionAnchor = selectedIndices.empty() ? -1 : *selectedIndices.begin();
+
+    // 選択ハイライトを移動先へ追従させる。moveTrack() は呼ぶたびに onChanged →
+    // refresh() を発火し、その時点ではまだ selectedIndices が旧位置のままなので、
+    // 並べ替え後のビューに古い選択が貼られてしまう。再構築済みの selectedIndices を
+    // ここで貼り直して、移動したトラックの選択が正しい新位置に出るようにする。
+    applySelectionToViews();
+
+    // 実際に順序が変わったら Undo 履歴へ積む (呼び出し側 = MainComponent が perform)。
+    // movers (= 移動した選択トラック) を渡し、undo/redo 後の選択復元に使う。
+    if (beforeOrder != afterOrder && onTracksReordered)
+        onTracksReordered(std::move(beforeOrder), std::move(afterOrder), std::move(movers));
 
     if (onTrackChanged) onTrackChanged();
 }
@@ -473,6 +522,19 @@ void TrackHeaderPanel::refresh()
         headerViews.push_back(std::move(view));
     }
     applySelectionToViews();
+
+    // トラックが 0 本の時に FX を押した意図を、今追加されたトラックへ反映する。
+    // pendingInsApply は明示トグル時のみ立つので、プロジェクト読込では発火せず
+    // 読込んだ per-track の insertSlotsVisible を壊さない。
+    if (pendingInsApply && n > 0)
+    {
+        for (int i = 0; i < n; ++i)
+            if (auto* t = trackManager.getTrack(i))
+                t->setInsertSlotsVisible(insSlotsOn);
+        pendingInsApply = false;
+        if (onTrackChanged) onTrackChanged();   // ヘッダ幅の再計算
+    }
+
     resized();
 }
 
@@ -645,7 +707,16 @@ void TrackHeaderPanel::resized()
 void TrackHeaderPanel::toggleAllInsertSlots()
 {
     const int n = trackManager.getTrackCount();
-    if (n == 0) return;
+
+    if (n == 0)
+    {
+        // トラックがまだ無い時もトグル意図だけ覚えておく。次にトラックを追加した
+        // 時 (refresh) に INS 表示で出す。ここでは開く先のトラックが無いので幅は変わらない。
+        insSlotsOn = !insSlotsOn;
+        pendingInsApply = true;
+        updateInsToggleState();
+        return;
+    }
 
     int onCount = 0;
     for (int i = 0; i < n; ++i)
@@ -654,6 +725,8 @@ void TrackHeaderPanel::toggleAllInsertSlots()
 
     // 1 つも表示されていなければ全表示、そうでなければ全非表示にする
     const bool show = (onCount == 0);
+    insSlotsOn = show;
+    pendingInsApply = false;
     for (int i = 0; i < n; ++i)
         if (auto* t = trackManager.getTrack(i))
             t->setInsertSlotsVisible(show);
@@ -672,10 +745,15 @@ void TrackHeaderPanel::updateInsToggleState()
         if (auto* t = trackManager.getTrack(i))
             if (t->isInsertSlotsVisible()) ++onCount;
 
-    const bool anyOn = onCount > 0;
-    insToggleBtn.setVisible(n > 0);
-    insToggleBtn.setActive(anyOn);
-    insToggleBtn.setTooltip(tr(anyOn ? u8"INS スロットを非表示" : u8"INS スロットを表示"));
+    // トラックがある時はボタンの点灯を実状態に同期する (右クリックや読込で変わるため)。
+    // 0 本の時はユーザのトグル意図 (insSlotsOn) を保つ。
+    if (n > 0)
+        insSlotsOn = (onCount > 0);
+
+    // FX ボタンはトラックの有無に依らず常に表示する (0 本でも押せば次のトラックを INS 表示で出す)
+    insToggleBtn.setVisible(true);
+    insToggleBtn.setActive(insSlotsOn);
+    insToggleBtn.setTooltip(tr(insSlotsOn ? u8"INS スロットを非表示" : u8"INS スロットを表示"));
 }
 
 void TrackHeaderPanel::InsToggleButton::paintButton(juce::Graphics& g,

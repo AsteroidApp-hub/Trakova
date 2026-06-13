@@ -34,6 +34,10 @@ public:
     // 再生バー位置 (クリップ先頭からの秒数) を更新
     void setPlayheadPosition(double secs);
 
+    // 自動ページング (再生バーがビュー外へ出たら次ページへ横スクロール) の ON/OFF。
+    // アプリ全体設定 (AppPreferences::midiPagingEnabled) から MainComponent が設定する。
+    void setPagingEnabled(bool v) { pagingEnabled = v; }
+
     // グリッドモード変更
     void setSnapMode(SnapMode m) { snapMode = m; repaint(); }
     SnapMode getSnapMode() const { return snapMode; }
@@ -180,6 +184,9 @@ private:
     // 既定値 -1e9 = 未設定 (描画スキップ)。-1.0 等の通常の負値は「クリップより前」を意味し
     // ピアノロール左端にクランプ表示する。
     double playheadSec { -1e9 };
+
+    // 自動ページング (再生バーがビュー外へ出たら次ページへ横スクロール)。MainComponent が設定。
+    bool pagingEnabled { false };
 
     // グリッド (スナップ) 設定
     SnapMode       snapMode { SnapMode::Sixteenth };

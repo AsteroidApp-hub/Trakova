@@ -92,6 +92,14 @@ private:
     void addMidiTrack();   // 空の MIDI トラックを作成 (ハモリ/ガイド打ち込み用)
     // 入力モニター/Rec アーム/モニターリバーブ量をまとめてオーディオエンジンへ反映する。
     void syncInputMonitorStateToEngine();
+    // CLICK トラックの Vol/Pan/Mute/Sound/Accent/Rate をメトロノームへ反映し、CLICK ボタンの点灯も
+    // 同期する。CLICK トラックが無ければ何もしない (CLICK ボタンでの独立トグルを尊重する)。
+    // 追加 / 変更 / 削除 / プロジェクト読込の各所から呼ぶ。
+    void syncClickTrackToEngine();
+    // 開いているメトロノーム設定ダイアログへ現在値を反映する更新関数 (ダイアログ生成時に設定)。
+    // CLICK トラックのフェーダー変更がダイアログにも追従するための経路。引数は
+    // (線形ボリューム, パン, 音色 index, アクセント)。SafePointer 越しなので閉じていれば no-op。
+    std::function<void(float, float, int, bool)> metronomeDlgPull;
     void togglePlay();
     void stopTransport();
     // 再生位置を seconds へ移動し、エンジン / ツールバー / タイムライン / ピアノロールを同期する。
@@ -169,6 +177,8 @@ private:
     juce::OwnedArray<PianoRollWindow> pianoRollWindows;
     void openPianoRollFor(class MidiClip* clip, class Track* track);
     void propagatePlayheadToPianoRolls(double playheadSecs);
+    // 開いている全ピアノロールへ自動ページング設定 (appPrefs.midiPagingEnabled) を反映
+    void applyMidiPagingToOpenEditors();
     void commitRetrospective();
     // ── オーディオインポート ──
     // 変換本体 (ファイル I/O のみ・UI/trackManager に触れない)。バックグラウンドスレッドから
@@ -214,9 +224,6 @@ private:
     // 全クリップがロード完了したら「完了」メッセージを出す。
     void updateWaveformLoadingStatus();
     bool waveformWasLoading { false };
-    // プロジェクト読込で発生したデコードが完了したら波形ディスクキャッシュを書く
-    // (録音停止など他のロード完了では書かない)。
-    bool writeThumbCacheOnLoadComplete { false };
 
     // appSettings.projectSampleRate をオーディオデバイスに適用
     // （プロジェクト作成 / 読み込み時に呼び、デバイスをプロジェクトに追従させる）
@@ -236,6 +243,10 @@ private:
     // 実装は MainComponent_Plugins.cpp — undo 時にプラグインエディタ / ピアノロールを
     // 閉じるため完全型が必要
     void pushTrackAddUndo(Track* t, bool newTransaction = true);
+    // トラック並べ替えの Undo を履歴へ積む (並べ替え自体は TrackHeaderPanel が実施済み)。
+    // selected = 移動したトラック群。undo/redo 後に identity で選択を貼り直し選択状態を維持する。
+    void pushTrackReorderUndo(std::vector<Track*> before, std::vector<Track*> after,
+                              std::vector<Track*> selected);
 
     // 指定 index 群のトラックをまとめて削除する (プラグイン後処理 + 再生スナップショット更新)。
     // 2 本以上は確認ダイアログを出す (トラック削除は Undo 非対応のため)。

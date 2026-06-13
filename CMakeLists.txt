@@ -175,6 +175,12 @@ endif()
 if(MSVC)
     target_compile_options(Utawave PRIVATE /utf-8 /wd4819)
     target_compile_definitions(Utawave PRIVATE NOMINMAX=1 _USE_MATH_DEFINES=1)
+    # Release でも PDB を生成する (クラッシュログの「モジュール名 + RVA」を関数/行へオフライン
+    # 解決するため)。Utawave.pdb は配布 zip に入れず、リリースごとに手元へ保管する
+    # (手順は Docs/CRASH_REPORT_SETUP.md / RELEASE.md)。/OPT:REF /OPT:ICF は /DEBUG が
+    # 無効化するリンカ最適化を Release 相当に戻す指定。
+    target_compile_options(Utawave PRIVATE $<$<CONFIG:Release>:/Zi>)
+    target_link_options(Utawave PRIVATE $<$<CONFIG:Release>:/DEBUG /OPT:REF /OPT:ICF>)
 endif()
 
 # ── Windows: ASIO SDK が置かれていれば自動的に ASIO サポートを有効化 ──
@@ -227,6 +233,9 @@ else()
         /wd4244 /wd4267 /wd4305 /wd4554 /wd4018 /wd4101 /wd4146 /wd4133 /wd4996
         /wd4819   # コードページ警告 (C4819) 抑制
         /utf-8    # ソースを UTF-8 として解釈
+        # 静的ライブラリは /Z7 (オブジェクト埋め込み) でデバッグ情報を持たせ、
+        # 本体リンク時の PDB に取り込む (クラッシュログの RVA 解決用)
+        $<$<CONFIG:Release>:/Z7>
     )
 endif()
 

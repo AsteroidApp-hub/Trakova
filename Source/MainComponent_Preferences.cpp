@@ -23,6 +23,7 @@ void MainComponent::showPreferences()
         std::function<void(int)>   onLanguageChanged;   // 1=日本語, 2=English
         juce::ToggleButton followSelBtn, retroBtn, rtzBtn, autoNormBtn, zoomMouseBtn, peakGuardBtn, zeroCrossBtn, stripMetaBtn;
         juce::ToggleButton showMidiExportBtn;   // 初期状態 / コールバックは showPreferences 側で設定 (アプリ全体設定)
+        juce::ToggleButton midiPagingBtn;       // MIDI ピアノロールの自動ページング (アプリ全体設定。初期状態は showPreferences 側)
         juce::ToggleButton showAdsBtn;          // 起動画面の広告表示 (アプリ全体設定。初期状態は showPreferences 側で設定)
         juce::ToggleButton recCompBtn;          // 録音レイテンシ自動補正 (アプリ全体設定。初期状態は showPreferences 側)
         juce::Label        recCompOffsetLabel;
@@ -48,6 +49,7 @@ void MainComponent::showPreferences()
         std::function<void(bool)>  onZeroCrossChanged;
         std::function<void(bool)>  onStripMetaChanged;
         std::function<void(bool)>  onShowMidiExportChanged;
+        std::function<void(bool)>  onMidiPagingChanged;
         std::function<void(bool)>  onShowAdsChanged;
         std::function<void(bool)>  onRecCompChanged;
         std::function<void(double)> onRecCompOffsetChanged;
@@ -148,6 +150,15 @@ void MainComponent::showPreferences()
                 if (onZeroCrossChanged) onZeroCrossChanged(zeroCrossBtn.getToggleState());
             };
             addAndMakeVisible(zeroCrossBtn);
+
+            // MIDI ピアノロールの自動ページング (アプリ全体設定。初期状態は showPreferences 側)
+            midiPagingBtn.setButtonText(
+                tr(u8"MIDI 編集の再生バーがビュー外へ出たら自動でページ送りする"));
+            midiPagingBtn.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
+            midiPagingBtn.onClick = [this] {
+                if (onMidiPagingChanged) onMidiPagingChanged(midiPagingBtn.getToggleState());
+            };
+            addAndMakeVisible(midiPagingBtn);
 
             // 録音フロー
             retroBtn.setButtonText(platformShortcutText(
@@ -379,7 +390,8 @@ void MainComponent::showPreferences()
             followSelBtn.setBounds(14, y, w - 28, 24); y += 28;
             rtzBtn.setBounds      (14, y, w - 28, 24); y += 28;
             zoomMouseBtn.setBounds(14, y, w - 28, 24); y += 28;
-            zeroCrossBtn.setBounds(14, y, w - 28, 24); y += 32;
+            zeroCrossBtn.setBounds(14, y, w - 28, 24); y += 28;
+            midiPagingBtn.setBounds(14, y, w - 28, 24); y += 32;
             recLabel.setBounds(14, y, w - 28, 22); y += 26;
             retroBtn.setBounds(14, y, w - 28, 24); y += 28;
             recCompBtn.setBounds(14, y, w - 28, 24); y += 26;
@@ -571,6 +583,14 @@ void MainComponent::showPreferences()
         appPrefs.save();
         menuItemsChanged();   // ファイルメニューを再構築 (項目の表示/非表示を即反映)
     };
+    // MIDI ピアノロールの自動ページング (アプリ全体設定)。即時保存し、開いている
+    // ピアノロールへ即反映する (次に開く窓は openPianoRollFor で反映される)。
+    dlg->midiPagingBtn.setToggleState(appPrefs.midiPagingEnabled, juce::dontSendNotification);
+    dlg->onMidiPagingChanged = [this](bool v) {
+        appPrefs.midiPagingEnabled = v;
+        appPrefs.save();
+        applyMidiPagingToOpenEditors();
+    };
     // 起動画面の広告表示 (アプリ全体設定)。広告がコンパイル時有効なビルドのみ。即時保存。反映は次回起動画面表示時
     if (AppPreferences::adsCompiledIn())
     {
@@ -632,13 +652,16 @@ void MainComponent::showPreferences()
         const AppPreferences defPrefs;
         appPrefs.showMidiExportMenu = defPrefs.showMidiExportMenu;
         appPrefs.showAds            = defPrefs.showAds;
+        appPrefs.midiPagingEnabled  = defPrefs.midiPagingEnabled;
         appPrefs.recLatencyAutoComp = defPrefs.recLatencyAutoComp;
         appPrefs.recLatencyManualMs = defPrefs.recLatencyManualMs;
         appPrefs.save();
         menuItemsChanged();
+        applyMidiPagingToOpenEditors();
         audioEngine.setRecordingLatencyComp(appPrefs.recLatencyAutoComp,
                                             appPrefs.recLatencyManualMs);
         dlg->showMidiExportBtn.setToggleState(appPrefs.showMidiExportMenu, juce::dontSendNotification);
+        dlg->midiPagingBtn.setToggleState(appPrefs.midiPagingEnabled, juce::dontSendNotification);
         if (AppPreferences::adsCompiledIn())
             dlg->showAdsBtn.setToggleState(appPrefs.showAds, juce::dontSendNotification);
         dlg->recCompBtn.setToggleState(appPrefs.recLatencyAutoComp, juce::dontSendNotification);

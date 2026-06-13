@@ -140,6 +140,35 @@ void MainComponent::pushTrackAddUndo(Track* t, bool newTransaction)
         }));
 }
 
+void MainComponent::pushTrackReorderUndo(std::vector<Track*> before, std::vector<Track*> after,
+                                         std::vector<Track*> selected)
+{
+    undoManager.beginNewTransaction();
+    undoManager.perform(new EditActions::TrackReorderAction(
+        trackManager, std::move(before), std::move(after),
+        /*onChange*/ [this, selected = std::move(selected)]
+        {
+            // undo / redo で順序が変わったときの UI 同期。reorderTo が onChanged
+            // (= refreshTracks) を発火しパネル/タイムラインは追従する。
+            trackHeaderPanel.refresh();
+            timelineView.refresh();
+            audioEngine.invalidatePlayback();
+            if (trackHeaderPanel.onTrackChanged) trackHeaderPanel.onTrackChanged();
+            // 移動したトラックを identity で選び直して選択状態を維持する。
+            // (順序が変わると index がずれるので Track* → 現在 index へ解決し直す。
+            //  Undo 非対応の削除で消えたトラックは indexOf<0 でスキップ = 安全)。
+            std::vector<int> idx;
+            for (auto* t : selected)
+            {
+                const int i = trackManager.indexOf(t);
+                if (i >= 0) idx.push_back(i);
+            }
+            selectedTrackIndex = idx.empty() ? -1 : idx.front();
+            trackHeaderPanel.setSelectedTracks(idx);
+            markProjectDirty();
+        }));
+}
+
 // ── PianoRollWindow 実装 ─────────────────────────────────────────────
 MainComponent::PianoRollWindow::PianoRollWindow(
     MidiClip& mc, Track& tr, double bpm,
@@ -157,6 +186,7 @@ MainComponent::PianoRollWindow::PianoRollWindow(
 {
     setUsingNativeTitleBar(true);
     setResizable(true, false);
+    setAlwaysOnTop(true);   // プラグインエディタと同様、閉じるまで常に最前面 (背面に隠れない)
     editor->setSize(900, 520);
     editor->onChanged     = std::move(onChangedCb);
     editor->onPreviewNote = std::move(onPreviewCb);
@@ -186,6 +216,14 @@ void MainComponent::propagatePlayheadToPianoRolls(double playheadSecs)
             // 全面 repaint は 60Hz 更新では無駄なので張らない。
             w->getEditor()->setPlayheadPosition(rel);
         }
+}
+
+void MainComponent::applyMidiPagingToOpenEditors()
+{
+    for (auto* w : pianoRollWindows)
+        if (w)
+            if (auto* ed = w->getEditor())
+                ed->setPagingEnabled(appPrefs.midiPagingEnabled);
 }
 
 void MainComponent::openPianoRollFor(MidiClip* clip, Track* track)
@@ -238,6 +276,8 @@ void MainComponent::openPianoRollFor(MidiClip* clip, Track* track)
     if (auto* ed = win->getEditor())
     {
         ed->setUndoManager(&undoManager);
+        // 自動ページング (再生バーがビュー外へ出たら次ページへ) をアプリ設定から反映
+        ed->setPagingEnabled(appPrefs.midiPagingEnabled);
         // undo/redo で MidiClip が書き換わったときに、現在開いている
         // (作成元と異なる可能性のある) Editor を見つけて再描画させる経路。
         ed->setExternalReloadCallback([this](MidiClip* changedClip)

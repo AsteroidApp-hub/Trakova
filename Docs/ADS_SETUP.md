@@ -41,12 +41,12 @@
 
 ```bash
 # 設定（広告 ON ＋ 取得先 URL を指定）
-cmake -S . -B build \
+cmake -S . -B build-mac \
       -DUTAWAVE_ADS_ENABLED=ON \
       -DUTAWAVE_AD_FEED_URL="https://example.com/ads/feed.json"
 
 # ビルド
-cmake --build build --target Utawave --config Release
+cmake --build build-mac --target Utawave --config Release
 ```
 
 configure 時に次のようなログが出れば有効化できています:
@@ -61,7 +61,7 @@ configure 時に次のようなログが出れば有効化できています:
 `build/` の CMake キャッシュにフラグが残るので、明示的にオフへ戻します:
 
 ```bash
-cmake -S . -B build -DUTAWAVE_ADS_ENABLED=OFF -DUTAWAVE_AD_FEED_URL=""
+cmake -S . -B build-mac -DUTAWAVE_ADS_ENABLED=OFF -DUTAWAVE_AD_FEED_URL=""
 ```
 
 ### 開発用: サンプル広告で見た目を確認する（サーバー不要）
@@ -73,13 +73,13 @@ cmake -S . -B build -DUTAWAVE_ADS_ENABLED=OFF -DUTAWAVE_AD_FEED_URL=""
 
 ```bash
 # 設定（デバッグサンプルモード）
-cmake -S . -B build -DUTAWAVE_ADS_DEBUG=ON
+cmake -S . -B build-mac -DUTAWAVE_ADS_DEBUG=ON
 
 # Debug でビルド
-cmake --build build --target Utawave --config Debug
+cmake --build build-mac --target Utawave --config Debug
 
 # 実行（macOS）
-open build/Utawave_artefacts/Debug/Utawave.app
+open build-mac/Utawave_artefacts/Debug/Utawave.app
 ```
 
 configure 時に次のログが出れば OK:
@@ -97,7 +97,7 @@ configure 時に次のログが出れば OK:
 - **本番ビルドにこのフラグを付けないこと**（サンプル広告が出てしまいます）。確認が終わったら
   上の「元に戻す」に加えて `-DUTAWAVE_ADS_DEBUG=OFF` を付けて再 configure してください:
   ```bash
-  cmake -S . -B build -DUTAWAVE_ADS_ENABLED=OFF -DUTAWAVE_ADS_DEBUG=OFF -DUTAWAVE_AD_FEED_URL=""
+  cmake -S . -B build-mac -DUTAWAVE_ADS_ENABLED=OFF -DUTAWAVE_ADS_DEBUG=OFF -DUTAWAVE_AD_FEED_URL=""
   ```
 
 > 実際のネットワーク取得（本番 JSON / 画像 DL / キャッシュ）を Debug で試したい場合は、
@@ -142,13 +142,13 @@ jobs:
 
       - name: Configure (ads ON)
         run: >
-          cmake -S . -B build
+          cmake -S . -B build-mac
           -DCMAKE_BUILD_TYPE=Release
           -DUTAWAVE_ADS_ENABLED=ON
           -DUTAWAVE_AD_FEED_URL="${{ vars.UTAWAVE_AD_FEED_URL }}"
 
       - name: Build
-        run: cmake --build build --target Utawave --config Release
+        run: cmake --build build-mac --target Utawave --config Release
 
       # 以降、署名・公証・アーティファクト化など既存のリリース手順を続ける
 ```

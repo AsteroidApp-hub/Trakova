@@ -39,7 +39,7 @@
 公式配布ビルドでは本番 URL を埋め込む:
 
 ```sh
-cmake -S . -B build \
+cmake -S . -B build-mac \
   -DUTAWAVE_VERSION_URL="https://<公式サイト>/version.json" \
   -DUTAWAVE_DOWNLOAD_PAGE_URL="https://<公式サイト>/download" \
   ...

@@ -35,6 +35,8 @@ public:
         testAudioFolderSignature();
         testExtractInsertIndexOf();
         testTrackAddAction();
+        testReorderTo();
+        testTrackReorderAction();
     }
 
     // ── 色サイクル: track i は paletteColour(i)、9 本目 (idx 8) は 1 本目と同色 ──
@@ -317,6 +319,84 @@ public:
         expect(action.undo(), "third undo succeeds");
         expect(action.perform(), "third redo succeeds");
         expect(action.perform() == false, "redo without a preceding undo is rejected");
+    }
+    // ── reorderTo: 任意順への並べ替え / 検証ガード (並べ替え Undo の土台) ──
+    void testReorderTo()
+    {
+        beginTest("reorderTo applies a permutation; rejects non-permutations");
+        juce::AudioFormatManager fmt; fmt.registerBasicFormats();
+        TrackManager tm(fmt);
+        auto* a = tm.addTrack("A", false);
+        auto* b = tm.addTrack("B", false);
+        auto* c = tm.addTrack("C", false);
+        auto* d = tm.addTrack("D", false);
+
+        int changeCount = 0;
+        tm.onChanged = [&] { ++changeCount; };
+
+        // 並べ替え: [a,b,c,d] → [d,b,a,c]
+        expect(tm.reorderTo({ d, b, a, c }), "reorderTo accepts a valid permutation");
+        expect(tm.getTrack(0) == d && tm.getTrack(1) == b
+            && tm.getTrack(2) == a && tm.getTrack(3) == c, "tracks are in the requested order");
+        expect(changeCount == 1, "reorderTo fires onChanged once");
+
+        // 恒等 (現在順そのまま) も成功する
+        expect(tm.reorderTo({ d, b, a, c }), "identity reorder succeeds");
+        expect(tm.getTrack(0) == d, "identity keeps order");
+
+        // ガード: 数違い → 何もしない (順序不変)
+        expect(tm.reorderTo({ d, b, a }) == false, "size mismatch is rejected");
+        expect(tm.getTrack(0) == d && tm.getTrackCount() == 4, "rejected reorder leaves tracks intact");
+
+        // ガード: 重複を含む (= permutation でない) → 拒否し順序不変
+        expect(tm.reorderTo({ d, d, a, c }) == false, "duplicate entry is rejected");
+        expect(tm.getTrack(1) == b, "rejected duplicate leaves order intact");
+
+        // ガード: 集合外のポインタを含む → 拒否 (削除済みトラック参照を模す)
+        TrackManager other(fmt);
+        auto* alien = other.addTrack("X", false);
+        expect(tm.reorderTo({ d, b, a, alien }) == false, "foreign pointer is rejected");
+        expect(tm.getTrack(3) == c, "rejected foreign reorder leaves order intact");
+    }
+
+    // ── TrackReorderAction: 並べ替えの Undo/Redo 往復 ──
+    void testTrackReorderAction()
+    {
+        beginTest("TrackReorderAction: undo restores before-order, redo restores after-order");
+        juce::AudioFormatManager fmt; fmt.registerBasicFormats();
+        TrackManager tm(fmt);
+        auto* a = tm.addTrack("A", false);
+        auto* b = tm.addTrack("B", false);
+        auto* c = tm.addTrack("C", false);
+
+        const std::vector<Track*> before { a, b, c };
+        // 並べ替え自体は呼び出し側が実施済みという前提 (b を末尾へ): [a,b,c] → [a,c,b]
+        tm.reorderTo({ a, c, b });
+        const std::vector<Track*> after { a, c, b };
+
+        int changeCount = 0;
+        EditActions::TrackReorderAction action(tm, before, after, [&] { ++changeCount; });
+
+        // 最初の perform は no-op (並べ替えは実施済み)
+        expect(action.perform(), "first perform succeeds (no-op)");
+        expect(tm.getTrack(1) == c && tm.getTrack(2) == b && changeCount == 0,
+               "first perform changes nothing");
+
+        // undo → before 順 [a,b,c]
+        expect(action.undo(), "undo succeeds");
+        expect(tm.getTrack(0) == a && tm.getTrack(1) == b && tm.getTrack(2) == c,
+               "undo restores the before-order");
+        expect(changeCount == 1, "onChange fired on undo");
+
+        // redo → after 順 [a,c,b]
+        expect(action.perform(), "redo succeeds");
+        expect(tm.getTrack(1) == c && tm.getTrack(2) == b,
+               "redo restores the after-order");
+        expect(changeCount == 2, "onChange fired on redo");
+
+        // トラックが消えていれば (Undo 非対応削除を模す) undo は安全に false
+        tm.removeTrack(tm.indexOf(c));
+        expect(action.undo() == false, "undo with a missing track is a safe no-op");
     }
 };
 

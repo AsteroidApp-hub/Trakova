@@ -2,9 +2,10 @@
 // Copyright (C) 2025-2026 Utawave
 
 // Utawave — クラッシュレポート (CrashReporter) のネットワーク非依存ロジックのテスト。
-// install() のハンドラ登録・sendAsync() の通信・offerPendingReports() のダイアログは
-// 対象外 (UI / ネットワーク経路)。pendingLogs / markHandled / buildReportJson /
-// crashLogFileName の純関数・ファイル操作を一時ディレクトリで検証する。
+// install() のハンドラ登録・sendAsync() の通信・offerPendingReports() のダイアログ・
+// Windows 専用のバックトレース/例外情報整形は対象外 (UI / ネットワーク / OS 依存経路)。
+// pendingLogs / markHandled / buildReportJson / crashLogFileName / exceptionCodeName の
+// 純関数・ファイル操作を一時ディレクトリで検証する。
 
 #include <JuceHeader.h>
 #include "../Source/Project/CrashReporter.h"
@@ -86,6 +87,20 @@ struct CrashReporterTests : public juce::UnitTest
                          juce::String("crash-20260101_000000.log"));
             expectEquals(obj->getProperty("log").toString(),
                          juce::String("line1\nline2 with \"quotes\" and \\backslash"));
+        }
+
+        beginTest("exceptionCodeName: known codes resolve, unknown is empty");
+        {
+            expectEquals(CrashReporter::exceptionCodeName(0xC0000005u),
+                         juce::String("EXCEPTION_ACCESS_VIOLATION"));
+            expectEquals(CrashReporter::exceptionCodeName(0xC00000FDu),
+                         juce::String("EXCEPTION_STACK_OVERFLOW"));
+            expectEquals(CrashReporter::exceptionCodeName(0xC0000374u),
+                         juce::String("STATUS_HEAP_CORRUPTION"));
+            expectEquals(CrashReporter::exceptionCodeName(0xE06D7363u),
+                         juce::String("C++ exception"));
+            expect(CrashReporter::exceptionCodeName(0x12345678u).isEmpty(), "unknown code empty");
+            expect(CrashReporter::exceptionCodeName(0u).isEmpty(), "zero code empty");
         }
 
         beginTest("reportingCompiledIn: default build has no endpoint");

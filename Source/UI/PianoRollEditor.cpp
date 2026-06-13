@@ -107,6 +107,29 @@ void PianoRollEditor::setPlayheadPosition(double secs)
 {
     const double prev = playheadSec;
     playheadSec = secs;
+
+    // 自動ページング: 再生バーがビュー右端を越えた (または左端より前へ戻った) ら、
+    // 次のページが見えるよう横スクロールを飛ばす。設定 ON のときだけ。
+    // (手動シーク = ルーラークリックはビュー内の位置なので発火しない)
+    if (pagingEnabled && secs >= 0.0 && getWidth() > keyboardW)
+    {
+        const int phX = timeToX(secs);
+        if (phX > getWidth() || phX < keyboardW)
+        {
+            // 再生バーをグリッド左端の少し右に置く (続き = 次ページの先頭が見える)
+            const int leftMargin = 24;
+            const int newScroll = juce::jmax(0,
+                (int) std::round(secs * pixelsPerSec) - leftMargin);
+            if (newScroll != scrollX)
+            {
+                scrollX = newScroll;
+                updateScrollBarRange();   // hScrollBar の現在位置も同期
+                repaint();
+                return;
+            }
+        }
+    }
+
     // 描画位置 (負値はクリップ左端にクランプ) の差分のみ repaint
     auto drawX = [this](double s) {
         return juce::jmax(keyboardW, timeToX(juce::jmax(0.0, s)));

@@ -7,6 +7,7 @@
 #include "../Recording/LiveRecordingBuffer.h"
 #include "../AppSettings.h"
 #include "../Tracks/AudioClip.h"
+#include "EnginePlayHead.h"
 
 class TrackManager;  // 前方宣言
 class Track;
@@ -396,6 +397,16 @@ private:
     std::atomic<bool>  playing         { false };
     std::atomic<double> currentPosition { 0.0 };
     std::atomic<float> masterGain      { 1.0f };
+
+    // ホストの再生位置情報をプラグインへ供給する (Melodyne 等の transport 同期用)。
+    // 全チェーン (トラック/MIDI/マスター) が共有し、ブロック先頭で 1 回更新する。
+    // audio thread からのみ触る (update / getPosition とも audio thread・逐次)。
+    // 書き出し (renderOfflineRange・別スレッド) はこれを使わずローカルインスタンスを使う。
+    EnginePlayHead playHead;
+    // ph に posSecs の位置情報を書き込む (cfg からテンポ/拍子を解決)。静的純関数的ヘルパ。
+    static void fillPlayHead(EnginePlayHead& ph, double posSecs, double sr,
+                             const AppSettings& cfg, bool isPlaying, bool isRecording,
+                             bool looping, double loopStartSec, double loopEndSec);
 
     // 簡易リバーブ送りバス (各トラックの reverbSend を合算し、ウェットだけマスターへ加算)
     juce::Reverb              masterReverbBus;

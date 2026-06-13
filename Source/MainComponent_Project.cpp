@@ -316,6 +316,8 @@ bool MainComponent::loadProjectFrom(const juce::File& f, bool isRecovery)
     trackHeaderPanel.refresh();
     timelineView.refresh();
     audioEngine.preparePlayback(trackManager);
+    // 読み込んだ CLICK トラックの状態をメトロノームへ反映 (無ければ停止)
+    syncClickTrackToEngine();
     statusBar.setTrackCount(trackManager.getTrackCount());
     // 読み込んだ insertSlotsVisible 状態に合わせてヘッダ幅を再計算
     resized();
@@ -346,8 +348,7 @@ bool MainComponent::loadProjectFrom(const juce::File& f, bool isRecovery)
     statusBar.setSampleRate((int) appSettings.projectSampleRate);
     statusBar.setBitDepth(appSettings.projectBitDepth);
     // AudioThumbnail の非同期ロード完了を待って波形を再描画。
-    // デコードが走った場合はロード完了時にディスクキャッシュへ保存する。
-    writeThumbCacheOnLoadComplete = true;
+    // デコードが走った場合は updateWaveformLoadingStatus() の完了時にディスクキャッシュへ保存する。
     scheduleWaveformRefresh();
 
     // 欠損ファイルがあれば警告ダイアログ (最大 10 件まで列挙)

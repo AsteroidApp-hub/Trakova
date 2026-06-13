@@ -92,14 +92,17 @@ MainComponent::MainComponent()
     trackHeaderPanel.onAddClickTrack       = [this] {
         if (auto* t = trackManager.addClickTrack())
         {
-            // 既存のメトロノーム設定を Click トラックに引き継ぐ
+            // 既存のメトロノーム音色/アクセントは引き継ぎ、音量は -7 dB を既定にする
+            // (生成直後から大きすぎないように。フェーダー (dB) で以後調整できる)。
             t->setClickSound(audioEngine.getMetronomeSound());
             t->setClickAccent(audioEngine.getMetronomeAccent());
-            t->setVolume(juce::Decibels::gainToDecibels(
-                juce::jmax(0.0001f, audioEngine.getMetronomeVolume() * 2.0f)));
+            t->setVolume(-7.0f);
             t->setPan(audioEngine.getMetronomePan());
             pushTrackAddUndo(t);
         }
+        // CLICK トラックを追加したら -7dB をエンジンへ反映し、追加直後から鳴る状態にする
+        // (CLICK ボタンの点灯も syncClickTrackToEngine 内で同期される)。
+        syncClickTrackToEngine();
         audioEngine.preparePlayback(trackManager);
         markProjectDirty();
     };
@@ -144,6 +147,12 @@ MainComponent::MainComponent()
     {
         duplicateTrack(trackIdx);
     };
+    // トラック並べ替えの Undo (並べ替え自体は performReorder が実施済み)
+    trackHeaderPanel.onTracksReordered = [this](std::vector<Track*> before, std::vector<Track*> after,
+                                                std::vector<Track*> moved)
+    {
+        pushTrackReorderUndo(std::move(before), std::move(after), std::move(moved));
+    };
     // テイクレーン ↑ ボタン: 範囲選択 or クリップ選択中のテイクを Lane 0 へ採用
     trackHeaderPanel.onLanePromoteRequest = [this](int trackIdx, int laneIdx)
     {
@@ -174,25 +183,8 @@ MainComponent::MainComponent()
         // INS スロット表示の切替に追従してレイアウトを更新
         resized();
 
-        // Click track の Vol/Pan/Mute/Sound/Accent をメトロノームへ同期
-        for (int i = 0; i < trackManager.getTrackCount(); ++i)
-        {
-            auto* t = trackManager.getTrack(i);
-            if (t->isClickTrack())
-            {
-                audioEngine.setMetronomeVolume(
-                    juce::Decibels::decibelsToGain(t->getVolume()) * 0.5f);
-                audioEngine.setMetronomePan(t->getPan());
-                audioEngine.setMetronomeEnabled(!t->isMuted());
-                audioEngine.setMetronomeSound(t->getClickSound());
-                audioEngine.setMetronomeAccent(t->isClickAccent());
-                float mul = (t->getClickRate() == 1) ? 0.5f
-                          : (t->getClickRate() == 2) ? 2.0f : 1.0f;
-                audioEngine.setMetronomeRateMul(mul);
-                toolbar.setMetronomeActive(!t->isMuted());
-                break;
-            }
-        }
+        // Click track の Vol/Pan/Mute/Sound/Accent をメトロノームへ同期 (無ければ停止)
+        syncClickTrackToEngine();
 
         trackHeaderPanel.resized();
         timelineView.refresh();
@@ -505,10 +497,21 @@ MainComponent::MainComponent()
 
                 addAndMakeVisible(volSlider);
                 volSlider.setSliderStyle(juce::Slider::LinearHorizontal);
-                volSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 50, 18);
-                volSlider.setRange(0.0, 1.0, 0.01);
-                volSlider.setValue(curVol);
-                volSlider.onValueChange = [this] { if (onVol) onVol((float)volSlider.getValue()); };
+                volSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 62, 18);
+                // 音量はトラックフェーダーと同じ dB 表記にする (0.22 のような線形値は分かりにくい)。
+                // 内部の線形ボリュームとの対応: トラック同期式 metronomeVolume = decibelsToGain(dB)*0.5 の
+                // 逆変換で表示 dB = gainToDecibels(metronomeVolume * 2) とし、フェーダーの dB と一致させる。
+                volSlider.setRange(-60.0, 6.0, 0.1);
+                volSlider.setNumDecimalPlacesToDisplay(1);
+                volSlider.setTextValueSuffix(" dB");
+                volSlider.setValue(juce::Decibels::gainToDecibels(
+                                       juce::jmax(1.0e-4f, curVol) * 2.0f, -60.0f),
+                                   juce::dontSendNotification);
+                volSlider.onValueChange = [this] {
+                    const float v = (float) juce::Decibels::decibelsToGain(
+                                        volSlider.getValue(), -60.0) * 0.5f;
+                    if (onVol) onVol(v);
+                };
 
                 addAndMakeVisible(panSlider);
                 panSlider.setSliderStyle(juce::Slider::LinearHorizontal);
@@ -536,6 +539,17 @@ MainComponent::MainComponent()
 
                 setSize(320, 180);
             }
+            // 外部 (CLICK トラックのフェーダー等) からの変更をダイアログ表示へ反映する。
+            // dontSendNotification なのでコールバックは発火せず無限ループにならない。
+            void pullValues(float volLinear, float pan, int sound, bool accent)
+            {
+                volSlider.setValue(juce::Decibels::gainToDecibels(
+                                       juce::jmax(1.0e-4f, volLinear) * 2.0f, -60.0f),
+                                   juce::dontSendNotification);
+                panSlider.setValue(pan, juce::dontSendNotification);
+                soundCombo.setSelectedId(sound + 1, juce::dontSendNotification);
+                accentBtn.setToggleState(accent, juce::dontSendNotification);
+            }
             void resized() override
             {
                 int y = 10;
@@ -556,10 +570,58 @@ MainComponent::MainComponent()
             audioEngine.getMetronomePan(),
             audioEngine.getMetronomeSound(),
             audioEngine.getMetronomeAccent());
-        dlg->onVol    = [this](float v) { audioEngine.setMetronomeVolume(v); };
-        dlg->onPan    = [this](float p) { audioEngine.setMetronomePan(p); };
-        dlg->onSound  = [this](int  s) { audioEngine.setMetronomeSound(s); };
-        dlg->onAccent = [this](bool b) { audioEngine.setMetronomeAccent(b); };
+
+        // CLICK トラックがあれば、ダイアログの変更はトラック側に書き戻して両者を一致させる
+        // (トラックのフェーダー (dB) / パン / 音色 / ACC の UI も追従する)。トラックが無い時は
+        // 従来どおりエンジンへ直接反映する (CLICK ボタンだけでメトロノームを使うケース)。
+        dlg->onVol    = [this](float v) {
+            if (auto* ct = trackManager.getClickTrack())
+            {
+                // 線形ボリューム v → トラックの dB (フェーダーと同じスケール: trackDb = gainToDecibels(v*2))
+                ct->setVolume(juce::Decibels::gainToDecibels(juce::jmax(1.0e-4f, v) * 2.0f, -60.0f));
+                syncClickTrackToEngine();      // エンジン + CLICK ボタン + ダイアログ pull (冪等)
+                trackHeaderPanel.refresh();    // フェーダー UI を追従
+                markProjectDirty();
+            }
+            else audioEngine.setMetronomeVolume(v);
+        };
+        dlg->onPan    = [this](float p) {
+            if (auto* ct = trackManager.getClickTrack())
+            {
+                ct->setPan(p);
+                syncClickTrackToEngine();
+                trackHeaderPanel.refresh();
+                markProjectDirty();
+            }
+            else audioEngine.setMetronomePan(p);
+        };
+        dlg->onSound  = [this](int  s) {
+            if (auto* ct = trackManager.getClickTrack())
+            {
+                ct->setClickSound(s);
+                syncClickTrackToEngine();
+                trackHeaderPanel.refresh();
+                markProjectDirty();
+            }
+            else audioEngine.setMetronomeSound(s);
+        };
+        dlg->onAccent = [this](bool b) {
+            if (auto* ct = trackManager.getClickTrack())
+            {
+                ct->setClickAccent(b);
+                syncClickTrackToEngine();
+                trackHeaderPanel.refresh();
+                markProjectDirty();
+            }
+            else audioEngine.setMetronomeAccent(b);
+        };
+
+        // CLICK トラックのフェーダー等 → ダイアログへの追従経路を登録 (閉じれば SafePointer が no-op 化)
+        metronomeDlgPull = [safe = juce::Component::SafePointer<MetronomeSettings>(dlg)]
+                           (float v, float p, int s, bool a)
+        {
+            if (auto* d = safe.getComponent()) d->pullValues(v, p, s, a);
+        };
 
         juce::DialogWindow::LaunchOptions opts;
         opts.content.setOwned(dlg);
@@ -1097,6 +1159,28 @@ void MainComponent::syncInputMonitorStateToEngine()
     audioEngine.setMonitorReverbSend(monRev);
 }
 
+void MainComponent::syncClickTrackToEngine()
+{
+    auto* t = trackManager.getClickTrack();
+    if (t == nullptr)
+        return;   // CLICK トラックが無いときは何もしない (CLICK ボタンでの独立トグルを尊重する)
+
+    const float volLinear = juce::Decibels::decibelsToGain(t->getVolume()) * 0.5f;
+    audioEngine.setMetronomeVolume(volLinear);
+    audioEngine.setMetronomePan(t->getPan());
+    audioEngine.setMetronomeEnabled(!t->isMuted());
+    audioEngine.setMetronomeSound(t->getClickSound());
+    audioEngine.setMetronomeAccent(t->isClickAccent());
+    const float mul = (t->getClickRate() == 1) ? 0.5f
+                    : (t->getClickRate() == 2) ? 2.0f : 1.0f;
+    audioEngine.setMetronomeRateMul(mul);
+    toolbar.setMetronomeActive(!t->isMuted());   // CLICK ボタンの点灯をトラック状態に同期
+
+    // 開いているメトロノーム設定ダイアログにも反映 (フェーダー → ダイアログの追従)
+    if (metronomeDlgPull)
+        metronomeDlgPull(volLinear, t->getPan(), t->getClickSound(), t->isClickAccent());
+}
+
 void MainComponent::addMidiTrack()
 {
     // 空の MIDI トラック (ハモリ / ガイドメロディの手打ち込み用)。
@@ -1485,16 +1569,18 @@ void MainComponent::updateWaveformLoadingStatus()
         {
             // ロード中 → 全完了に切り替わった瞬間だけ完了メッセージを出す
             statusBar.setMessage(tr(u8"波形の読み込みが完了しました"), 3000);
-            // プロジェクト読込で実際にデコードが走った場合は、その結果を
-            // ディスクキャッシュに保存しておく (次回読み込みが爆速になる)。
-            if (writeThumbCacheOnLoadComplete && currentProjectFile.existsAsFile())
+            // 波形デコードが走って全クリップのサムネイルが揃った瞬間に、その完全な
+            // キャッシュをディスクへ永続化する (次回読み込みが爆速になる)。
+            // force=true で音声署名スキップを無効化する: 既存 thumbnails.bin が
+            // 「デコード未完了のまま保存された空/部分キャッシュ」でも、署名が同じでも必ず
+            // 上書きする (空キャッシュが署名スキップで永久に残り毎回再デコードになる不具合の修正)。
+            // load / import / 録音 / undo いずれの完了でも、保存済みプロジェクトなら保存する。
+            if (currentProjectFile.existsAsFile())
                 trackManager.saveThumbnailCache(getProjectCacheFolder().getChildFile("thumbnails.bin"),
-                                                getProjectAudioFolder());
+                                                getProjectAudioFolder(), /*force=*/true);
         }
         // 完了 (即時キャッシュヒット / デコード後どちらでも) でフラグをクリア。
-        // → 録音停止など以降のロード完了で誤って書き込まないようにする。
         waveformWasLoading = false;
-        writeThumbCacheOnLoadComplete = false;
     }
 }
 
