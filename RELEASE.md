@@ -21,6 +21,42 @@
 zip のファイル名にはバージョン + アーキテクチャを含めます（例: `Utawave-0.1.0-macOS-arm64.zip` /
 `Utawave-0.1.0-Windows-x64.zip`）。
 
+## 0. リリースビルドに焼き込むフラグ（重要）
+
+公式配布ビルドは、**コンパイル時マクロ**でサーバー連携機能（クラッシュ送信・更新通知・広告）を
+有効化する。**configure 時に以下の `-D` を渡したビルドだけ**がこれらの機能を持つ。
+**CI / ローカルどちらでも同じ**で、渡さない＝公開ソース既定＝各機能オフになる。
+
+| フラグ | 用途 | 値 / 状態 |
+|---|---|---|
+| `-DUTAWAVE_CRASH_REPORT_URL=` | クラッシュレポート送信先 | **稼働中** → `https://crash.utawave.com/report` |
+| `-DUTAWAVE_VERSION_URL=` | アップデート通知の version JSON | `https://utawave.com/version.json`（utawave.com 稼働後に有効） |
+| `-DUTAWAVE_DOWNLOAD_PAGE_URL=` | 更新通知のダウンロードページ | `https://utawave.com/download.html`（同上） |
+| `-DUTAWAVE_ADS_ENABLED=ON -DUTAWAVE_AD_FEED_URL=` | 起動画面の広告枠 | 現状 OFF（使うときだけ設定） |
+
+> **CACHE 変数なので注意**: 一度フラグ無しで configure 済みのビルドディレクトリは値が空でキャッシュ
+> されており、**ただ再ビルドしても焼き込まれない**。**`-D` 付きの configure をもう一度実行**して
+> キャッシュを上書きすること（ディレクトリの作り直しは不要・一度入れれば以降の `--build` に残る）。
+
+> **CI（GitHub Actions）はリポジトリ変数から読む。** `release-build.yml` の cmake configure は
+> `-DUTAWAVE_CRASH_REPORT_URL="${{ vars.UTAWAVE_CRASH_REPORT_URL }}"` を渡す。**この repo の
+> Settings → Secrets and variables → Actions → Variables に `UTAWAVE_CRASH_REPORT_URL` =
+> `https://crash.utawave.com/report` を登録**しておくこと（未登録だと空＝送信オフのまま出荷される）。
+> `UTAWAVE_VERSION_URL` / `UTAWAVE_DOWNLOAD_PAGE_URL` / 広告系も有効化時は同様に変数化する。
+>
+> **fork 安全性**: リポジトリ変数は **fork に引き継がれない**ので、第三者が public ソースを
+> そのままビルドしても／fork で CI を回しても、クラッシュ URL は空＝**送信機能ごとオフ**になり、
+> 誤って公式エンドポイントへ届くことはない。ローカルの公式ビルドだけ、上の `-D` で URL を明示する。
+
+**焼き込めたかの確認**:
+
+1. configure ログに `-- Utawave: crash report URL = ...`（および設定した他フラグ）が出れば成功。
+2. アプリ側: ダミーの crash ログ（`Docs/CRASH_REPORT_SETUP.md` の動作確認）を置いて起動し、
+   同意ダイアログに**「送信する」が出ればオン**（出ない＝ローカル表示のみ＝オフ）。
+
+クラッシュレポートの受信基盤（Cloudflare Worker + D1）の詳細・調査クエリは、Worker プロジェクト
+`~/Dropbox/アプリ開発/utawave-crash-worker/SETUP.md` を参照。
+
 ## 1. バージョン更新
 
 `CMakeLists.txt` の `VERSION`（必要なら About 等）を更新してコミット・push する。
@@ -115,8 +151,12 @@ ASIO SDK は再配布制限のため CI に置けないので、ASIO 入り Wind
 （この成果物は**未署名**になる）。先に ASIO SDK を `Source/ThirdParty/asiosdk/` に配置する
 （CMake が自動検出して `JUCE_ASIO=1` を有効化）。
 
+**公式リリースとして配布するなら、「0. リリースビルドに焼き込むフラグ」も configure に付ける**
+（付けないとクラッシュ送信などがオフのまま）。クラッシュ URL は今すぐ有効:
+
 ```powershell
-cmake -S . -B build-win -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build-win -DCMAKE_BUILD_TYPE=Release `
+  -DUTAWAVE_CRASH_REPORT_URL="https://crash.utawave.com/report"
 cmake --build build-win --config Release
 
 $exe = Get-ChildItem -Path build-win -Recurse -Filter Utawave.exe | Select-Object -First 1

@@ -29,3 +29,6 @@
 
 # 公式サイト (別リポジトリ AsteroidApp-hub/Utawave-Site で管理)
 /Utawave-Site/
+
+# クラッシュレポート受信 Worker (独立プロジェクト)
+/utawave-crash-worker/
