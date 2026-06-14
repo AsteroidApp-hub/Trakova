@@ -463,10 +463,14 @@ private:
     void applyHorizontalZoomStep(double deltaY);  // deltaY > 0 で拡大
     void applyVerticalZoomStep(double deltaY);    // deltaY > 0 で拡大 (波形振幅)
     void resetVerticalZoom();                     // 波形振幅を既定値へリセット
+    void scrollByTracks(int steps);               // steps>0 = 下(後ろ) / <0 = 上(前)へ N トラック
 
     double pixelsPerBeat  { 80.0 };
     double scrollX        { 0.0 };
     int    scrollY        { 0 };
+    // 縦スクロールのトラックスナップ用: delta の大きさに依存せず「向き + 時間デバウンス」で 1 ノッチ=1 トラック
+    juce::uint32 lastWheelStepMs  { 0 };
+    int          lastWheelStepDir { 0 };
     double playheadSecs   { 0.0 };
     double bpm            { 120.0 };
     double sampleRate     { 44100.0 };

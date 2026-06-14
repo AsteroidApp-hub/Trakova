@@ -948,17 +948,49 @@ void TimelineView::nudgeSelectedClips(double seconds)
 }
 void TimelineView::applyHorizontalZoomStep(double deltaY)
 {
-    // Cmd+スクロールと同じロジック (再生バー中心)
+    // Cmd+スクロールと同じロジック (再生バー中心)。1 ステップ = 倍率一定 (×2 / ÷2) の指数ズーム
     const double bps      = bpm / 60.0;
     const double contentW = (double) getContentArea().getWidth();
-    const double step = juce::jmax(40.0, pixelsPerBeat * 0.25);
-    pixelsPerBeat = juce::jlimit(1.0, 200000.0, pixelsPerBeat + deltaY * step);
+    pixelsPerBeat = juce::jlimit(1.0, 200000.0, pixelsPerBeat * std::pow(2.0, deltaY));
     scrollX = juce::jmax(0.0, playheadSecs * bps * pixelsPerBeat - contentW * 0.5);
     ruler.setPlayheadX(playheadSecs * bps * pixelsPerBeat);
     ruler.setPixelsPerBeat(pixelsPerBeat);
     ruler.setScrollX(scrollX);
     hScrollBar.setCurrentRange(scrollX, hScrollBar.getCurrentRangeSize());
     resized();
+    repaint();
+}
+
+void TimelineView::scrollByTracks(int steps)
+{
+    // 縦スクロールを 1 トラック単位でスナップさせる。トラックは可変高さなので
+    // 固定ピクセルではなく境界 (getTrackY) を行き来する。
+    const int count = trackManager.getTrackCount();
+    if (count <= 0 || steps == 0) return;
+
+    int top = trackManager.trackAtY(scrollY);
+    if (top < 0) top = count - 1;
+    const int curTop  = trackManager.getTrackY(top);
+    const bool partial = scrollY > curTop;   // トラック途中まで隠れている
+
+    int idx;
+    if (steps > 0)                            // 下 (後ろのトラックへ)
+        idx = top + steps;
+    else                                      // 上 (前のトラックへ): 途中ならまず現在トラック頭へ
+        idx = (partial ? top + 1 : top) + steps;
+    idx = juce::jlimit(0, count - 1, idx);
+
+    int target = trackManager.getTrackY(idx);
+
+    // 末尾は空白に入り込みすぎないようビューポート分でクランプ
+    const int viewportH = getContentArea().getHeight();
+    const int maxScroll = juce::jmax(0, trackManager.getTotalHeight() - viewportH);
+    target = juce::jlimit(0, maxScroll, target);
+
+    if (target == scrollY) return;
+    scrollY = target;
+    vScrollBar.setCurrentRange(scrollY, vScrollBar.getCurrentRangeSize());
+    if (onVerticalScroll) onVerticalScroll(scrollY);
     repaint();
 }
 

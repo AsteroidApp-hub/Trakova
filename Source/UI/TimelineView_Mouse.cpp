@@ -1474,7 +1474,8 @@ void TimelineView::mouseWheelMove(const juce::MouseEvent& e,
     else if (e.mods.isCommandDown())
     {
         // ズーム範囲: 1 px/beat（極端な縮小=全体ビュー）〜 200000 px/beat（サンプル単位）。
-        // 高ズーム域では加速度的に拡大できるよう、現在値に比例した刻みを採用
+        // レンジが 5 桁以上あるため、加算式だと端から端まで何十回もスクロールが要る。
+        // 1 ノッチ = 倍率一定 (×2) の指数ズームにして、現在値に依らず素早く拡大縮小できるようにする
         const double bps      = bpm / 60.0;
         const double contentW = (double)getContentArea().getWidth();
 
@@ -1497,8 +1498,12 @@ void TimelineView::mouseWheelMove(const juce::MouseEvent& e,
             anchorX    = contentW * 0.5;  // 画面中央
         }
 
-        const double step = juce::jmax(40.0, pixelsPerBeat * 0.25);
-        pixelsPerBeat = juce::jlimit(1.0, 200000.0, pixelsPerBeat + w.deltaY * step);
+        // 1 ノッチ ≒ 2 倍 / 1/2 の指数ズーム。macOS のマウスホイールは 1 ノッチの
+        // deltaY が ~0.19 しかないため、ゲイン (≈ 1/0.19) を掛けて 2^(deltaY*gain) ≒ 2 にする。
+        // トラックパッド (細かい delta が多数) でも比例して滑らかに連続変化する
+        const double kWheelZoomGain = 5.3;
+        pixelsPerBeat = juce::jlimit(1.0, 200000.0,
+                                     pixelsPerBeat * std::pow(2.0, w.deltaY * kWheelZoomGain));
 
         // anchorTime が anchorX に来るよう scrollX を再計算
         scrollX = juce::jmax(0.0, anchorTime * bps * pixelsPerBeat - anchorX);
@@ -1519,11 +1524,22 @@ void TimelineView::mouseWheelMove(const juce::MouseEvent& e,
         ruler.setScrollX(scrollX);
         hScrollBar.setCurrentRange(scrollX, hScrollBar.getCurrentRangeSize());
     }
-    else
+    else if (std::abs(w.deltaY) > 1.0e-4)
     {
-        scrollY = juce::jmax(0, (int)(scrollY - w.deltaY * 60.0));
-        vScrollBar.setCurrentRange(scrollY, vScrollBar.getCurrentRangeSize());
-        if (onVerticalScroll) onVerticalScroll(scrollY);
+        // 縦スクロールは 1 ノッチ = 1 トラックのスナップスクロール。
+        // ホイールの 1 ノッチは大きさのバラつく複数イベントとして届くため、delta の
+        // 大きさには依存せず「向き + 時間デバウンス」で送る: 動きがあれば 1 トラック送り、
+        // 直後の短時間 (kBurstMs) は同方向の追加イベントを 1 ノッチ分としてまとめる。
+        // deltaY > 0 = 上 (前のトラックへ) / deltaY < 0 = 下 (後ろのトラックへ)
+        const int dir = (w.deltaY > 0.0) ? -1 : +1;
+        const juce::uint32 now = juce::Time::getMillisecondCounter();
+        const juce::uint32 kBurstMs = 80;
+        if (dir != lastWheelStepDir || now - lastWheelStepMs >= kBurstMs)
+        {
+            scrollByTracks(dir);
+            lastWheelStepDir = dir;
+            lastWheelStepMs  = now;
+        }
     }
     repaint();
 }
